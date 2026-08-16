@@ -7,6 +7,23 @@ type Storyboard = {
   caption: string;
 };
 
+type SpeechResultEvent = {
+  results: ArrayLike<ArrayLike<{ transcript: string }>>;
+};
+
+type SpeechRecognitionInstance = {
+  lang: string;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+  onresult: ((event: SpeechResultEvent) => void) | null;
+  start: () => void;
+};
+
+type SpeechRecognitionWindow = Window & {
+  SpeechRecognition?: new () => SpeechRecognitionInstance;
+  webkitSpeechRecognition?: new () => SpeechRecognitionInstance;
+};
+
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
 export function ProductionWizard() {
@@ -17,7 +34,36 @@ export function ProductionWizard() {
   const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
   const [isPlanning, setIsPlanning] = useState(false);
   const [planError, setPlanError] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceError, setVoiceError] = useState(false);
   const [renderStatus, setRenderStatus] = useState<"idle" | "submitting" | "ready" | "error">("idle");
+
+  function updateMemoryRequest(value: string) {
+    setMemoryRequest(value);
+    setStoryboard(null);
+    setApproved(false);
+    setPlanError(false);
+    setRenderStatus("idle");
+  }
+
+  function startVoiceRequest() {
+    const speechWindow = window as SpeechRecognitionWindow;
+    const SpeechRecognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setVoiceError(true);
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = navigator.language;
+    recognition.onresult = (event) => updateMemoryRequest(event.results[0][0].transcript);
+    recognition.onerror = () => setVoiceError(true);
+    recognition.onend = () => setIsListening(false);
+    setVoiceError(false);
+    setIsListening(true);
+    recognition.start();
+  }
 
   async function createPlan() {
     setIsPlanning(true);
@@ -88,15 +134,12 @@ export function ProductionWizard() {
           placeholder="For example: Make a cheerful travel video."
           rows={3}
           value={memoryRequest}
-          onChange={(event) => {
-            setMemoryRequest(event.target.value);
-            setStoryboard(null);
-            setApproved(false);
-            setPlanError(false);
-            setRenderStatus("idle");
-          }}
+          onChange={(event) => updateMemoryRequest(event.target.value)}
         />
       </label>
+      <button className="button button--secondary" onClick={startVoiceRequest} type="button">
+        {isListening ? "Listening…" : "Speak your request"}
+      </button>
 
       <label className="wizard__media" htmlFor="memory-media">
         <span>Choose photos and videos</span>
@@ -173,6 +216,7 @@ export function ProductionWizard() {
       </button>
       <p aria-live="polite" className="wizard__status">
         {planError && "We could not create your plan. Please try again."}
+        {voiceError && "Voice input is not available. You can type your request instead."}
         {renderStatus === "submitting" && "Preparing your approved video request…"}
         {renderStatus === "ready" && "Your approved video request is ready."}
         {renderStatus === "error" && "We could not prepare your video request. Please try again."}

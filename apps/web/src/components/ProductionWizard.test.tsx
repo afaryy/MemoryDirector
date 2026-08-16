@@ -12,6 +12,7 @@ describe("ProductionWizard", () => {
   it("keeps video creation disabled until the user approves a generated plan", () => {
     render(<ProductionWizard />);
 
+    expect(screen.getByRole("button", { name: "Speak your request" })).toBeVisible();
     const createButton = screen.getByRole("button", { name: "Make this video" });
     expect(createButton).toBeDisabled();
     expect(screen.getByRole("button", { name: "Approve plan" })).toBeDisabled();
