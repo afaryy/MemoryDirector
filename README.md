@@ -28,10 +28,13 @@ comma-separated, exact browser origins allowed to call the API.
 
 ## Repository documents
 
-- `docs/superpowers/specs/2026-08-16-memory-director-design.md` — product architecture and submission evidence.
-- `docs/superpowers/plans/2026-08-16-memory-director-mvp.md` — implementation sequence.
-- `docs/prompts/memory-director-prompts.md` — versioned English production prompts.
-- `docs/research/agentic-cinema-link-archive.md` — challenge links and compliance notes.
+- [About the product](docs/ABOUT.md)
+- [Project brief](docs/PROJECT_BRIEF.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [English prompting pack](docs/prompts/memory-director-prompts.md)
+- [Hackathon research and compliance links](docs/research/agentic-cinema-link-archive.md)
+
+Internal planning artifacts are kept separate from the public product-documentation path.
 
 ## Licence
 
