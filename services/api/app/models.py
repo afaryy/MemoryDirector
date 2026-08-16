@@ -31,3 +31,8 @@ class MediaDecision(BaseModel):
 
 class CurationPlan(BaseModel):
     items: list[MediaDecision]
+
+
+class Storyboard(BaseModel):
+    title: str
+    caption: str
