@@ -1,0 +1,9 @@
+{
+  "project_id": "staylong",
+  "resource_name": "memory-director-sandbox",
+  "state_bucket_name": "replace-with-a-globally-unique-state-bucket-name",
+  "github_repository": "afaryy/MemoryDirector",
+  "labels": {
+    "application": "memory-director"
+  }
+}

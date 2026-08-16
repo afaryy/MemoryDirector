@@ -1,0 +1,7 @@
+{
+  "environment": "sandbox",
+  "allow_destroy": true,
+  "labels": {
+    "environment": "sandbox"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "default_region": "australia-southeast1",
+  "labels": {
+    "managed_by": "terraform",
+    "project": "memory-director"
+  }
+}
