@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`bootstrap-state` creates the long-lived, private GCS backend used by all
+`bootstrap/state` creates the long-lived, private GCS backend used by all
 subsequent Memory Director Terraform roots. It is deliberately not a normal
 sandbox component and has no GitHub Actions destroy path.
 
@@ -11,7 +11,7 @@ The implementation has three Terraform layers:
 1. `infra/terraform/modules/base/gcs_state_bucket`: one hardened state bucket.
 2. `infra/terraform/modules/foundations/bootstrap_state`: enables Cloud Storage
    API and composes the base bucket module.
-3. `infra/terraform/projects/memory-director/sandbox/bootstrap-state`: the only
+3. `infra/terraform/bootstrap/state`: the only
    root that supplies Memory Director sandbox values.
 
 ## Initial local bootstrap
@@ -21,7 +21,7 @@ Application Default Credentials first; do not create a service-account key.
 
 ```bash
 gcloud auth application-default login
-cd infra/terraform/projects/memory-director/sandbox/bootstrap-state
+cd infra/terraform/bootstrap/state
 cp terraform.tfvars.example terraform.tfvars
 # Edit terraform.tfvars and choose a globally unique bucket name.
 terraform init -backend=false
@@ -76,9 +76,9 @@ requires an intentional, reviewed code change during break-glass retirement.
 ## Bootstrap GitHub identity
 
 After state migration, a human GCP administrator can initialize and apply
-`infra/terraform/projects/memory-director/sandbox/bootstrap-identity` with the
+`infra/terraform/bootstrap/identity` with the
 same backend bucket, using a `backend.hcl` whose prefix is
-`memory-director/sandbox/bootstrap-identity`.
+`memory-director/bootstrap/identity`.
 
 This root enables the IAM, IAM Credentials and Security Token Service APIs,
 creates the GitHub Actions workload identity pool and provider, and creates the

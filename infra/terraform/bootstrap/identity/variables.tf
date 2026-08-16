@@ -1,4 +1,5 @@
-variable "project_id" { type = string }
+variable "project_config" { type = string }
+variable "environment_config" { type = string }
 variable "project_roles" {
   type = set(string)
   default = [

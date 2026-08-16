@@ -1,2 +1,2 @@
 bucket = "replace-with-the-created-state-bucket-name"
-prefix = "memory-director/sandbox/bootstrap-state"
+prefix = "memory-director/bootstrap/state"
