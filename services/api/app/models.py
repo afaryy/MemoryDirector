@@ -36,3 +36,16 @@ class CurationPlan(BaseModel):
 class Storyboard(BaseModel):
     title: str
     caption: str
+
+
+class MusicDirection(BaseModel):
+    name: str
+    description: str
+
+
+class ProductionProposal(BaseModel):
+    curation: CurationPlan
+    place_confirmation_required: bool
+    music_directions: list[MusicDirection]
+    storyboard: Storyboard
+    privacy_checks: list[str]
