@@ -14,11 +14,17 @@ Memory Director is a voice-led memory-film producer for older adults. It helps a
 ```bash
 cd services/api
 uv run pytest -v
+uv run uvicorn app.main:app --reload --port 8000
 
 cd ../../apps/web
 npm install
 npm run test -- --run
+npm run dev
 ```
+
+The web app calls `http://localhost:8000` by default. For a deployed web client, set
+`NEXT_PUBLIC_API_BASE_URL` in `apps/web` and set `WEB_ORIGINS` in `services/api` to the
+comma-separated, exact browser origins allowed to call the API.
 
 ## Repository documents
 

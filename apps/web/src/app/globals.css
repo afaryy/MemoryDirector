@@ -50,6 +50,13 @@ h3 { font-size: 1.15rem; margin-bottom: 0.35rem; }
 .wizard__request { display: grid; gap: 0.7rem; margin: 2.5rem 0; font-size: 1.08rem; font-weight: 700; }
 .wizard__request textarea { width: 100%; min-height: 9rem; padding: 1rem; border: 1px solid #101010; border-radius: 0; resize: vertical; }
 .wizard__request textarea:focus { outline: 3px solid #e4002b; outline-offset: 2px; }
+.wizard__media { display: grid; gap: 0.7rem; margin: 0 0 0.65rem; font-size: 1.08rem; font-weight: 700; }
+.wizard__media input { min-height: 3.25rem; padding: 0.7rem; border: 1px solid #101010; }
+.wizard__media-count { margin-bottom: 1.5rem; }
+.wizard__consent { display: flex; align-items: flex-start; gap: 0.75rem; margin: 1.25rem 0; font-size: 1rem; line-height: 1.35; }
+.wizard__consent input { width: 1.4rem; height: 1.4rem; margin: 0; accent-color: #e4002b; }
+.wizard__plan { margin: 2.5rem 0; padding: 1.5rem 0; border-top: 1px solid #101010; border-bottom: 1px solid #101010; }
+.wizard__plan .wizard__step { margin-bottom: 0.7rem; }
 
 .wizard__approval { display: flex; justify-content: space-between; gap: 1.5rem; align-items: flex-start; padding: 1.5rem 0; border-top: 1px solid #101010; border-bottom: 1px solid #101010; }
 .wizard__approval p:last-child { margin-bottom: 0; }
