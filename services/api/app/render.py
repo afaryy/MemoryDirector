@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
+import subprocess
 from typing import Protocol
 
 from app.models import Storyboard
@@ -27,6 +28,13 @@ class RenderArtifact:
 
 class RenderExecutor(Protocol):
     def run(self, command: list[str]) -> None: ...
+
+
+class SubprocessRenderExecutor:
+    """Run the pinned ffmpeg commands used by the deterministic renderer."""
+
+    def run(self, command: list[str]) -> None:
+        subprocess.run(command, check=True, capture_output=True, text=True, timeout=120)
 
 
 def create_render_request(storyboard: Storyboard, approved: bool) -> RenderRequest:
