@@ -2,7 +2,7 @@
 
 Memory Director is a voice-led memory-film producer for older adults. It helps a user turn a consented travel or family album into a 45–60 second vertical video, cover image, title, and caption for manual sharing.
 
-## Hackathon constraints
+## Product safeguards
 
 - Google Cloud AI is the only AI provider used by the product.
 - The ClickHouse track requires a runtime query through the official `mcp-clickhouse` server.
@@ -35,7 +35,6 @@ comma-separated, exact browser origins allowed to call the API.
 - [Demo media rights register](docs/demo/MEDIA_RIGHTS_REGISTER.md)
 - [Three-minute demo runbook](docs/demo/DEMO_RUNBOOK.md)
 - [English prompting pack](docs/prompts/memory-director-prompts.md)
-- [Hackathon research and compliance links](docs/research/agentic-cinema-link-archive.md)
 - [Terraform bootstrap and state lifecycle](docs/operations/TERRAFORM_BOOTSTRAP.md)
 
 Internal planning artifacts are kept separate from the public product-documentation path.
