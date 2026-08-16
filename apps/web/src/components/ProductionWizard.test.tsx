@@ -15,6 +15,7 @@ describe("ProductionWizard", () => {
     const createButton = screen.getByRole("button", { name: "Make this video" });
     expect(createButton).toBeDisabled();
     expect(screen.getByRole("button", { name: "Approve plan" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create a plan" })).toBeDisabled();
   });
 
   it("submits an approved render request and confirms it to the user", async () => {
@@ -31,6 +32,12 @@ describe("ProductionWizard", () => {
     fireEvent.change(screen.getByLabelText("What would you like to make?"), {
       target: { value: "Make a cheerful travel video." },
     });
+    fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
+      target: {
+        files: [new File(["photo"], "beach.jpg", { type: "image/jpeg" })],
+      },
+    });
+    expect(screen.getByText("1 item selected from your device.")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Create a plan" }));
     expect(await screen.findByText("A Family Day by the Sea")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Approve plan" }));

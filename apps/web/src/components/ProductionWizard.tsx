@@ -12,6 +12,7 @@ const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:800
 export function ProductionWizard() {
   const [approved, setApproved] = useState(false);
   const [memoryRequest, setMemoryRequest] = useState("");
+  const [mediaFiles, setMediaFiles] = useState<File[]>([]);
   const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
   const [isPlanning, setIsPlanning] = useState(false);
   const [planError, setPlanError] = useState(false);
@@ -96,9 +97,31 @@ export function ProductionWizard() {
         />
       </label>
 
+      <label className="wizard__media" htmlFor="memory-media">
+        <span>Choose photos and videos</span>
+        <input
+          accept="image/*,video/*"
+          id="memory-media"
+          multiple
+          onChange={(event) => {
+            setMediaFiles(Array.from(event.target.files ?? []));
+            setStoryboard(null);
+            setApproved(false);
+            setPlanError(false);
+            setRenderStatus("idle");
+          }}
+          type="file"
+        />
+      </label>
+      {mediaFiles.length > 0 && (
+        <p className="wizard__media-count">
+          {mediaFiles.length} {mediaFiles.length === 1 ? "item" : "items"} selected from your device.
+        </p>
+      )}
+
       <button
         className="button button--secondary"
-        disabled={!memoryRequest.trim() || isPlanning}
+        disabled={!memoryRequest.trim() || mediaFiles.length === 0 || isPlanning}
         onClick={createPlan}
         type="button"
       >
