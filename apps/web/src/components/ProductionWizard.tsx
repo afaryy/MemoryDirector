@@ -79,7 +79,12 @@ export function ProductionWizard() {
       const response = await fetch(`${apiBaseUrl}/storyboards`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ occasion: memoryRequest, moods: ["warm", "cheerful"] }),
+        body: JSON.stringify({
+          occasion: memoryRequest,
+          moods: ["warm", "cheerful"],
+          media_count: mediaFiles.length,
+          media_consent: hasMediaPermission,
+        }),
       });
 
       if (!response.ok) {

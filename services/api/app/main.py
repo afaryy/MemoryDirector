@@ -1,9 +1,9 @@
 import os
-from typing import Annotated
+from typing import Literal
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.gemini_client import GeminiProductionPlanner, GoogleGenAiGateway
 from app.models import Storyboard
@@ -27,6 +27,8 @@ class RenderPayload(BaseModel):
 class StoryboardPayload(BaseModel):
     occasion: str
     moods: list[str]
+    media_count: int = Field(gt=0)
+    media_consent: Literal[True]
 
 
 def get_production_planner() -> GeminiProductionPlanner:
@@ -55,6 +57,5 @@ def request_render(payload: RenderPayload) -> RenderRequest:
 @app.post("/storyboards", response_model=Storyboard, status_code=status.HTTP_201_CREATED)
 def create_storyboard(
     payload: StoryboardPayload,
-    planner: Annotated[GeminiProductionPlanner, Depends(get_production_planner)],
 ) -> Storyboard:
-    return planner.plan(payload.occasion, payload.moods)
+    return get_production_planner().plan(payload.occasion, payload.moods)
