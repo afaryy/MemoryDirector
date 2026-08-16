@@ -2,23 +2,59 @@
 
 import { useState } from "react";
 
+type Storyboard = {
+  title: string;
+  caption: string;
+};
+
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+
 export function ProductionWizard() {
   const [approved, setApproved] = useState(false);
   const [memoryRequest, setMemoryRequest] = useState("");
+  const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
+  const [isPlanning, setIsPlanning] = useState(false);
+  const [planError, setPlanError] = useState(false);
   const [renderStatus, setRenderStatus] = useState<"idle" | "submitting" | "ready" | "error">("idle");
 
+  async function createPlan() {
+    setIsPlanning(true);
+    setPlanError(false);
+    setApproved(false);
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/storyboards`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ occasion: memoryRequest, moods: ["warm", "cheerful"] }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Storyboard request was not accepted.");
+      }
+
+      setStoryboard((await response.json()) as Storyboard);
+    } catch {
+      setStoryboard(null);
+      setPlanError(true);
+    } finally {
+      setIsPlanning(false);
+    }
+  }
+
   async function submitRenderRequest() {
+    if (!storyboard) {
+      return;
+    }
+
     setRenderStatus("submitting");
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"}/renders`, {
+      const response = await fetch(`${apiBaseUrl}/renders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          storyboard: {
-            title: "Your memory film",
-            caption: memoryRequest || "A memory worth sharing.",
-          },
+          storyboard,
           approved: true,
         }),
       });
@@ -52,19 +88,43 @@ export function ProductionWizard() {
           value={memoryRequest}
           onChange={(event) => {
             setMemoryRequest(event.target.value);
+            setStoryboard(null);
             setApproved(false);
+            setPlanError(false);
             setRenderStatus("idle");
           }}
         />
       </label>
 
+      <button
+        className="button button--secondary"
+        disabled={!memoryRequest.trim() || isPlanning}
+        onClick={createPlan}
+        type="button"
+      >
+        {isPlanning ? "Creating your plan…" : "Create a plan"}
+      </button>
+
+      {storyboard && (
+        <section aria-label="Generated plan" className="wizard__plan">
+          <p className="wizard__step">02 / YOUR PLAN</p>
+          <h3>{storyboard.title}</h3>
+          <p>{storyboard.caption}</p>
+        </section>
+      )}
+
       <section aria-label="Approval" className="wizard__approval">
         <div>
-          <p className="wizard__step">02 / REVIEW</p>
+          <p className="wizard__step">03 / REVIEW</p>
           <h3>Your plan stays in your control.</h3>
           <p>Nothing is exported until you approve the plan.</p>
         </div>
-        <button className="button button--secondary" onClick={() => setApproved(true)} type="button">
+        <button
+          className="button button--secondary"
+          disabled={!storyboard}
+          onClick={() => setApproved(true)}
+          type="button"
+        >
           Approve plan
         </button>
       </section>
@@ -78,6 +138,7 @@ export function ProductionWizard() {
         Make this video
       </button>
       <p aria-live="polite" className="wizard__status">
+        {planError && "We could not create your plan. Please try again."}
         {renderStatus === "submitting" && "Preparing your approved video request…"}
         {renderStatus === "ready" && "Your approved video request is ready."}
         {renderStatus === "error" && "We could not prepare your video request. Please try again."}

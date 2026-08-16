@@ -9,34 +9,43 @@ describe("ProductionWizard", () => {
     vi.unstubAllGlobals();
   });
 
-  it("keeps video creation disabled until the user approves the plan", () => {
+  it("keeps video creation disabled until the user approves a generated plan", () => {
     render(<ProductionWizard />);
 
     const createButton = screen.getByRole("button", { name: "Make this video" });
     expect(createButton).toBeDisabled();
-
-    fireEvent.click(screen.getByRole("button", { name: "Approve plan" }));
-
-    expect(createButton).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Approve plan" })).toBeDisabled();
   });
 
   it("submits an approved render request and confirms it to the user", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ title: "A Family Day by the Sea", caption: "Small moments, held close." }),
+      })
+      .mockResolvedValueOnce({ ok: true });
     vi.stubGlobal("fetch", fetchMock);
     render(<ProductionWizard />);
 
     fireEvent.change(screen.getByLabelText("What would you like to make?"), {
       target: { value: "Make a cheerful travel video." },
     });
+    fireEvent.click(screen.getByRole("button", { name: "Create a plan" }));
+    expect(await screen.findByText("A Family Day by the Sea")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Approve plan" }));
     fireEvent.click(screen.getByRole("button", { name: "Make this video" }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        "http://localhost:8000/renders",
+        "http://localhost:8000/storyboards",
         expect.objectContaining({ method: "POST" }),
       );
     });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8000/renders",
+      expect.objectContaining({ method: "POST" }),
+    );
     expect(await screen.findByText("Your approved video request is ready.")).toBeVisible();
   });
 });
