@@ -6,7 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from app.gemini_client import GeminiProductionPlanner, GoogleGenAiGateway
-from app.models import Storyboard
+from app.models import PlaceCandidate, ProductionBrief, ProductionProposal, Storyboard
+from app.production import ProductionOrchestrator
 from app.render import ApprovalRequired, RenderRequest, create_render_request
 
 app = FastAPI(title="Memory Director API")
@@ -29,6 +30,11 @@ class StoryboardPayload(BaseModel):
     moods: list[str]
     media_count: int = Field(gt=0)
     media_consent: Literal[True]
+
+
+class ProductionProposalPayload(BaseModel):
+    brief: ProductionBrief
+    places: list[PlaceCandidate]
 
 
 def get_production_planner() -> GeminiProductionPlanner:
@@ -59,3 +65,8 @@ def create_storyboard(
     payload: StoryboardPayload,
 ) -> Storyboard:
     return get_production_planner().plan(payload.occasion, payload.moods)
+
+
+@app.post("/production-proposals", response_model=ProductionProposal, status_code=status.HTTP_201_CREATED)
+def create_production_proposal(payload: ProductionProposalPayload) -> ProductionProposal:
+    return ProductionOrchestrator(get_production_planner()).produce(payload.brief, payload.places)
