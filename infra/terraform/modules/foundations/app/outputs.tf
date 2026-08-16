@@ -1,0 +1,6 @@
+output "api_uri" { value = try(module.api[0].uri, null) }
+output "web_uri" { value = try(module.web[0].uri, null) }
+output "runtime_service_account_email" { value = "memory-director-runtime@${var.project_id}.iam.gserviceaccount.com" }
+output "service" { value = var.service }
+output "api_image" { value = var.api_image }
+output "web_image" { value = var.web_image }

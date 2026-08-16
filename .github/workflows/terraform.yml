@@ -25,6 +25,21 @@ on:
         description: "Non-sensitive environment config path"
         required: true
         default: "infra/terraform/projects/config/sandbox.json"
+      api_image:
+        description: "Required for app plan/apply/destroy: immutable API image"
+        required: false
+      web_image:
+        description: "Required for app plan/apply/destroy: immutable web image"
+        required: false
+      service:
+        description: "App service state to operate"
+        required: false
+        type: choice
+        options: [api, web]
+        default: api
+      api_base_url:
+        description: "Required for web service when operating it independently"
+        required: false
       confirm:
         description: "Required only for destroy: DESTROY_SANDBOX"
         required: false
@@ -71,6 +86,11 @@ jobs:
       - run: terraform -chdir=infra/terraform/modules/foundations/sandbox_platform init -backend=false
       - run: terraform -chdir=infra/terraform/modules/foundations/sandbox_platform validate
       - run: terraform -chdir=infra/terraform/modules/foundations/sandbox_platform test
+      - run: terraform -chdir=infra/terraform/modules/foundations/app init -backend=false
+      - run: terraform -chdir=infra/terraform/modules/foundations/app validate
+      - run: terraform -chdir=infra/terraform/modules/foundations/app test
+      - run: terraform -chdir=infra/terraform/components/app init -backend=false
+      - run: terraform -chdir=infra/terraform/components/app validate
 
   terraform-operation:
     if: github.event_name == 'workflow_dispatch'
@@ -91,12 +111,20 @@ jobs:
           service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
       - uses: hashicorp/setup-terraform@v3
       - name: Initialize selected daily component
-        run: terraform -chdir=infra/terraform/components/${{ inputs.component }} init -backend-config="bucket=${{ vars.TERRAFORM_STATE_BUCKET }}" -backend-config="prefix=memory-director/sandbox/${{ inputs.component }}"
+        run: terraform -chdir=infra/terraform/components/${{ inputs.component }} init -backend-config="bucket=${{ vars.TERRAFORM_STATE_BUCKET }}" -backend-config="prefix=memory-director/sandbox/${{ inputs.component }}${{ inputs.component == 'app' && format('-{0}', inputs.service) || '' }}"
       - name: Run selected operation
         run: |
+          if [ "${{ inputs.component }}" = "app" ]; then
+            if [ "${{ inputs.operation }}" != "validate" ]; then
+              test -n "${{ inputs.api_image }}" && test -n "${{ inputs.web_image }}"
+            fi
+            image_args="-var=api_image=${{ inputs.api_image }} -var=web_image=${{ inputs.web_image }} -var=service=${{ inputs.service }} -var=api_base_url=${{ inputs.api_base_url }}"
+          else
+            image_args=""
+          fi
           case "${{ inputs.operation }}" in
             validate) terraform -chdir=infra/terraform/components/${{ inputs.component }} validate ;;
-            plan) terraform -chdir=infra/terraform/components/${{ inputs.component }} plan -var="project_config=${{ inputs.project_config }}" -var="environment_config=${{ inputs.environment_config }}" ;;
-            apply) terraform -chdir=infra/terraform/components/${{ inputs.component }} apply -auto-approve -var="project_config=${{ inputs.project_config }}" -var="environment_config=${{ inputs.environment_config }}" ;;
-            destroy) terraform -chdir=infra/terraform/components/${{ inputs.component }} destroy -auto-approve -var="project_config=${{ inputs.project_config }}" -var="environment_config=${{ inputs.environment_config }}" ;;
+            plan) terraform -chdir=infra/terraform/components/${{ inputs.component }} plan -var="project_config=${{ inputs.project_config }}" -var="environment_config=${{ inputs.environment_config }}" $image_args ;;
+            apply) terraform -chdir=infra/terraform/components/${{ inputs.component }} apply -auto-approve -var="project_config=${{ inputs.project_config }}" -var="environment_config=${{ inputs.environment_config }}" $image_args ;;
+            destroy) terraform -chdir=infra/terraform/components/${{ inputs.component }} destroy -auto-approve -var="project_config=${{ inputs.project_config }}" -var="environment_config=${{ inputs.environment_config }}" $image_args ;;
           esac
