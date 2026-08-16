@@ -1,0 +1,131 @@
+name: Deploy application
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      component:
+        description: "Application service to build and deploy"
+        required: true
+        type: choice
+        options: [api, web, all]
+        default: all
+
+concurrency:
+  group: deploy-sandbox
+  cancel-in-progress: false
+
+env:
+  PROJECT_CONFIG: infra/terraform/projects/config/memory-director.json
+  ENVIRONMENT_CONFIG: infra/terraform/projects/config/sandbox.json
+  STATE_PREFIX: memory-director/sandbox
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: sandbox
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - id: config
+        name: Read non-sensitive deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          project_id="$(jq -r '.project_id' "$PROJECT_CONFIG")"
+          resource_name="$(jq -r '.resource_name' "$PROJECT_CONFIG")"
+          region="$(jq -r '.region // empty' "$PROJECT_CONFIG")"
+          if [ -z "$region" ]; then
+            region="$(jq -r '.default_region' infra/terraform/projects/config/common-environment.json)"
+          fi
+          {
+            echo "project_id=$project_id"
+            echo "resource_name=$resource_name"
+            echo "region=$region"
+            echo "registry=$region-docker.pkg.dev/$project_id/$resource_name"
+            echo "component=${{ github.event.inputs.component || 'all' }}"
+            echo "sha=${{ github.event.workflow_run.head_sha || github.sha }}"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker "${{ steps.config.outputs.region }}-docker.pkg.dev" --quiet
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build and push API image
+        if: steps.config.outputs.component == 'api' || steps.config.outputs.component == 'all'
+        uses: docker/build-push-action@v6
+        with:
+          context: services/api
+          push: true
+          tags: ${{ steps.config.outputs.registry }}/api:${{ steps.config.outputs.sha }}
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Apply API service
+        if: steps.config.outputs.component == 'api' || steps.config.outputs.component == 'all'
+        shell: bash
+        run: |
+          set -euo pipefail
+          terraform -chdir=infra/terraform/components/app init \
+            -backend-config="bucket=${{ vars.TERRAFORM_STATE_BUCKET }}" \
+            -backend-config="prefix=$STATE_PREFIX/app-api"
+          terraform -chdir=infra/terraform/components/app apply -auto-approve \
+            -var="project_config=$PROJECT_CONFIG" \
+            -var="environment_config=$ENVIRONMENT_CONFIG" \
+            -var="service=api" \
+            -var="api_image=${{ steps.config.outputs.registry }}/api:${{ steps.config.outputs.sha }}" \
+            -var="web_image=unused"
+
+      - name: Resolve deployed API URL
+        if: steps.config.outputs.component == 'web' || steps.config.outputs.component == 'all'
+        id: api
+        shell: bash
+        run: |
+          set -euo pipefail
+          terraform -chdir=infra/terraform/components/app init \
+            -backend-config="bucket=${{ vars.TERRAFORM_STATE_BUCKET }}" \
+            -backend-config="prefix=$STATE_PREFIX/app-api" \
+            -reconfigure
+          api_uri="$(terraform -chdir=infra/terraform/components/app output -raw api_uri)"
+          test -n "$api_uri"
+          echo "uri=$api_uri" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push web image
+        if: steps.config.outputs.component == 'web' || steps.config.outputs.component == 'all'
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/web
+          push: true
+          build-args: NEXT_PUBLIC_API_BASE_URL=${{ steps.api.outputs.uri }}
+          tags: ${{ steps.config.outputs.registry }}/web:${{ steps.config.outputs.sha }}
+
+      - name: Apply web service
+        if: steps.config.outputs.component == 'web' || steps.config.outputs.component == 'all'
+        shell: bash
+        run: |
+          set -euo pipefail
+          terraform -chdir=infra/terraform/components/app init \
+            -backend-config="bucket=${{ vars.TERRAFORM_STATE_BUCKET }}" \
+            -backend-config="prefix=$STATE_PREFIX/app-web" \
+            -reconfigure
+          terraform -chdir=infra/terraform/components/app apply -auto-approve \
+            -var="project_config=$PROJECT_CONFIG" \
+            -var="environment_config=$ENVIRONMENT_CONFIG" \
+            -var="service=web" \
+            -var="api_image=unused" \
+            -var="web_image=${{ steps.config.outputs.registry }}/web:${{ steps.config.outputs.sha }}" \
+            -var="api_base_url=${{ steps.api.outputs.uri }}"
