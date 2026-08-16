@@ -1,0 +1,102 @@
+name: Terraform
+
+on:
+  pull_request:
+    paths:
+      - "infra/terraform/**"
+      - ".github/workflows/terraform.yml"
+  workflow_dispatch:
+    inputs:
+      component:
+        description: "Daily Terraform component"
+        required: true
+        type: choice
+        options: [platform, app]
+      operation:
+        description: "Safe operation"
+        required: true
+        type: choice
+        options: [validate, plan, apply, destroy]
+      project_config:
+        description: "Non-sensitive project config path"
+        required: true
+        default: "infra/terraform/projects/config/memory-director.json"
+      environment_config:
+        description: "Non-sensitive environment config path"
+        required: true
+        default: "infra/terraform/projects/config/sandbox.json"
+      confirm:
+        description: "Required only for destroy: DESTROY_SANDBOX"
+        required: false
+
+jobs:
+  config-schema:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: infra/terraform/tools/config-validator/package-lock.json
+      - run: npm ci --ignore-scripts
+        working-directory: infra/terraform/tools/config-validator
+      - run: npm run validate -- ../../projects/config/common-environment.json ../../projects/config/sandbox.json ../../projects/config/memory-director.json
+        working-directory: infra/terraform/tools/config-validator
+
+  security:
+    needs: config-schema
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: terraform-linters/setup-tflint@v4
+      - run: tflint --init
+        working-directory: infra/terraform/components/platform
+      - run: tflint --recursive
+        working-directory: infra/terraform
+      - uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: config
+          scan-ref: infra/terraform
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+
+  terraform-validate:
+    needs: [config-schema, security]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform fmt -check -recursive infra/terraform
+      - run: terraform -chdir=infra/terraform/modules/foundations/sandbox_platform init -backend=false
+      - run: terraform -chdir=infra/terraform/modules/foundations/sandbox_platform validate
+      - run: terraform -chdir=infra/terraform/modules/foundations/sandbox_platform test
+
+  terraform-operation:
+    if: github.event_name == 'workflow_dispatch'
+    needs: [config-schema, security, terraform-validate]
+    runs-on: ubuntu-latest
+    environment: sandbox
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require explicit sandbox destroy confirmation
+        if: inputs.operation == 'destroy'
+        run: test "${{ inputs.confirm }}" = "DESTROY_SANDBOX"
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
+      - uses: hashicorp/setup-terraform@v3
+      - name: Initialize selected daily component
+        run: terraform -chdir=infra/terraform/components/${{ inputs.component }} init -backend-config="bucket=${{ vars.TERRAFORM_STATE_BUCKET }}" -backend-config="prefix=memory-director/sandbox/${{ inputs.component }}"
+      - name: Run selected operation
+        run: |
+          case "${{ inputs.operation }}" in
+            validate) terraform -chdir=infra/terraform/components/${{ inputs.component }} validate ;;
+            plan) terraform -chdir=infra/terraform/components/${{ inputs.component }} plan -var="project_config=${{ inputs.project_config }}" -var="environment_config=${{ inputs.environment_config }}" ;;
+            apply) terraform -chdir=infra/terraform/components/${{ inputs.component }} apply -auto-approve -var="project_config=${{ inputs.project_config }}" -var="environment_config=${{ inputs.environment_config }}" ;;
+            destroy) terraform -chdir=infra/terraform/components/${{ inputs.component }} destroy -auto-approve -var="project_config=${{ inputs.project_config }}" -var="environment_config=${{ inputs.environment_config }}" ;;
+          esac
