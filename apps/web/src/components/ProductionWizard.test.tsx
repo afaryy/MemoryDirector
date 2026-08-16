@@ -38,6 +38,8 @@ describe("ProductionWizard", () => {
       },
     });
     expect(screen.getByText("1 item selected from your device.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Create a plan" })).toBeDisabled();
+    fireEvent.click(screen.getByLabelText("I have permission to use these media."));
     fireEvent.click(screen.getByRole("button", { name: "Create a plan" }));
     expect(await screen.findByText("A Family Day by the Sea")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Approve plan" }));

@@ -13,6 +13,7 @@ export function ProductionWizard() {
   const [approved, setApproved] = useState(false);
   const [memoryRequest, setMemoryRequest] = useState("");
   const [mediaFiles, setMediaFiles] = useState<File[]>([]);
+  const [hasMediaPermission, setHasMediaPermission] = useState(false);
   const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
   const [isPlanning, setIsPlanning] = useState(false);
   const [planError, setPlanError] = useState(false);
@@ -105,6 +106,7 @@ export function ProductionWizard() {
           multiple
           onChange={(event) => {
             setMediaFiles(Array.from(event.target.files ?? []));
+            setHasMediaPermission(false);
             setStoryboard(null);
             setApproved(false);
             setPlanError(false);
@@ -118,10 +120,19 @@ export function ProductionWizard() {
           {mediaFiles.length} {mediaFiles.length === 1 ? "item" : "items"} selected from your device.
         </p>
       )}
+      <label className="wizard__consent" htmlFor="media-permission">
+        <input
+          checked={hasMediaPermission}
+          id="media-permission"
+          onChange={(event) => setHasMediaPermission(event.target.checked)}
+          type="checkbox"
+        />
+        <span>I have permission to use these media.</span>
+      </label>
 
       <button
         className="button button--secondary"
-        disabled={!memoryRequest.trim() || mediaFiles.length === 0 || isPlanning}
+        disabled={!memoryRequest.trim() || mediaFiles.length === 0 || !hasMediaPermission || isPlanning}
         onClick={createPlan}
         type="button"
       >
