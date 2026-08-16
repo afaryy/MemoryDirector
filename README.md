@@ -31,6 +31,7 @@ comma-separated, exact browser origins allowed to call the API.
 - [About the product](docs/ABOUT.md)
 - [Project brief](docs/PROJECT_BRIEF.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [Mobile production flow](docs/ux/MOBILE_PRODUCTION_FLOW.md)
 - [Demo media rights register](docs/demo/MEDIA_RIGHTS_REGISTER.md)
 - [Three-minute demo runbook](docs/demo/DEMO_RUNBOOK.md)
 - [English prompting pack](docs/prompts/memory-director-prompts.md)
