@@ -19,6 +19,26 @@ describe("ProductionWizard", () => {
     expect(screen.getByRole("button", { name: "Create a plan" })).toBeDisabled();
   });
 
+  it("offers typing when the browser cannot start voice input", async () => {
+    class FailingRecognition {
+      lang = "";
+      onend: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      onresult: (() => void) | null = null;
+
+      start() {
+        throw new Error("Microphone permission denied");
+      }
+    }
+
+    vi.stubGlobal("SpeechRecognition", FailingRecognition);
+    render(<ProductionWizard />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Speak your request" }));
+
+    expect(await screen.findByText("Voice input is not available. You can type your request instead.")).toBeVisible();
+  });
+
   it("submits an approved render request and confirms it to the user", async () => {
     const fetchMock = vi
       .fn()

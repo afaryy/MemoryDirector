@@ -62,7 +62,12 @@ export function ProductionWizard() {
     recognition.onend = () => setIsListening(false);
     setVoiceError(false);
     setIsListening(true);
-    recognition.start();
+    try {
+      recognition.start();
+    } catch {
+      setIsListening(false);
+      setVoiceError(true);
+    }
   }
 
   async function createPlan() {
