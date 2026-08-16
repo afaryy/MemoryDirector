@@ -72,3 +72,21 @@ Do not run `terraform destroy` on this root. To retire the project completely:
 
 The state bucket has `prevent_destroy` enabled as a safety guard. Removing it
 requires an intentional, reviewed code change during break-glass retirement.
+
+## Bootstrap GitHub identity
+
+After state migration, a human GCP administrator can initialize and apply
+`infra/terraform/projects/memory-director/sandbox/bootstrap-identity` with the
+same backend bucket, using a `backend.hcl` whose prefix is
+`memory-director/sandbox/bootstrap-identity`.
+
+This root enables the IAM, IAM Credentials and Security Token Service APIs,
+creates the GitHub Actions workload identity pool and provider, and creates the
+`github-terraform-sandbox` service account. The provider accepts only tokens
+for `afaryy/MemoryDirector`, `refs/heads/main`, and the GitHub `sandbox`
+environment. It has no service-account key.
+
+The deployment identity receives explicit platform-provisioning roles rather
+than Editor or Owner. Review those roles before the first apply; later platform
+work can reduce or split them further. Do not add a GitHub workflow destroy
+operation for this identity root.
