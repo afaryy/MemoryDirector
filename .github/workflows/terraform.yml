@@ -110,8 +110,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          state_bucket="$(jq -r '.state_bucket_name // empty' "${{ inputs.project_config }}")"
+          project_config_file="$GITHUB_WORKSPACE/${{ inputs.project_config }}"
+          environment_config_file="$GITHUB_WORKSPACE/${{ inputs.environment_config }}"
+          test -f "$project_config_file"
+          test -f "$environment_config_file"
+          state_bucket="$(jq -r '.state_bucket_name // empty' "$project_config_file")"
           test -n "$state_bucket"
+          echo "project_config_file=$project_config_file" >> "$GITHUB_OUTPUT"
+          echo "environment_config_file=$environment_config_file" >> "$GITHUB_OUTPUT"
           echo "state_bucket=$state_bucket" >> "$GITHUB_OUTPUT"
       - uses: google-github-actions/auth@v2
         with:
@@ -132,7 +138,7 @@ jobs:
           fi
           case "${{ inputs.operation }}" in
             validate) terraform -chdir=infra/terraform/components/${{ inputs.component }} validate ;;
-            plan) terraform -chdir=infra/terraform/components/${{ inputs.component }} plan -var="project_config=${{ inputs.project_config }}" -var="environment_config=${{ inputs.environment_config }}" $image_args ;;
-            apply) terraform -chdir=infra/terraform/components/${{ inputs.component }} apply -auto-approve -var="project_config=${{ inputs.project_config }}" -var="environment_config=${{ inputs.environment_config }}" $image_args ;;
-            destroy) terraform -chdir=infra/terraform/components/${{ inputs.component }} destroy -auto-approve -var="project_config=${{ inputs.project_config }}" -var="environment_config=${{ inputs.environment_config }}" $image_args ;;
+            plan) terraform -chdir=infra/terraform/components/${{ inputs.component }} plan -var="project_config=${{ steps.config.outputs.project_config_file }}" -var="environment_config=${{ steps.config.outputs.environment_config_file }}" $image_args ;;
+            apply) terraform -chdir=infra/terraform/components/${{ inputs.component }} apply -auto-approve -var="project_config=${{ steps.config.outputs.project_config_file }}" -var="environment_config=${{ steps.config.outputs.environment_config_file }}" $image_args ;;
+            destroy) terraform -chdir=infra/terraform/components/${{ inputs.component }} destroy -auto-approve -var="project_config=${{ steps.config.outputs.project_config_file }}" -var="environment_config=${{ steps.config.outputs.environment_config_file }}" $image_args ;;
           esac
