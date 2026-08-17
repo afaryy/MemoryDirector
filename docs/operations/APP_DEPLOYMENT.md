@@ -24,11 +24,11 @@ after bootstrap has been applied:
 
 - `GCP_WORKLOAD_IDENTITY_PROVIDER`
 - `TERRAFORM_SERVICE_ACCOUNT`
-- `TERRAFORM_STATE_BUCKET`
 
-The workflow reads project ID, region, and Artifact Registry repository name
-from the checked-in non-sensitive JSON configuration. Secrets such as Gemini
-credentials remain in Secret Manager and are not image build arguments.
+The workflow reads the project ID, region, Artifact Registry repository name,
+and Terraform state bucket from the checked-in non-sensitive JSON
+configuration. Secrets such as Gemini credentials remain in Secret Manager
+and are not image build arguments.
 
 ## Safe manual operations
 
