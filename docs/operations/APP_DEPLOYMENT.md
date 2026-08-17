@@ -30,6 +30,11 @@ and Terraform state bucket from the checked-in non-sensitive JSON
 configuration. Secrets such as Gemini credentials remain in Secret Manager
 and are not image build arguments.
 
+The API uses Google Cloud Vertex AI with its Cloud Run service account by
+default. `GEMINI_API_KEY` is not required for the deployed path; it is only an
+optional local developer-API override. The Vertex model location defaults to
+`us-central1` and can be changed with `GEMINI_LOCATION`.
+
 ## Safe manual operations
 
 Use `terraform.yml` for validate, plan, apply, or destroy of `platform` or

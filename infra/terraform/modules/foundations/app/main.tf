@@ -12,7 +12,10 @@ module "api" {
   image                 = var.api_image
   service_account_email = "memory-director-runtime@${var.project_id}.iam.gserviceaccount.com"
   container_port        = 8000
-  environment_variables = { WEB_ORIGINS = "*" }
+  environment_variables = {
+    WEB_ORIGINS          = "*"
+    GOOGLE_CLOUD_PROJECT = var.project_id
+  }
 }
 
 module "web" {

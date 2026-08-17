@@ -21,8 +21,17 @@ class GoogleGenAiGateway:
     def __init__(self, api_key: str | None = None, model: str | None = None) -> None:
         from google import genai
 
-        resolved_api_key = api_key or os.environ["GEMINI_API_KEY"]
-        self._client = genai.Client(api_key=resolved_api_key)
+        resolved_api_key = api_key or os.environ.get("GEMINI_API_KEY")
+        if resolved_api_key:
+            self._client = genai.Client(api_key=resolved_api_key)
+        else:
+            project = os.environ.get("GOOGLE_CLOUD_PROJECT")
+            if not project:
+                raise KeyError("GOOGLE_CLOUD_PROJECT")
+            location = os.environ.get("GOOGLE_CLOUD_LOCATION") or os.environ.get(
+                "GEMINI_LOCATION", "us-central1"
+            )
+            self._client = genai.Client(vertexai=True, project=project, location=location)
         self._model = model or os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 
     def generate_json(self, prompt: str, schema: type[Storyboard]) -> Storyboard:
