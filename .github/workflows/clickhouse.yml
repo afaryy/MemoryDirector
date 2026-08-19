@@ -54,7 +54,7 @@ jobs:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
           token_format: id_token
-          audience: ${{ inputs.mcp_endpoint }}
+          id_token_audience: ${{ inputs.mcp_endpoint }}
           id_token_include_email: true
 
       - uses: actions/setup-python@v5
