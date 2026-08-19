@@ -29,13 +29,14 @@ locals {
 provider "google" { project = local.project.project_id }
 
 module "platform" {
-  source                = "../../modules/foundations/sandbox_platform"
-  project_id            = local.project.project_id
-  region                = local.region
-  resource_name         = local.project.resource_name
-  mcp_image             = try(local.project.mcp_image, "ghcr.io/clickhouse/mcp-clickhouse@sha256:f4d9f1502a14a98fd17f3ecf8654bd102ba5b1a5bde86e54a9579ed8871ef8d7")
-  enable_mcp            = var.enable_mcp
-  mcp_secret_project_id = local.mcp_secret_project
+  source                            = "../../modules/foundations/sandbox_platform"
+  project_id                        = local.project.project_id
+  region                            = local.region
+  resource_name                     = local.project.resource_name
+  mcp_image                         = try(local.project.mcp_image, "ghcr.io/clickhouse/mcp-clickhouse@sha256:f4d9f1502a14a98fd17f3ecf8654bd102ba5b1a5bde86e54a9579ed8871ef8d7")
+  enable_mcp                        = var.enable_mcp
+  mcp_secret_project_id             = local.mcp_secret_project
+  mcp_invoker_service_account_email = try(local.project.mcp_invoker_service_account_email, null)
 }
 
 output "configuration_summary" {
