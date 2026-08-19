@@ -20,12 +20,29 @@ run "creates_only_destroyable_sandbox_platform_resources" {
   }
 
   assert {
-    condition     = toset(output.secret_ids) == toset(["clickhouse-credentials", "gemini-runtime-config"])
-    error_message = "The platform may create only secret containers, never secret values."
+    condition     = toset(output.secret_ids) == toset(["clickhouse-credentials", "clickhouse-migration-credentials", "gemini-runtime-config"])
+    error_message = "The platform must create only the runtime and migration secret containers, never secret values."
   }
 
   assert {
     condition     = output.runtime_service_account_email == "memory-director-runtime@memory-director-sandbox.iam.gserviceaccount.com"
     error_message = "The platform must expose the no-key Cloud Run runtime identity."
+  }
+}
+
+run "plans_cross_project_mcp_secret_reference" {
+  command = plan
+
+  variables {
+    project_id            = "staylong"
+    region                = "australia-southeast1"
+    resource_name         = "memory-director-sandbox"
+    enable_mcp            = true
+    mcp_secret_project_id = "memory-director"
+  }
+
+  assert {
+    condition     = output.runtime_service_account_email == "memory-director-runtime@staylong.iam.gserviceaccount.com"
+    error_message = "Cross-project MCP secrets must still use the platform runtime identity."
   }
 }

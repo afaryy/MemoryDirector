@@ -8,7 +8,11 @@ locals {
     "aiplatform.googleapis.com", "artifactregistry.googleapis.com", "run.googleapis.com",
     "secretmanager.googleapis.com", "storage.googleapis.com",
   ])
-  secret_ids = toset(["clickhouse-credentials", "gemini-runtime-config"])
+  runtime_secret_ids   = toset(["clickhouse-credentials", "gemini-runtime-config"])
+  migration_secret_ids = toset(["clickhouse-migration-credentials"])
+  secret_ids           = setunion(local.runtime_secret_ids, local.migration_secret_ids)
+  mcp_secret_project   = coalesce(var.mcp_secret_project_id, var.project_id)
+  mcp_secret_ref       = local.mcp_secret_project == var.project_id ? "clickhouse-credentials" : "projects/${local.mcp_secret_project}/secrets/clickhouse-credentials"
 }
 
 resource "google_project_service" "platform" {
@@ -67,8 +71,60 @@ resource "google_storage_bucket_iam_member" "runtime_media" {
 }
 
 resource "google_secret_manager_secret_iam_member" "runtime_secrets" {
-  for_each  = module.secrets
+  for_each = {
+    for secret_id, secret in module.secrets : secret_id => secret
+    if contains(local.runtime_secret_ids, secret_id)
+  }
   secret_id = each.value.name
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${module.runtime.email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "mcp_cross_project" {
+  for_each = !var.enable_mcp || local.mcp_secret_project == var.project_id ? toset([]) : toset(["clickhouse-credentials"])
+
+  secret_id = "projects/${local.mcp_secret_project}/secrets/${each.value}"
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${module.runtime.email}"
+}
+
+module "mcp" {
+  count  = var.enable_mcp ? 1 : 0
+  source = "../../base/cloud_run_service"
+
+  project_id              = var.project_id
+  name                    = "${var.resource_name}-mcp"
+  region                  = var.region
+  image                   = var.mcp_image
+  service_account_email   = module.runtime.email
+  container_port          = 8000
+  allow_public_invocation = false
+  invoker_members         = ["serviceAccount:${module.runtime.email}"]
+
+  environment_variables = {
+    CLICKHOUSE_MCP_SERVER_TRANSPORT = "http"
+    CLICKHOUSE_MCP_BIND_HOST        = "0.0.0.0"
+    CLICKHOUSE_MCP_BIND_PORT        = "8000"
+    CLICKHOUSE_ALLOW_WRITE_ACCESS   = "false"
+    CLICKHOUSE_ALLOW_DROP           = "false"
+  }
+
+  secret_environment_variables = {
+    CLICKHOUSE_CREDENTIALS_JSON = {
+      secret  = local.mcp_secret_ref
+      version = "latest"
+    }
+  }
+
+  command = ["python"]
+  args = [
+    "-c",
+    "import json, os, runpy; config = json.loads(os.environ.pop('CLICKHOUSE_CREDENTIALS_JSON')); os.environ.update({key: value for key, value in config.items() if key.startswith('CLICKHOUSE_')}); runpy.run_module('mcp_clickhouse.main', run_name='__main__')",
+  ]
+
+  depends_on = [
+    module.secrets,
+    google_secret_manager_secret_iam_member.runtime_secrets,
+    google_secret_manager_secret_iam_member.mcp_cross_project,
+  ]
 }

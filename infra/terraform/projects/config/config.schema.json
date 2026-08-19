@@ -13,6 +13,8 @@
     "allow_destroy": { "type": "boolean" },
     "state_bucket_name": { "type": "string", "minLength": 3 },
     "github_repository": { "type": "string", "pattern": "^[^/]+/[^/]+$" },
+    "mcp_image": { "type": "string", "minLength": 1 },
+    "mcp_secret_project_id": { "type": "string", "minLength": 1 },
     "labels": { "type": "object", "additionalProperties": { "type": "string" } }
   }
 }
