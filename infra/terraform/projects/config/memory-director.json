@@ -3,6 +3,8 @@
   "resource_name": "memory-director-sandbox",
   "state_bucket_name": "staylong-memory-director-tfstate-186136682416",
   "github_repository": "afaryy/MemoryDirector",
+  "mcp_image": "ghcr.io/clickhouse/mcp-clickhouse:v0.4.1",
+  "mcp_secret_project_id": "memory-director",
   "labels": {
     "application": "memory-director"
   }

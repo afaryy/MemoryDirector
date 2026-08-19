@@ -18,7 +18,9 @@ resource "google_cloud_run_v2_service" "this" {
     }
 
     containers {
-      image = var.image
+      image   = var.image
+      command = var.command
+      args    = var.args
 
       ports {
         container_port = var.container_port
@@ -29,6 +31,19 @@ resource "google_cloud_run_v2_service" "this" {
         content {
           name  = env.key
           value = env.value
+        }
+      }
+
+      dynamic "env" {
+        for_each = var.secret_environment_variables
+        content {
+          name = env.key
+          value_source {
+            secret_key_ref {
+              secret  = env.value.secret
+              version = env.value.version
+            }
+          }
         }
       }
     }
@@ -42,4 +57,14 @@ resource "google_cloud_run_v2_service_iam_member" "invoker" {
   name     = google_cloud_run_v2_service.this.name
   role     = "roles/run.invoker"
   member   = "allUsers"
+}
+
+resource "google_cloud_run_v2_service_iam_member" "invoker_members" {
+  for_each = { for index, member in var.invoker_members : index => member }
+
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_service.this.name
+  role     = "roles/run.invoker"
+  member   = each.value
 }

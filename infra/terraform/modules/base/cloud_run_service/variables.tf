@@ -24,3 +24,26 @@ variable "environment_variables" {
   type    = map(string)
   default = {}
 }
+
+variable "secret_environment_variables" {
+  type = map(object({
+    secret  = string
+    version = optional(string, "latest")
+  }))
+  default = {}
+}
+
+variable "command" {
+  type    = list(string)
+  default = null
+}
+
+variable "args" {
+  type    = list(string)
+  default = null
+}
+
+variable "invoker_members" {
+  type    = list(string)
+  default = []
+}
