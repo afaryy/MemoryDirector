@@ -46,6 +46,17 @@ jobs:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
 
+      - id: mcp-identity
+        name: Mint Cloud Run identity token for MCP smoke
+        if: inputs.operation == 'smoke'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
+          token_format: id_token
+          audience: ${{ inputs.mcp_endpoint }}
+          id_token_include_email: true
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -136,6 +147,7 @@ jobs:
           SECRET_PROJECT_ID: ${{ inputs.secret_project_id }}
           RUNTIME_SECRET_NAME: ${{ inputs.runtime_secret_name }}
           MCP_ENDPOINT: ${{ inputs.mcp_endpoint }}
+          IDENTITY_TOKEN: ${{ steps.mcp-identity.outputs.id_token }}
         run: |
           set -euo pipefail
           test -n "$MCP_ENDPOINT"
@@ -153,8 +165,8 @@ jobs:
             --secret "$RUNTIME_SECRET_NAME" > "$runtime_file"
           mcp_token="$(jq -er '.CLICKHOUSE_MCP_AUTH_TOKEN' "$runtime_file")"
           echo "::add-mask::$mcp_token"
-          identity_token="$(gcloud auth print-identity-token --audiences="$base_endpoint")"
-          echo "::add-mask::$identity_token"
+          test -n "$IDENTITY_TOKEN"
+          identity_token="$IDENTITY_TOKEN"
 
           init_payload='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"memory-director-ci","version":"1"}}}'
           init_status="$(curl --fail-with-body --silent --show-error \
