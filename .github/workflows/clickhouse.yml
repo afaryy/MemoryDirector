@@ -169,20 +169,22 @@ jobs:
           identity_token="$IDENTITY_TOKEN"
 
           init_payload='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"memory-director-ci","version":"1"}}}'
-          init_status="$(curl --fail-with-body --silent --show-error \
+          init_status="$(curl --silent --show-error \
             --dump-header "$headers_file" --output "$init_file" --write-out '%{http_code}' \
             -H "Authorization: Bearer $mcp_token" \
             -H "X-Serverless-Authorization: Bearer $identity_token" \
             -H 'Content-Type: application/json' \
             -H 'Accept: application/json, text/event-stream' \
             --data "$init_payload" "$mcp_url")"
+          echo "MCP initialize HTTP status: $init_status"
+          echo "MCP initialize content type: $(awk 'tolower($1) == "content-type:" {print $2}' "$headers_file" | tr -d '\r' | tail -n 1)"
           test "$init_status" = "200"
           jq -e '.result.serverInfo.name? and (.error? | not)' "$init_file" >/dev/null
           session_id="$(awk 'tolower($1) == "mcp-session-id:" {print $2}' "$headers_file" | tr -d '\r' | tail -n 1)"
           test -n "$session_id"
 
           tools_payload='{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"run_query","arguments":{"query":"SELECT count() AS preference_rows FROM creative_preferences"}}}'
-          call_status="$(curl --fail-with-body --silent --show-error \
+          call_status="$(curl --silent --show-error \
             --output "$call_file" --write-out '%{http_code}' \
             -H "Authorization: Bearer $mcp_token" \
             -H "X-Serverless-Authorization: Bearer $identity_token" \
@@ -190,6 +192,7 @@ jobs:
             -H 'Content-Type: application/json' \
             -H 'Accept: application/json, text/event-stream' \
             --data "$tools_payload" "$mcp_url")"
+          echo "MCP run_query HTTP status: $call_status"
           test "$call_status" = "200"
           jq -e '(.error? | not) and (.result.content | length > 0)' "$call_file" >/dev/null
           echo "Authenticated MCP run_query smoke test passed."
