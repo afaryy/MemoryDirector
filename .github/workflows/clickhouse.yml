@@ -178,7 +178,10 @@ jobs:
             --data "$init_payload" "$mcp_url")"
           echo "MCP initialize HTTP status: $init_status"
           echo "MCP initialize content type: $(awk 'tolower($1) == "content-type:" {print $2}' "$headers_file" | tr -d '\r' | tail -n 1)"
-          test "$init_status" = "200"
+          if [[ "$init_status" != "200" ]]; then
+            echo "::error title=MCP initialize HTTP status::$init_status"
+            exit 1
+          fi
           jq -e '.result.serverInfo.name? and (.error? | not)' "$init_file" >/dev/null
           session_id="$(awk 'tolower($1) == "mcp-session-id:" {print $2}' "$headers_file" | tr -d '\r' | tail -n 1)"
           test -n "$session_id"
@@ -193,6 +196,9 @@ jobs:
             -H 'Accept: application/json, text/event-stream' \
             --data "$tools_payload" "$mcp_url")"
           echo "MCP run_query HTTP status: $call_status"
-          test "$call_status" = "200"
+          if [[ "$call_status" != "200" ]]; then
+            echo "::error title=MCP run_query HTTP status::$call_status"
+            exit 1
+          fi
           jq -e '(.error? | not) and (.result.content | length > 0)' "$call_file" >/dev/null
           echo "Authenticated MCP run_query smoke test passed."
