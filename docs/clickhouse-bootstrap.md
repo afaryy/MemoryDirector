@@ -28,7 +28,7 @@ Run services. Do not commit it or paste it into an issue or pull request.
 In GitHub Actions, run `ClickHouse` with:
 
 - `operation=bootstrap`
-- `secret_project_id=memory-director` (or the project that owns the secrets)
+- `secret_project_id=memory-director-505708` (or the project that owns the secrets)
 - `migration_secret_name=clickhouse-migration-credentials`
 - `runtime_secret_name=clickhouse-credentials`
 - `confirm=CLICKHOUSE_SANDBOX`
@@ -48,15 +48,15 @@ MCP bearer token.
 
 The current platform configuration targets the existing `staylong` GCP project
 for Cloud Run and its runtime service account, while
-`mcp_secret_project_id=memory-director` keeps the ClickHouse runtime secret in
-the user-provided `memory-director` project. Before enabling MCP, the GitHub
+`mcp_secret_project_id=memory-director-505708` keeps the ClickHouse runtime
+secret in the GCP project whose display name is `memory-director`. Before enabling MCP, the GitHub
 Actions deployer must be allowed to read/add versions in that project, and the
 platform apply must be allowed to grant the runtime identity cross-project
 Secret Manager access. The Cloud Run reference uses the full
-`projects/memory-director/secrets/clickhouse-credentials` resource name.
+`projects/memory-director-505708/secrets/clickhouse-credentials` resource name.
 
 The human administrator who bootstraps WIF must grant the Terraform deployer
-permission to manage these two secrets in `memory-director` (prefer a narrow
+permission to manage these two secrets in `memory-director-505708` (prefer a narrow
 custom role; `roles/secretmanager.secretAdmin` is the broad fallback). The
 workflow identity needs to read the migration secret and add a new runtime
 secret version. The platform apply grants the Cloud Run runtime service

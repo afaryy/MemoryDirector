@@ -12,7 +12,7 @@ on:
       secret_project_id:
         description: "GCP project containing the ClickHouse secrets"
         required: true
-        default: memory-director
+        default: memory-director-505708
       migration_secret_name:
         description: "Secret containing the temporary migration/admin connection JSON"
         required: true

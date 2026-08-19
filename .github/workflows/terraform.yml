@@ -47,7 +47,7 @@ on:
       secret_project_id:
         description: "GCP project containing the ClickHouse runtime secret"
         required: false
-        default: memory-director
+        default: memory-director-505708
       runtime_secret_name:
         description: "Secret whose latest version contains generated MCP credentials JSON"
         required: false
