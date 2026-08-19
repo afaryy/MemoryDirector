@@ -16,3 +16,8 @@ variable "mcp_secret_project_id" {
   type    = string
   default = null
 }
+
+variable "mcp_invoker_service_account_email" {
+  type    = string
+  default = null
+}

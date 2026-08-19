@@ -5,6 +5,7 @@
   "github_repository": "afaryy/MemoryDirector",
   "mcp_image": "ghcr.io/clickhouse/mcp-clickhouse@sha256:f4d9f1502a14a98fd17f3ecf8654bd102ba5b1a5bde86e54a9579ed8871ef8d7",
   "mcp_secret_project_id": "memory-director-505708",
+  "mcp_invoker_service_account_email": "github-terraform-sandbox@staylong.iam.gserviceaccount.com",
   "labels": {
     "application": "memory-director"
   }

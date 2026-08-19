@@ -99,7 +99,10 @@ module "mcp" {
   service_account_email   = module.runtime.email
   container_port          = 8000
   allow_public_invocation = false
-  invoker_members         = ["serviceAccount:${module.runtime.email}"]
+  invoker_members = concat(
+    ["serviceAccount:${module.runtime.email}"],
+    var.mcp_invoker_service_account_email == null ? [] : ["serviceAccount:${var.mcp_invoker_service_account_email}"],
+  )
 
   environment_variables = {
     CLICKHOUSE_MCP_SERVER_TRANSPORT = "http"
