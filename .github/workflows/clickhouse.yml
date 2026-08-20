@@ -175,7 +175,7 @@ jobs:
             -H "X-Serverless-Authorization: Bearer $identity_token" \
             -H 'Content-Type: application/json' \
             -H 'Accept: application/json, text/event-stream' \
-            --data "$init_payload" "$mcp_url")"
+            --data "$init_payload" "$mcp_url" || true)"
           echo "MCP initialize HTTP status: $init_status"
           echo "MCP initialize content type: $(awk 'tolower($1) == "content-type:" {print $2}' "$headers_file" | tr -d '\r' | tail -n 1)"
           if [[ "$init_status" != "200" ]]; then
@@ -194,7 +194,7 @@ jobs:
             -H "Mcp-Session-Id: $session_id" \
             -H 'Content-Type: application/json' \
             -H 'Accept: application/json, text/event-stream' \
-            --data "$tools_payload" "$mcp_url")"
+            --data "$tools_payload" "$mcp_url" || true)"
           echo "MCP run_query HTTP status: $call_status"
           if [[ "$call_status" != "200" ]]; then
             echo "::error title=MCP run_query HTTP status::$call_status"
