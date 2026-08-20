@@ -64,10 +64,25 @@ describe("ProductionWizard", () => {
       .fn()
       .mockResolvedValueOnce({
         ok: true,
+        json: async () => ({
+          media_id: "sha256:beach",
+          description: "a bright beach",
+          quality_score: 0.9,
+          privacy_flags: [],
+          orientation: "landscape",
+          duration_seconds: null,
+          decision_status: "unselected",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
         json: async () => ({ title: "A Family Day by the Sea", caption: "Small moments, held close." }),
       })
-      .mockResolvedValueOnce({ ok: true });
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: "selected" }) })
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: true, blob: async () => new Blob(["zip"]) });
     vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("URL", { createObjectURL: vi.fn(() => "blob:memory-director-export") });
     render(<ProductionWizard />);
 
     fireEvent.change(screen.getByLabelText("What would you like to make?"), {
@@ -83,7 +98,10 @@ describe("ProductionWizard", () => {
     fireEvent.click(screen.getByLabelText("I have permission to use these media."));
     fireEvent.click(screen.getByRole("button", { name: "Create a plan" }));
     expect(await screen.findByText("A Family Day by the Sea")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Keep this item" }));
+    expect(await screen.findByRole("button", { name: "Kept" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Approve plan" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Make this video" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Make this video" }));
 
     await waitFor(() => {
@@ -92,10 +110,258 @@ describe("ProductionWizard", () => {
         expect.objectContaining({ method: "POST" }),
       );
     });
-    expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:8000/renders",
-      expect.objectContaining({ method: "POST" }),
-    );
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://localhost:8000/renders",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
     expect(await screen.findByText("Your approved video request is ready.")).toBeVisible();
+  });
+
+  it("reviews privacy flags before exporting the selected media package", async () => {
+    const exportBlob = new Blob(["zip-bytes"], { type: "application/zip" });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          media_id: "sha256:photo",
+          description: "a family garden",
+          quality_score: 0.9,
+          privacy_flags: ["contains_face"],
+          orientation: "landscape",
+          duration_seconds: null,
+          decision_status: "unselected",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ title: "A Family Day", caption: "Small moments together." }),
+      })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: "selected" }) })
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: true, blob: async () => exportBlob });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("URL", { createObjectURL: vi.fn(() => "blob:memory-director-export") });
+    render(<ProductionWizard />);
+
+    fireEvent.change(screen.getByLabelText("What would you like to make?"), {
+      target: { value: "Make a cheerful family video." },
+    });
+    fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
+      target: { files: [new File(["photo"], "garden.jpg", { type: "image/jpeg" })] },
+    });
+    fireEvent.click(screen.getByLabelText("I have permission to use these media."));
+    fireEvent.click(screen.getByRole("button", { name: "Create a plan" }));
+
+    expect(await screen.findByText("a family garden")).toBeVisible();
+    expect(screen.getByText("Face visible")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Approve plan" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Keep this item" }));
+    expect(await screen.findByRole("button", { name: "Kept" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Approve plan" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Make this video" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Make this video" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://localhost:8000/renders/export",
+        expect.objectContaining({ method: "POST", body: expect.any(FormData) }),
+      );
+    });
+    expect(await screen.findByRole("link", { name: "Download your video package" })).toHaveAttribute(
+      "href",
+      "blob:memory-director-export",
+    );
+  });
+
+  it("revokes review and approval when media permission is withdrawn", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          media_id: "sha256:photo",
+          description: "a family garden",
+          quality_score: 0.9,
+          privacy_flags: [],
+          orientation: "landscape",
+          duration_seconds: null,
+          decision_status: "unselected",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ title: "A Family Day", caption: "Small moments together." }),
+      })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: "selected" }) });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ProductionWizard />);
+
+    fireEvent.change(screen.getByLabelText("What would you like to make?"), {
+      target: { value: "Make a family video." },
+    });
+    fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
+      target: { files: [new File(["photo"], "garden.jpg", { type: "image/jpeg" })] },
+    });
+    const permission = screen.getByLabelText("I have permission to use these media.");
+    fireEvent.click(permission);
+    fireEvent.click(screen.getByRole("button", { name: "Create a plan" }));
+    expect(await screen.findByText("a family garden")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Keep this item" }));
+    expect(await screen.findByRole("button", { name: "Kept" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Approve plan" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Make this video" })).toBeEnabled());
+
+    fireEvent.click(permission);
+
+    expect(screen.queryByText("a family garden")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve plan" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Make this video" })).toBeDisabled();
+  });
+
+  it("allows only one selected item for the singular export contract", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          media_id: "sha256:first",
+          description: "the first moment",
+          quality_score: 0.9,
+          privacy_flags: [],
+          orientation: "landscape",
+          duration_seconds: null,
+          decision_status: "unselected",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          media_id: "sha256:second",
+          description: "the second moment",
+          quality_score: 0.9,
+          privacy_flags: [],
+          orientation: "landscape",
+          duration_seconds: null,
+          decision_status: "unselected",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ title: "Two Moments", caption: "Together." }),
+      })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: "selected" }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: "held_back" }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: "held_back" }) });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ProductionWizard />);
+
+    fireEvent.change(screen.getByLabelText("What would you like to make?"), {
+      target: { value: "Make a family video." },
+    });
+    fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
+      target: {
+        files: [
+          new File(["first"], "first.jpg", { type: "image/jpeg" }),
+          new File(["second"], "second.jpg", { type: "image/jpeg" }),
+        ],
+      },
+    });
+    fireEvent.click(screen.getByLabelText("I have permission to use these media."));
+    fireEvent.click(screen.getByRole("button", { name: "Create a plan" }));
+    expect(await screen.findByText("the first moment")).toBeVisible();
+    expect(screen.getByText("the second moment")).toBeVisible();
+
+    const keepButtons = screen.getAllByRole("button", { name: "Keep this item" });
+    fireEvent.click(keepButtons[0]);
+    expect(await screen.findByRole("button", { name: "Kept" })).toBeEnabled();
+    expect(keepButtons[1]).toBeDisabled();
+    fireEvent.click(screen.getAllByRole("button", { name: "Hold this item back" })[1]);
+    expect(await screen.findByRole("button", { name: "Held back" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Approve plan" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Approve plan" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Make this video" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Hold this item back" }));
+    expect(await screen.findByRole("button", { name: "Held back" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Approve plan" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Make this video" })).toBeDisabled();
+  });
+
+  it("does not export when consent is withdrawn during rendering", async () => {
+    let resolveRender: ((response: { ok: boolean }) => void) | undefined;
+    const renderResponse = new Promise<{ ok: boolean }>((resolve) => {
+      resolveRender = resolve;
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          media_id: "sha256:photo",
+          description: "a family garden",
+          quality_score: 0.9,
+          privacy_flags: [],
+          orientation: "landscape",
+          duration_seconds: null,
+          decision_status: "unselected",
+        }),
+      })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ title: "A Family Day", caption: "Together." }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: "selected" }) })
+      .mockReturnValueOnce(renderResponse);
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ProductionWizard />);
+
+    fireEvent.change(screen.getByLabelText("What would you like to make?"), {
+      target: { value: "Make a family video." },
+    });
+    fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
+      target: { files: [new File(["photo"], "garden.jpg", { type: "image/jpeg" })] },
+    });
+    const permission = screen.getByLabelText("I have permission to use these media.");
+    fireEvent.click(permission);
+    fireEvent.click(screen.getByRole("button", { name: "Create a plan" }));
+    expect(await screen.findByText("a family garden")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Keep this item" }));
+    expect(await screen.findByRole("button", { name: "Kept" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Approve plan" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Make this video" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Make this video" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("http://localhost:8000/renders", expect.anything()));
+
+    fireEvent.click(permission);
+    resolveRender?.({ ok: true });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Make this video" })).toBeDisabled());
+    expect(fetchMock).not.toHaveBeenCalledWith("http://localhost:8000/renders/export", expect.anything());
+  });
+
+  it("locks other keep actions while a media decision is pending", async () => {
+    let resolveDecision: ((response: { ok: boolean; json: () => Promise<{ status: string }> }) => void) | undefined;
+    const decisionResponse = new Promise<{ ok: boolean; json: () => Promise<{ status: string }> }>((resolve) => {
+      resolveDecision = resolve;
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ media_id: "sha256:first", description: "first", privacy_flags: [], decision_status: "unselected" }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ media_id: "sha256:second", description: "second", privacy_flags: [], decision_status: "unselected" }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ title: "Two", caption: "Together." }) })
+      .mockReturnValueOnce(decisionResponse);
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ProductionWizard />);
+
+    fireEvent.change(screen.getByLabelText("What would you like to make?"), { target: { value: "Make a family video." } });
+    fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
+      target: { files: [new File(["first"], "first.jpg", { type: "image/jpeg" }), new File(["second"], "second.jpg", { type: "image/jpeg" })] },
+    });
+    fireEvent.click(screen.getByLabelText("I have permission to use these media."));
+    fireEvent.click(screen.getByRole("button", { name: "Create a plan" }));
+    expect(await screen.findByText("first")).toBeVisible();
+    const keepButtons = screen.getAllByRole("button", { name: "Keep this item" });
+    fireEvent.click(keepButtons[0]);
+    expect(keepButtons[1]).toBeDisabled();
+    resolveDecision?.({ ok: true, json: async () => ({ status: "selected" }) });
+    expect(await screen.findByRole("button", { name: "Kept" })).toBeEnabled();
   });
 });
