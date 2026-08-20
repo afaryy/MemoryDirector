@@ -13,10 +13,10 @@ module "api" {
   service_account_email = "memory-director-runtime@${var.project_id}.iam.gserviceaccount.com"
   container_port        = 8000
   environment_variables = {
-    WEB_ORIGINS          = "*"
-    GOOGLE_CLOUD_PROJECT = var.project_id
+    WEB_ORIGINS           = "*"
+    GOOGLE_CLOUD_PROJECT  = var.project_id
     GOOGLE_CLOUD_LOCATION = var.region
-    MEDIA_BUCKET         = "${var.name_prefix}-media"
+    MEDIA_BUCKET          = "${var.name_prefix}-media"
   }
 }
 
