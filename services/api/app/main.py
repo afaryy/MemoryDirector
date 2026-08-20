@@ -11,6 +11,15 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.gemini_client import GeminiProductionPlanner, GoogleGenAiGateway
+from app.media_analysis import (
+    MediaAnalysis,
+    MediaAnalysisError,
+    MediaDecisionRegistry,
+    MediaDecisionState,
+    VertexGeminiMediaAnalyzer,
+    media_id_for_bytes,
+)
+from app.media_storage import GcsMediaStorage, MediaStorage
 from app.models import PlaceCandidate, ProductionBrief, ProductionProposal, Storyboard
 from app.production import ProductionOrchestrator
 from app.render import (
@@ -48,7 +57,17 @@ class ProductionProposalPayload(BaseModel):
     places: list[PlaceCandidate]
 
 
+class MediaAnalysisResponse(MediaAnalysis):
+    decision_status: Literal["unselected", "selected", "held_back"]
+
+
+class MediaDecisionPayload(BaseModel):
+    status: Literal["selected", "held_back"]
+    reason: str = Field(min_length=1, max_length=500)
+
+
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+_media_decisions = MediaDecisionRegistry()
 
 
 def get_production_planner() -> GeminiProductionPlanner:
@@ -65,9 +84,65 @@ def get_renderer() -> DeterministicVerticalRenderer:
     return DeterministicVerticalRenderer(SubprocessRenderExecutor())
 
 
+def get_media_storage() -> MediaStorage:
+    try:
+        return GcsMediaStorage.from_environment()
+    except KeyError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Media storage is not configured.",
+        ) from error
+
+
+def get_media_analyzer() -> VertexGeminiMediaAnalyzer:
+    try:
+        return VertexGeminiMediaAnalyzer.from_environment()
+    except KeyError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Media analysis is not configured.",
+        ) from error
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.post("/media/analyze", response_model=MediaAnalysisResponse, status_code=status.HTTP_201_CREATED)
+async def analyze_media(
+    consent: bool = Form(...),
+    media: UploadFile = File(...),
+) -> MediaAnalysisResponse:
+    if not consent:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Explicit media consent is required.")
+    if not media.content_type or not (
+        media.content_type.startswith("video/") or media.content_type.startswith("image/")
+    ):
+        raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Upload a photo or video file.")
+
+    contents = await media.read(MAX_UPLOAD_BYTES + 1)
+    if len(contents) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail="Media upload is limited to 50 MB.")
+
+    media_id = media_id_for_bytes(contents)
+    try:
+        stored_media = get_media_storage().put(media_id, media.content_type, contents)
+        analysis = get_media_analyzer().analyze(stored_media)
+    except HTTPException:
+        raise
+    except Exception as error:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Media analysis is temporarily unavailable.") from error
+
+    decision = _media_decisions.register(analysis.media_id)
+    return MediaAnalysisResponse(**analysis.model_dump(), decision_status=decision.status)
+
+
+@app.post("/media/{media_id}/decision", response_model=MediaDecisionState, status_code=status.HTTP_200_OK)
+def decide_media(media_id: str, payload: MediaDecisionPayload) -> MediaDecisionState:
+    if _media_decisions.get(media_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media asset was not analyzed.")
+    return _media_decisions.set(media_id, payload.status, payload.reason)
 
 
 @app.post("/renders", response_model=RenderRequest, status_code=status.HTTP_201_CREATED)
@@ -93,7 +168,7 @@ async def export_render(
 
     contents = await media.read(MAX_UPLOAD_BYTES + 1)
     if len(contents) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Media upload is limited to 50 MB.")
+        raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail="Media upload is limited to 50 MB.")
 
     suffix = Path(media.filename or "upload.mp4").suffix.lower()
     if suffix not in {".mp4", ".mov", ".m4v", ".webm", ".jpg", ".jpeg", ".png"}:
