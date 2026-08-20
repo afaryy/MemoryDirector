@@ -104,6 +104,10 @@ def get_media_analyzer() -> VertexGeminiMediaAnalyzer:
         ) from error
 
 
+def _contains_private_uri(analysis: MediaAnalysis) -> bool:
+    return "gs://" in analysis.model_dump_json()
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -129,6 +133,8 @@ async def analyze_media(
     try:
         stored_media = get_media_storage().put(media_id, media.content_type, contents)
         analysis = get_media_analyzer().analyze(stored_media)
+        if _contains_private_uri(analysis):
+            raise MediaAnalysisError("unsafe provider output")
     except HTTPException:
         raise
     except Exception as error:

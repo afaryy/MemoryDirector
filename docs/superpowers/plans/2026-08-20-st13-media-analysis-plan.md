@@ -184,6 +184,7 @@
 **Files:**
 - Modify: docs/ARCHITECTURE.md
 - Modify: docs/operations/APP_DEPLOYMENT.md
+- Modify: infra/terraform/modules/foundations/app/main.tf
 - Create: services/api/tests/test_media_privacy.py
 
 **Interfaces:**
@@ -205,7 +206,7 @@
 
 - [ ] Step 3: Document runtime configuration.
 
-    Document MEDIA_BUCKET, GEMINI_MODEL, GOOGLE_CLOUD_PROJECT, and GOOGLE_CLOUD_LOCATION as non-secret Cloud Run settings. State that Terraform supplies private-bucket object access and Vertex AI access to the runtime service account, and bootstrap is not part of daily application deploy/destroy.
+    Document MEDIA_BUCKET, GEMINI_MODEL, GOOGLE_CLOUD_PROJECT, and GOOGLE_CLOUD_LOCATION as non-secret Cloud Run settings. Set MEDIA_BUCKET to the deterministic platform bucket (${var.name_prefix}-media) and GOOGLE_CLOUD_LOCATION to the configured region in infra/terraform/modules/foundations/app/main.tf. State that Terraform supplies private-bucket object access and Vertex AI access to the runtime service account, and bootstrap is not part of daily application deploy/destroy.
 
 - [ ] Step 4: Run privacy and full API tests.
 
@@ -262,4 +263,3 @@
 - [x] No task depends on bootstrap destroy or secrets in source control.
 - [x] Tests are written before each implementation slice and include the expected failing command.
 - [x] No TODO, TBD, or unspecified "handle errors" placeholders remain.
-

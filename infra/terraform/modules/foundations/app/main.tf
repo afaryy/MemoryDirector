@@ -15,6 +15,8 @@ module "api" {
   environment_variables = {
     WEB_ORIGINS          = "*"
     GOOGLE_CLOUD_PROJECT = var.project_id
+    GOOGLE_CLOUD_LOCATION = var.region
+    MEDIA_BUCKET         = "${var.name_prefix}-media"
   }
 }
 
