@@ -14,5 +14,6 @@ crash.log
 *.tfvars
 !*.tfvars.example
 backend.hcl
+infra/terraform/bootstrap/state/backend.gcs.tf
 dist/
 coverage/

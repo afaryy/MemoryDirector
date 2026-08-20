@@ -1,0 +1,208 @@
+name: ClickHouse
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "Run the idempotent schema/identity bootstrap or verify the runtime user"
+        required: true
+        type: choice
+        options: [bootstrap, verify, smoke]
+        default: bootstrap
+      secret_project_id:
+        description: "GCP project containing the ClickHouse secrets"
+        required: true
+        default: memory-director-505708
+      migration_secret_name:
+        description: "Secret containing the temporary migration/admin connection JSON"
+        required: true
+        default: clickhouse-migration-credentials
+      runtime_secret_name:
+        description: "Secret receiving the generated MCP runtime credentials JSON"
+        required: true
+        default: clickhouse-credentials
+      confirm:
+        description: "Type CLICKHOUSE_SANDBOX to enable a sandbox operation"
+        required: true
+      mcp_endpoint:
+        description: "Cloud Run MCP base URI; required for smoke (the workflow adds /mcp)"
+        required: false
+
+jobs:
+  clickhouse:
+    runs-on: ubuntu-latest
+    environment: sandbox
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require explicit confirmation
+        run: test "${{ inputs.confirm }}" = "CLICKHOUSE_SANDBOX"
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
+
+      - id: mcp-identity
+        name: Mint Cloud Run identity token for MCP smoke
+        if: inputs.operation == 'smoke'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
+          token_format: id_token
+          id_token_audience: ${{ inputs.mcp_endpoint }}
+          id_token_include_email: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ClickHouse client dependency
+        run: python -m pip install --disable-pip-version-check -r infra/clickhouse/requirements.txt
+
+      - name: Bootstrap schema, read-only identity, and runtime secret
+        if: inputs.operation == 'bootstrap'
+        shell: bash
+        env:
+          SECRET_PROJECT_ID: ${{ inputs.secret_project_id }}
+          MIGRATION_SECRET_NAME: ${{ inputs.migration_secret_name }}
+          RUNTIME_SECRET_NAME: ${{ inputs.runtime_secret_name }}
+        run: |
+          set -euo pipefail
+          migration_file="$(mktemp)"
+          trap 'rm -f "$migration_file"' EXIT
+          gcloud secrets versions access latest \
+            --project "$SECRET_PROJECT_ID" \
+            --secret "$MIGRATION_SECRET_NAME" > "$migration_file"
+
+          ch_host="$(jq -er '.CLICKHOUSE_HOST' "$migration_file")"
+          ch_port="$(jq -er '.CLICKHOUSE_PORT // "8443"' "$migration_file")"
+          ch_database="$(jq -er '.CLICKHOUSE_DATABASE // "memory_director"' "$migration_file")"
+          ch_admin_user="$(jq -er '.CLICKHOUSE_USER' "$migration_file")"
+          ch_admin_password="$(jq -er '.CLICKHOUSE_PASSWORD' "$migration_file")"
+          mcp_password="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          mcp_token="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+
+          for secret_value in "$ch_host" "$ch_admin_password" "$mcp_password" "$mcp_token"; do
+            echo "::add-mask::$secret_value"
+          done
+
+          CLICKHOUSE_HOST="$ch_host" \
+          CLICKHOUSE_PORT="$ch_port" \
+          CLICKHOUSE_DATABASE="$ch_database" \
+          CLICKHOUSE_ADMIN_USER="$ch_admin_user" \
+          CLICKHOUSE_ADMIN_PASSWORD="$ch_admin_password" \
+          CLICKHOUSE_MCP_USER="memory_director_mcp" \
+          CLICKHOUSE_MCP_PASSWORD="$mcp_password" \
+          python infra/clickhouse/bootstrap.py --mode bootstrap
+
+          runtime_json="$(jq -n \
+            --arg host "$ch_host" \
+            --arg port "$ch_port" \
+            --arg database "$ch_database" \
+            --arg user "memory_director_mcp" \
+            --arg password "$mcp_password" \
+            --arg token "$mcp_token" \
+            '{CLICKHOUSE_HOST:$host,CLICKHOUSE_PORT:$port,CLICKHOUSE_SECURE:"true",CLICKHOUSE_VERIFY:"true",CLICKHOUSE_DATABASE:$database,CLICKHOUSE_USER:$user,CLICKHOUSE_PASSWORD:$password,CLICKHOUSE_MCP_AUTH_TOKEN:$token}')"
+
+          printf '%s' "$runtime_json" | gcloud secrets versions add "$RUNTIME_SECRET_NAME" \
+            --project "$SECRET_PROJECT_ID" \
+            --data-file=-
+
+      - name: Verify runtime read-only query
+        if: inputs.operation == 'verify'
+        shell: bash
+        env:
+          SECRET_PROJECT_ID: ${{ inputs.secret_project_id }}
+          RUNTIME_SECRET_NAME: ${{ inputs.runtime_secret_name }}
+        run: |
+          set -euo pipefail
+          runtime_file="$(mktemp)"
+          trap 'rm -f "$runtime_file"' EXIT
+          gcloud secrets versions access latest \
+            --project "$SECRET_PROJECT_ID" \
+            --secret "$RUNTIME_SECRET_NAME" > "$runtime_file"
+          ch_host="$(jq -er '.CLICKHOUSE_HOST' "$runtime_file")"
+          ch_port="$(jq -er '.CLICKHOUSE_PORT // "8443"' "$runtime_file")"
+          ch_database="$(jq -er '.CLICKHOUSE_DATABASE' "$runtime_file")"
+          mcp_user="$(jq -er '.CLICKHOUSE_USER' "$runtime_file")"
+          mcp_password="$(jq -er '.CLICKHOUSE_PASSWORD' "$runtime_file")"
+          echo "::add-mask::$ch_host"
+          echo "::add-mask::$mcp_password"
+          CLICKHOUSE_HOST="$ch_host" \
+          CLICKHOUSE_PORT="$ch_port" \
+          CLICKHOUSE_DATABASE="$ch_database" \
+          CLICKHOUSE_MCP_USER="$mcp_user" \
+          CLICKHOUSE_MCP_PASSWORD="$mcp_password" \
+          python infra/clickhouse/bootstrap.py --mode verify
+
+      - name: Smoke test authenticated MCP run_query
+        if: inputs.operation == 'smoke'
+        shell: bash
+        env:
+          SECRET_PROJECT_ID: ${{ inputs.secret_project_id }}
+          RUNTIME_SECRET_NAME: ${{ inputs.runtime_secret_name }}
+          MCP_ENDPOINT: ${{ inputs.mcp_endpoint }}
+          IDENTITY_TOKEN: ${{ steps.mcp-identity.outputs.id_token }}
+        run: |
+          set -euo pipefail
+          test -n "$MCP_ENDPOINT"
+          base_endpoint="${MCP_ENDPOINT%/}"
+          mcp_url="$base_endpoint/mcp"
+          runtime_file="$(mktemp)"
+          headers_file="$(mktemp)"
+          init_file="$(mktemp)"
+          tools_file="$(mktemp)"
+          call_file="$(mktemp)"
+          trap 'rm -f "$runtime_file" "$headers_file" "$init_file" "$tools_file" "$call_file"' EXIT
+
+          gcloud secrets versions access latest \
+            --project "$SECRET_PROJECT_ID" \
+            --secret "$RUNTIME_SECRET_NAME" > "$runtime_file"
+          mcp_token="$(jq -er '.CLICKHOUSE_MCP_AUTH_TOKEN' "$runtime_file")"
+          echo "::add-mask::$mcp_token"
+          test -n "$IDENTITY_TOKEN"
+          identity_token="$IDENTITY_TOKEN"
+
+          init_payload='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"memory-director-ci","version":"1"}}}'
+          init_status="$(curl --silent --show-error \
+            --dump-header "$headers_file" --output "$init_file" --write-out '%{http_code}' \
+            -H "Authorization: Bearer $mcp_token" \
+            -H "X-Serverless-Authorization: Bearer $identity_token" \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json, text/event-stream' \
+            --data "$init_payload" "$mcp_url" || true)"
+          echo "MCP initialize HTTP status: $init_status"
+          echo "MCP initialize content type: $(awk 'tolower($1) == "content-type:" {print $2}' "$headers_file" | tr -d '\r' | tail -n 1)"
+          if [[ "$init_status" != "200" ]]; then
+            echo "::error title=MCP initialize HTTP status::$init_status"
+            exit 1
+          fi
+          if ! jq -e '.result.serverInfo.name? and (.error? | not)' "$init_file" >/dev/null; then
+            sed -n 's/^data: //p' "$init_file" | jq -e 'select(.result.serverInfo.name? and (.error? | not))' >/dev/null
+          fi
+          session_id="$(awk 'tolower($1) == "mcp-session-id:" {print $2}' "$headers_file" | tr -d '\r' | tail -n 1)"
+          test -n "$session_id"
+
+          tools_payload='{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"run_query","arguments":{"query":"SELECT count() AS preference_rows FROM creative_preferences"}}}'
+          call_status="$(curl --silent --show-error \
+            --output "$call_file" --write-out '%{http_code}' \
+            -H "Authorization: Bearer $mcp_token" \
+            -H "X-Serverless-Authorization: Bearer $identity_token" \
+            -H "Mcp-Session-Id: $session_id" \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json, text/event-stream' \
+            --data "$tools_payload" "$mcp_url" || true)"
+          echo "MCP run_query HTTP status: $call_status"
+          if [[ "$call_status" != "200" ]]; then
+            echo "::error title=MCP run_query HTTP status::$call_status"
+            exit 1
+          fi
+          if ! jq -e '(.error? | not) and (.result.content | length > 0)' "$call_file" >/dev/null; then
+            sed -n 's/^data: //p' "$call_file" | jq -e 'select((.error? | not) and (.result.content | length > 0))' >/dev/null
+          fi
+          echo "Authenticated MCP run_query smoke test passed."

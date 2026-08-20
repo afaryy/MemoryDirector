@@ -41,8 +41,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          project_config_file="$GITHUB_WORKSPACE/$PROJECT_CONFIG"
+          environment_config_file="$GITHUB_WORKSPACE/$ENVIRONMENT_CONFIG"
+          test -f "$project_config_file"
+          test -f "$environment_config_file"
           project_id="$(jq -r '.project_id' "$PROJECT_CONFIG")"
           resource_name="$(jq -r '.resource_name' "$PROJECT_CONFIG")"
+          state_bucket="$(jq -r '.state_bucket_name // empty' "$PROJECT_CONFIG")"
+          test -n "$state_bucket"
           region="$(jq -r '.region // empty' "$PROJECT_CONFIG")"
           if [ -z "$region" ]; then
             region="$(jq -r '.default_region' infra/terraform/projects/config/common-environment.json)"
@@ -50,6 +56,9 @@ jobs:
           {
             echo "project_id=$project_id"
             echo "resource_name=$resource_name"
+            echo "project_config_file=$project_config_file"
+            echo "environment_config_file=$environment_config_file"
+            echo "state_bucket=$state_bucket"
             echo "region=$region"
             echo "registry=$region-docker.pkg.dev/$project_id/$resource_name"
             echo "component=${{ github.event.inputs.component || 'all' }}"
@@ -81,11 +90,11 @@ jobs:
         run: |
           set -euo pipefail
           terraform -chdir=infra/terraform/components/app init \
-            -backend-config="bucket=${{ vars.TERRAFORM_STATE_BUCKET }}" \
+            -backend-config="bucket=${{ steps.config.outputs.state_bucket }}" \
             -backend-config="prefix=$STATE_PREFIX/app-api"
           terraform -chdir=infra/terraform/components/app apply -auto-approve \
-            -var="project_config=$PROJECT_CONFIG" \
-            -var="environment_config=$ENVIRONMENT_CONFIG" \
+            -var="project_config=${{ steps.config.outputs.project_config_file }}" \
+            -var="environment_config=${{ steps.config.outputs.environment_config_file }}" \
             -var="service=api" \
             -var="api_image=${{ steps.config.outputs.registry }}/api:${{ steps.config.outputs.sha }}" \
             -var="web_image=unused"
@@ -97,7 +106,7 @@ jobs:
         run: |
           set -euo pipefail
           terraform -chdir=infra/terraform/components/app init \
-            -backend-config="bucket=${{ vars.TERRAFORM_STATE_BUCKET }}" \
+            -backend-config="bucket=${{ steps.config.outputs.state_bucket }}" \
             -backend-config="prefix=$STATE_PREFIX/app-api" \
             -reconfigure
           api_uri="$(terraform -chdir=infra/terraform/components/app output -raw api_uri)"
@@ -119,12 +128,12 @@ jobs:
         run: |
           set -euo pipefail
           terraform -chdir=infra/terraform/components/app init \
-            -backend-config="bucket=${{ vars.TERRAFORM_STATE_BUCKET }}" \
+            -backend-config="bucket=${{ steps.config.outputs.state_bucket }}" \
             -backend-config="prefix=$STATE_PREFIX/app-web" \
             -reconfigure
           terraform -chdir=infra/terraform/components/app apply -auto-approve \
-            -var="project_config=$PROJECT_CONFIG" \
-            -var="environment_config=$ENVIRONMENT_CONFIG" \
+            -var="project_config=${{ steps.config.outputs.project_config_file }}" \
+            -var="environment_config=${{ steps.config.outputs.environment_config_file }}" \
             -var="service=web" \
             -var="api_image=unused" \
             -var="web_image=${{ steps.config.outputs.registry }}/web:${{ steps.config.outputs.sha }}" \

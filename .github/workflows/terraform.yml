@@ -4,7 +4,9 @@ on:
   pull_request:
     paths:
       - "infra/terraform/**"
+      - "infra/clickhouse/**"
       - ".github/workflows/terraform.yml"
+      - ".github/workflows/clickhouse.yml"
   workflow_dispatch:
     inputs:
       component:
@@ -37,6 +39,19 @@ on:
         type: choice
         options: [api, web]
         default: api
+      enable_mcp:
+        description: "Enable the private mcp-clickhouse Cloud Run service after bootstrap"
+        required: false
+        type: boolean
+        default: false
+      secret_project_id:
+        description: "GCP project containing the ClickHouse runtime secret"
+        required: false
+        default: memory-director-505708
+      runtime_secret_name:
+        description: "Secret whose latest version contains generated MCP credentials JSON"
+        required: false
+        default: clickhouse-credentials
       api_base_url:
         description: "Required for web service when operating it independently"
         required: false
@@ -105,13 +120,42 @@ jobs:
       - name: Require explicit sandbox destroy confirmation
         if: inputs.operation == 'destroy'
         run: test "${{ inputs.confirm }}" = "DESTROY_SANDBOX"
+      - id: config
+        name: Read Terraform backend configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          project_config_file="$GITHUB_WORKSPACE/${{ inputs.project_config }}"
+          environment_config_file="$GITHUB_WORKSPACE/${{ inputs.environment_config }}"
+          test -f "$project_config_file"
+          test -f "$environment_config_file"
+          state_bucket="$(jq -r '.state_bucket_name // empty' "$project_config_file")"
+          test -n "$state_bucket"
+          echo "project_config_file=$project_config_file" >> "$GITHUB_OUTPUT"
+          echo "environment_config_file=$environment_config_file" >> "$GITHUB_OUTPUT"
+          echo "state_bucket=$state_bucket" >> "$GITHUB_OUTPUT"
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
+      - name: Verify MCP runtime secret before enabling Cloud Run
+        if: inputs.component == 'platform' && inputs.enable_mcp == true && (inputs.operation == 'plan' || inputs.operation == 'apply')
+        env:
+          SECRET_PROJECT_ID: ${{ inputs.secret_project_id }}
+          RUNTIME_SECRET_NAME: ${{ inputs.runtime_secret_name }}
+        run: |
+          set -euo pipefail
+          gcloud secrets versions access latest \
+            --project "$SECRET_PROJECT_ID" \
+            --secret "$RUNTIME_SECRET_NAME" \
+            | jq -e '(.CLICKHOUSE_HOST | type == "string" and length > 0)
+              and (.CLICKHOUSE_USER | type == "string" and length > 0)
+              and (.CLICKHOUSE_PASSWORD | type == "string" and length > 0)
+              and (.CLICKHOUSE_MCP_AUTH_TOKEN | type == "string" and length > 0)' \
+            >/dev/null
       - uses: hashicorp/setup-terraform@v3
       - name: Initialize selected daily component
-        run: terraform -chdir=infra/terraform/components/${{ inputs.component }} init -backend-config="bucket=${{ vars.TERRAFORM_STATE_BUCKET }}" -backend-config="prefix=memory-director/sandbox/${{ inputs.component }}${{ inputs.component == 'app' && format('-{0}', inputs.service) || '' }}"
+        run: terraform -chdir=infra/terraform/components/${{ inputs.component }} init -backend-config="bucket=${{ steps.config.outputs.state_bucket }}" -backend-config="prefix=memory-director/sandbox/${{ inputs.component }}${{ inputs.component == 'app' && format('-{0}', inputs.service) || '' }}"
       - name: Run selected operation
         run: |
           if [ "${{ inputs.component }}" = "app" ]; then
@@ -120,11 +164,11 @@ jobs:
             fi
             image_args="-var=api_image=${{ inputs.api_image }} -var=web_image=${{ inputs.web_image }} -var=service=${{ inputs.service }} -var=api_base_url=${{ inputs.api_base_url }}"
           else
-            image_args=""
+            image_args="-var=enable_mcp=${{ inputs.enable_mcp }}"
           fi
           case "${{ inputs.operation }}" in
             validate) terraform -chdir=infra/terraform/components/${{ inputs.component }} validate ;;
-            plan) terraform -chdir=infra/terraform/components/${{ inputs.component }} plan -var="project_config=${{ inputs.project_config }}" -var="environment_config=${{ inputs.environment_config }}" $image_args ;;
-            apply) terraform -chdir=infra/terraform/components/${{ inputs.component }} apply -auto-approve -var="project_config=${{ inputs.project_config }}" -var="environment_config=${{ inputs.environment_config }}" $image_args ;;
-            destroy) terraform -chdir=infra/terraform/components/${{ inputs.component }} destroy -auto-approve -var="project_config=${{ inputs.project_config }}" -var="environment_config=${{ inputs.environment_config }}" $image_args ;;
+            plan) terraform -chdir=infra/terraform/components/${{ inputs.component }} plan -var="project_config=${{ steps.config.outputs.project_config_file }}" -var="environment_config=${{ steps.config.outputs.environment_config_file }}" $image_args ;;
+            apply) terraform -chdir=infra/terraform/components/${{ inputs.component }} apply -auto-approve -var="project_config=${{ steps.config.outputs.project_config_file }}" -var="environment_config=${{ steps.config.outputs.environment_config_file }}" $image_args ;;
+            destroy) terraform -chdir=infra/terraform/components/${{ inputs.component }} destroy -auto-approve -var="project_config=${{ steps.config.outputs.project_config_file }}" -var="environment_config=${{ steps.config.outputs.environment_config_file }}" $image_args ;;
           esac

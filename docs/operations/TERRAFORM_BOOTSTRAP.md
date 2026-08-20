@@ -24,33 +24,38 @@ gcloud auth application-default login
 cd infra/terraform/bootstrap/state
 cp terraform.tfvars.example terraform.tfvars
 # Edit terraform.tfvars and choose a globally unique bucket name.
-terraform init -backend=false
+terraform init
 terraform fmt -check -recursive
 terraform validate
 terraform plan
 terraform apply
 ```
 
-The first `init -backend=false` intentionally keeps state local because the
-remote bucket does not exist yet. The administrator needs permission to enable
+The state root intentionally has no backend block on the first apply, so
+Terraform uses its local backend because the remote bucket does not exist yet.
+The administrator needs permission to enable
 `storage.googleapis.com` and create/manage the state bucket in the selected
 project.
 
 ## Migrate bootstrap state to GCS
 
-After the initial apply succeeds, copy `backend.hcl.example` to `backend.hcl`,
-replace the bucket placeholder with the created bucket name, then migrate state:
+After the initial apply succeeds, copy both backend examples:
 
 ```bash
+cp backend.gcs.tf.example backend.gcs.tf
 cp backend.hcl.example backend.hcl
+```
+
+Replace the bucket placeholder with the created bucket name, then migrate state:
+
+```bash
 terraform init -migrate-state -backend-config=backend.hcl
 terraform state list
 ```
 
-`backend.hcl` is local operational configuration and must not contain secrets.
-It is excluded by `.gitignore` because it contains the installation-specific
-bucket name. All later Terraform roots receive their backend configuration from
-the same long-lived GCS bucket.
+`backend.hcl` and `backend.gcs.tf` are local operational configuration and must
+not contain secrets. They are excluded by `.gitignore`. All later Terraform
+roots receive their backend configuration from the same long-lived GCS bucket.
 
 ## Normal sandbox cleanup
 
