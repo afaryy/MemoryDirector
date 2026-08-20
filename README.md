@@ -37,6 +37,8 @@ comma-separated, exact browser origins allowed to call the API.
 - [English prompting pack](docs/prompts/memory-director-prompts.md)
 - [Terraform bootstrap and state lifecycle](docs/operations/TERRAFORM_BOOTSTRAP.md)
 - [Application deployment](docs/operations/APP_DEPLOYMENT.md)
+- [Devpost project page and submission checklist](docs/submission/DEVPOST_PROJECT_PAGE.md)
+- [Three-minute demo script](docs/submission/DEMO_SCRIPT.md)
 
 Internal planning artifacts are kept separate from the public product-documentation path.
 
