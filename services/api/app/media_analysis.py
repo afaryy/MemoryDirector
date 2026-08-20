@@ -31,12 +31,12 @@ class MediaAnalyzer(Protocol):
     def analyze(self, stored_media: StoredMedia) -> MediaAnalysis: ...
 
 
-class MediaAnalysisError(RuntimeError):
-    """Raised when the provider cannot return safe, schema-valid analysis."""
-
-
 def media_id_for_bytes(body: bytes) -> str:
     return f"sha256:{sha256(body).hexdigest()}"
+
+
+class MediaAnalysisError(RuntimeError):
+    """Raised when the provider cannot return safe, schema-valid analysis."""
 
 
 MEDIA_ANALYSIS_PROMPT = """Analyze the attached photo or video for a simple family memory short.
@@ -120,4 +120,3 @@ class MediaDecisionRegistry:
 
     def get(self, media_id: str) -> MediaDecisionState | None:
         return self._states.get(media_id)
-
