@@ -64,9 +64,22 @@ resource "google_project_iam_member" "runtime_vertex" {
   member  = "serviceAccount:${module.runtime.email}"
 }
 
+resource "google_project_iam_custom_role" "runtime_media" {
+  project     = var.project_id
+  role_id     = "memory_director_media_object"
+  title       = "Memory Director media object access"
+  description = "Create, read, and update private media objects without delete permission."
+  permissions = [
+    "storage.objects.create",
+    "storage.objects.get",
+    "storage.objects.list",
+    "storage.objects.update",
+  ]
+}
+
 resource "google_storage_bucket_iam_member" "runtime_media" {
   bucket = module.media_bucket.name
-  role   = "roles/storage.objectAdmin"
+  role   = google_project_iam_custom_role.runtime_media.name
   member = "serviceAccount:${module.runtime.email}"
 }
 

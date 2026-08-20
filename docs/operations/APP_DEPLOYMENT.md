@@ -35,6 +35,20 @@ default. `GEMINI_API_KEY` is not required for the deployed path; it is only an
 optional local developer-API override. The Vertex model location defaults to
 `us-central1` and can be changed with `GEMINI_LOCATION`.
 
+The API also receives these non-secret settings from the Terraform app
+component:
+
+- `GOOGLE_CLOUD_PROJECT`: the configured GCP project ID;
+- `GOOGLE_CLOUD_LOCATION`: the configured sandbox region;
+- `MEDIA_BUCKET`: the private platform bucket named `<resource_name>-media`;
+- `GEMINI_MODEL`: optional model override, defaulting to `gemini-2.5-flash`.
+
+`POST /media/analyze` requires `consent=true`, accepts only image/video MIME
+types, and limits uploads to 50 MiB. It stores originals privately and returns
+schema-validated metadata without exposing a GCS URI. A selected or held-back
+decision never deletes the original. Use a non-sensitive fixture for hosted
+verification; do not place real personal media in CI.
+
 ## Safe manual operations
 
 Use `terraform.yml` for validate, plan, apply, or destroy of `platform` or
