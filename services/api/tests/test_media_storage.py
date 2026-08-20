@@ -13,4 +13,3 @@ def test_in_memory_storage_records_content_addressed_private_object() -> None:
     assert stored.gs_uri == "gs://memory-director-media/media/sha256:abc/original"
     assert storage.objects[stored.media_id] == b"abc"
     assert not hasattr(storage, "delete")
-

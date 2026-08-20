@@ -1,7 +1,7 @@
 # ST-13 Media Analysis and Safe Rendering Pipeline
 
-**Status:** Draft for review  
-**Linear issue:** ST-13  
+**Status:** Draft for review
+**Linear issue:** ST-13
 **Branch:** `media/ST-13-rendering-pipeline`
 
 ## 1. Goal

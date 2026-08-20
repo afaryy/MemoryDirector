@@ -8,16 +8,37 @@ from app.media_analysis import MediaAnalysis, StoredMedia
 class PrivacyStorage:
     def __init__(self) -> None:
         self.objects: dict[str, bytes] = {}
+        self.metadata: dict[str, StoredMedia] = {}
+        self.decisions: dict[str, tuple[str, str]] = {}
 
     def put(self, media_id: str, content_type: str, body: bytes) -> StoredMedia:
         self.objects[media_id] = body
-        return StoredMedia(
+        stored = StoredMedia(
             media_id=media_id,
             content_type=content_type,
             size_bytes=len(body),
             sha256="digest",
             gs_uri=f"gs://private-bucket/media/{media_id}/original",
         )
+        self.metadata[media_id] = stored
+        return stored
+
+    def read(self, media_id: str):
+        if media_id not in self.objects:
+            return None
+        return self.metadata[media_id], self.objects[media_id]
+
+    def save_decision(self, state):
+        self.decisions[state.media_id] = (state.status, state.reason)
+        return state
+
+    def load_decision(self, media_id: str):
+        decision = self.decisions.get(media_id)
+        if decision is None:
+            return None
+        from app.media_analysis import MediaDecisionState
+
+        return MediaDecisionState(media_id=media_id, status=decision[0], reason=decision[1])
 
 
 class LeakyAnalyzer:

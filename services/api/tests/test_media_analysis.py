@@ -21,4 +21,3 @@ def test_analysis_rejects_unknown_orientation_and_out_of_range_quality() -> None
             orientation="diagonal",
             duration_seconds=None,
         )
-

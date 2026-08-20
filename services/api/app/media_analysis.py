@@ -1,4 +1,5 @@
 import os
+import re
 from hashlib import sha256
 from typing import Any, Literal, Protocol
 
@@ -37,6 +38,19 @@ def media_id_for_bytes(body: bytes) -> str:
 
 class MediaAnalysisError(RuntimeError):
     """Raised when the provider cannot return safe, schema-valid analysis."""
+
+
+def ensure_safe_media_analysis(analysis: MediaAnalysis) -> MediaAnalysis:
+    description = analysis.description.lower()
+    forbidden_patterns = (
+        r"\b\d{1,3}\s*(?:-|–)?\s*year(?:s)?\s*old\b",
+        r"\b(?:diagnosis|medical condition|disease|ethnicity|race|religion|nationality)\b",
+    )
+    if "gs://" in analysis.model_dump_json() or any(re.search(pattern, description) for pattern in forbidden_patterns):
+        raise MediaAnalysisError("unsafe provider output")
+    if analysis.duplicate_of is not None and not re.fullmatch(r"sha256:[0-9a-f]{64}", analysis.duplicate_of):
+        raise MediaAnalysisError("invalid duplicate reference")
+    return analysis
 
 
 MEDIA_ANALYSIS_PROMPT = """Analyze the attached photo or video for a simple family memory short.
@@ -90,7 +104,7 @@ class VertexGeminiMediaAnalyzer:
             analysis = MediaAnalysis.model_validate_json(response.text)
             if analysis.media_id != stored_media.media_id:
                 raise ValueError("media ID mismatch")
-            return analysis
+            return ensure_safe_media_analysis(analysis)
         except Exception as error:
             if isinstance(error, MediaAnalysisError):
                 raise
@@ -112,6 +126,10 @@ class MediaDecisionRegistry:
             media_id,
             MediaDecisionState(media_id=media_id, status="unselected"),
         )
+
+    def remember(self, state: MediaDecisionState) -> MediaDecisionState:
+        self._states[state.media_id] = state
+        return state
 
     def set(self, media_id: str, status: Literal["selected", "held_back"], reason: str) -> MediaDecisionState:
         state = MediaDecisionState(media_id=media_id, status=status, reason=reason)

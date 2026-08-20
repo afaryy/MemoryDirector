@@ -71,4 +71,3 @@ def test_vertex_analyzer_rejects_provider_json_with_wrong_media_id() -> None:
 
     with pytest.raises(MediaAnalysisError):
         VertexGeminiMediaAnalyzer(client=client).analyze(stored_media())
-
