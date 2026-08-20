@@ -26,6 +26,10 @@ resource "google_cloud_run_v2_service" "this" {
         container_port = var.container_port
       }
 
+      resources {
+        limits = { memory = var.memory }
+      }
+
       dynamic "env" {
         for_each = var.environment_variables
         content {

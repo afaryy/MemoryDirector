@@ -5,6 +5,11 @@ variable "image" { type = string }
 variable "service_account_email" { type = string }
 variable "container_port" { type = number }
 
+variable "memory" {
+  type    = string
+  default = "512Mi"
+}
+
 variable "ingress" {
   type    = string
   default = "INGRESS_TRAFFIC_ALL"

@@ -1,4 +1,5 @@
 output "api_uri" { value = try(module.api[0].uri, null) }
+output "api_memory" { value = try(module.api[0].memory, null) }
 output "web_uri" { value = try(module.web[0].uri, null) }
 output "runtime_service_account_email" { value = "memory-director-runtime@${var.project_id}.iam.gserviceaccount.com" }
 output "service" { value = var.service }
