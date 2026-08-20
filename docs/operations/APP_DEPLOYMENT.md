@@ -55,3 +55,19 @@ Use `terraform.yml` for validate, plan, apply, or destroy of `platform` or
 `app`. Bootstrap roots are intentionally excluded. A sandbox destroy requires
 the exact confirmation string `DESTROY_SANDBOX` and must be performed only
 after confirming that application data is disposable.
+
+## Hosted sandbox verification
+
+The latest successful `Deploy application` run is [32362975036](https://github.com/afaryy/MemoryDirector/actions/runs/32362975036).
+It authenticated with GitHub OIDC/WIF, built immutable API and web images, and applied both Cloud Run
+services through the Terraform `app` component.
+
+The run was verified with a non-sensitive fixture:
+
+- API health: `200` from `https://memory-director-sandbox-api-c3dzm7e76a-ts.a.run.app/health`.
+- Web home: `200` from `https://memory-director-sandbox-web-c3dzm7e76a-ts.a.run.app/`.
+- Approved export: `200` from `POST /renders/export`; the returned ZIP contained one MP4, one JPG
+  cover, and one TXT caption, and passed `unzip -t`.
+
+Do not treat the fixture result as approval to upload personal media. Hosted media analysis still
+requires explicit consent and an approved rights-register fixture.
