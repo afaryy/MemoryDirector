@@ -16,6 +16,21 @@ human release decision: approved demo media and the final recording URL.
 - [x] Hosted Web URL: https://memory-director-sandbox-web-c3dzm7e76a-ts.a.run.app/
 - [x] Hosted API health URL: https://memory-director-sandbox-api-c3dzm7e76a-ts.a.run.app/health
 - [x] Latest successful deployment: https://github.com/afaryy/MemoryDirector/actions/runs/32362975036
+- [x] Direct synthetic `/renders/export` API smoke evidence is documented; it is
+      not represented as a complete hosted Web journey.
+
+## Hosted UI integration gate
+
+The current `ProductionWizard` calls `/storyboards` and `/renders`. It does not
+yet call `/media/analyze`, `/production-proposals`, the ClickHouse MCP runtime,
+or `/renders/export`. Keep the following unchecked until the visible flow and
+recording prove those integrations:
+
+- [ ] Wire media analysis and privacy-flag review into the Web flow.
+- [ ] Wire place confirmation and music-direction review into the Web flow.
+- [ ] Wire the authenticated ClickHouse MCP preference query into the visible
+      recommendation step.
+- [ ] Wire the approved export package into the Web flow and record it.
 
 ## Human release gates
 
