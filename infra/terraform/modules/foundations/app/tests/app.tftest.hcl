@@ -27,4 +27,9 @@ run "creates_public_api_and_web_services_from_immutable_images" {
     condition     = startswith(output.api_image, "example.invalid/api@sha256:") && startswith(output.web_image, "example.invalid/web@sha256:")
     error_message = "App services must be configured with immutable image references."
   }
+
+  assert {
+    condition     = output.api_memory == "1Gi"
+    error_message = "The API needs enough memory for ffmpeg media rendering."
+  }
 }
