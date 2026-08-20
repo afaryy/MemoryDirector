@@ -1,8 +1,6 @@
 import json
 
-import pytest
-
-from app.media_analysis import MediaAnalysisError, StoredMedia, VertexGeminiMediaAnalyzer
+from app.media_analysis import StoredMedia, VertexGeminiMediaAnalyzer
 
 
 class RecordingResponse:
@@ -64,10 +62,11 @@ def test_vertex_analyzer_uses_gcs_uri_and_validated_schema() -> None:
     assert client.models.config.response_schema is not None
 
 
-def test_vertex_analyzer_rejects_provider_json_with_wrong_media_id() -> None:
+def test_vertex_analyzer_uses_content_id_when_provider_returns_wrong_media_id() -> None:
     client = RecordingGenAiClient(
         '{"media_id":"sha256:other","description":"a garden","quality_score":0.9,"privacy_flags":[],"orientation":"landscape","duration_seconds":null}'
     )
 
-    with pytest.raises(MediaAnalysisError):
-        VertexGeminiMediaAnalyzer(client=client).analyze(stored_media())
+    result = VertexGeminiMediaAnalyzer(client=client).analyze(stored_media())
+
+    assert result.media_id == "sha256:x"

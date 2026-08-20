@@ -102,8 +102,9 @@ class VertexGeminiMediaAnalyzer:
                 ),
             )
             analysis = MediaAnalysis.model_validate_json(response.text)
-            if analysis.media_id != stored_media.media_id:
-                raise ValueError("media ID mismatch")
+            # The content hash is authoritative; the model cannot reliably
+            # reproduce a full SHA-256 value from the attached media.
+            analysis = analysis.model_copy(update={"media_id": stored_media.media_id})
             return ensure_safe_media_analysis(analysis)
         except Exception as error:
             if isinstance(error, MediaAnalysisError):
