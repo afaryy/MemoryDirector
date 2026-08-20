@@ -39,6 +39,26 @@ describe("ProductionWizard", () => {
     expect(await screen.findByText("Voice input is not available. You can type your request instead.")).toBeVisible();
   });
 
+  it("exposes the listening state to assistive technology", () => {
+    class WorkingRecognition {
+      lang = "";
+      onend: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null = null;
+
+      start() {}
+    }
+
+    vi.stubGlobal("SpeechRecognition", WorkingRecognition);
+    render(<ProductionWizard />);
+
+    const voiceButton = screen.getByRole("button", { name: "Speak your request" });
+    expect(voiceButton).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(voiceButton);
+
+    expect(screen.getByRole("button", { name: "Listening…" })).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("submits an approved render request and confirms it to the user", async () => {
     const fetchMock = vi
       .fn()
