@@ -147,7 +147,12 @@ export function ProductionWizard() {
           onChange={(event) => updateMemoryRequest(event.target.value)}
         />
       </label>
-      <button className="button button--secondary" onClick={startVoiceRequest} type="button">
+      <button
+        aria-pressed={isListening}
+        className="button button--secondary"
+        onClick={startVoiceRequest}
+        type="button"
+      >
         {isListening ? "Listening…" : "Speak your request"}
       </button>
 
@@ -224,7 +229,7 @@ export function ProductionWizard() {
       >
         Make this video
       </button>
-      <p aria-live="polite" className="wizard__status">
+      <p aria-live="polite" className="wizard__status" id="voice-input-status" role="status">
         {planError && "We could not create your plan. Please try again."}
         {voiceError && "Voice input is not available. You can type your request instead."}
         {renderStatus === "submitting" && "Preparing your approved video request…"}

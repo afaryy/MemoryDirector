@@ -49,7 +49,8 @@ class DeterministicVerticalRenderer:
         self._executor = executor
 
     def render(self, request: RenderRequest, source_path: Path, output_directory: Path) -> RenderArtifact:
-        render_id = sha256(f"{request.title}\0{request.caption}\0{source_path.name}".encode()).hexdigest()[:12]
+        source_digest = _source_digest(source_path)
+        render_id = sha256(f"{request.title}\0{request.caption}\0{source_digest}".encode()).hexdigest()[:12]
         output_directory.mkdir(parents=True, exist_ok=True)
         video_path = output_directory / f"{render_id}.mp4"
         cover_path = output_directory / f"{render_id}.jpg"
@@ -95,3 +96,11 @@ class DeterministicVerticalRenderer:
             cover_path=cover_path,
             caption_path=caption_path,
         )
+
+
+def _source_digest(source_path: Path) -> str:
+    digest = sha256()
+    with source_path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()

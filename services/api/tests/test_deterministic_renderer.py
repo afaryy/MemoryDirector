@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from app.models import Storyboard
-from app.render import DeterministicVerticalRenderer, create_render_request
+from app.render import DeterministicVerticalRenderer, RenderRequest, create_render_request
 
 
 class RecordingExecutor:
@@ -15,10 +15,12 @@ class RecordingExecutor:
 def test_renderer_builds_a_deterministic_vertical_export_package(tmp_path: Path) -> None:
     executor = RecordingExecutor()
     request = create_render_request(Storyboard(title="Weekend", caption="A bright trip."), approved=True)
+    source_path = tmp_path / "source.mp4"
+    source_path.write_bytes(b"seeded-media")
 
     artifact = DeterministicVerticalRenderer(executor).render(
         request=request,
-        source_path=tmp_path / "source.mp4",
+        source_path=source_path,
         output_directory=tmp_path / "exports",
     )
 
@@ -29,3 +31,31 @@ def test_renderer_builds_a_deterministic_vertical_export_package(tmp_path: Path)
     assert "1080:1920" in executor.commands[0]
     assert executor.commands[0][executor.commands[0].index("-t") + 1] == "45"
     assert "-frames:v" in executor.commands[1]
+
+
+def test_renderer_is_repeatable_for_same_media_and_unique_for_different_media(tmp_path: Path) -> None:
+    first_source = tmp_path / "first" / "source.mp4"
+    second_source = tmp_path / "second" / "source.mp4"
+    first_source.parent.mkdir()
+    second_source.parent.mkdir()
+    first_source.write_bytes(b"seeded-media-a")
+    second_source.write_bytes(b"seeded-media-b")
+
+    first = DeterministicVerticalRenderer(RecordingExecutor()).render(
+        request=RenderRequest(title="Weekend", caption="A bright trip."),
+        source_path=first_source,
+        output_directory=tmp_path / "exports-a",
+    )
+    same_media = DeterministicVerticalRenderer(RecordingExecutor()).render(
+        request=RenderRequest(title="Weekend", caption="A bright trip."),
+        source_path=first_source,
+        output_directory=tmp_path / "exports-b",
+    )
+    different_media = DeterministicVerticalRenderer(RecordingExecutor()).render(
+        request=RenderRequest(title="Weekend", caption="A bright trip."),
+        source_path=second_source,
+        output_directory=tmp_path / "exports-c",
+    )
+
+    assert same_media.render_id == first.render_id
+    assert different_media.render_id != first.render_id

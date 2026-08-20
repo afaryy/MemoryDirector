@@ -65,6 +65,18 @@ class SafeAnalyzer:
         )
 
 
+class FlaggedAnalyzer:
+    def analyze(self, stored_media: StoredMedia) -> MediaAnalysis:
+        return MediaAnalysis(
+            media_id=stored_media.media_id,
+            description="a family moment with visible faces",
+            quality_score=0.8,
+            privacy_flags=["contains_face", "contains_text"],
+            orientation="portrait",
+            duration_seconds=None,
+        )
+
+
 @pytest.mark.anyio
 async def test_model_echo_of_private_gcs_uri_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     storage = PrivacyStorage()
@@ -104,3 +116,20 @@ async def test_held_back_decision_keeps_original_object(monkeypatch: pytest.Monk
     assert decision.status_code == 200
     assert decision.json()["status"] == "held_back"
     assert storage.objects[media_id] == b"held-back-bytes"
+
+
+@pytest.mark.anyio
+async def test_allowlisted_privacy_flags_are_returned_for_user_review(monkeypatch: pytest.MonkeyPatch) -> None:
+    storage = PrivacyStorage()
+    monkeypatch.setattr(main_module, "get_media_storage", lambda: storage, raising=False)
+    monkeypatch.setattr(main_module, "get_media_analyzer", lambda: FlaggedAnalyzer(), raising=False)
+
+    async with AsyncClient(transport=ASGITransport(app=main_module.app), base_url="http://test") as client:
+        response = await client.post(
+            "/media/analyze",
+            files={"media": ("memory.jpg", b"flagged-bytes", "image/jpeg")},
+            data={"consent": "true"},
+        )
+
+    assert response.status_code == 201
+    assert response.json()["privacy_flags"] == ["contains_face", "contains_text"]
