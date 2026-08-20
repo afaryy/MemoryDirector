@@ -1,10 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 type Storyboard = {
   title: string;
   caption: string;
+};
+
+type PrivacyFlag = "contains_face" | "contains_text" | "possible_sensitive_document";
+
+type MediaReview = {
+  media_id: string;
+  description: string;
+  privacy_flags: PrivacyFlag[];
+  decision_status: "unselected" | "selected" | "held_back";
 };
 
 type SpeechResultEvent = {
@@ -26,10 +35,17 @@ type SpeechRecognitionWindow = Window & {
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
+const privacyFlagLabels: Record<PrivacyFlag, string> = {
+  contains_face: "Face visible",
+  contains_text: "Text visible",
+  possible_sensitive_document: "Possible sensitive document",
+};
+
 export function ProductionWizard() {
   const [approved, setApproved] = useState(false);
   const [memoryRequest, setMemoryRequest] = useState("");
   const [mediaFiles, setMediaFiles] = useState<File[]>([]);
+  const [mediaReviews, setMediaReviews] = useState<MediaReview[]>([]);
   const [hasMediaPermission, setHasMediaPermission] = useState(false);
   const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
   const [isPlanning, setIsPlanning] = useState(false);
@@ -37,13 +53,39 @@ export function ProductionWizard() {
   const [isListening, setIsListening] = useState(false);
   const [voiceError, setVoiceError] = useState(false);
   const [renderStatus, setRenderStatus] = useState<"idle" | "submitting" | "ready" | "error">("idle");
+  const [exportHref, setExportHref] = useState<string | null>(null);
+  const [pendingDecisionMediaId, setPendingDecisionMediaId] = useState<string | null>(null);
+  const requestGeneration = useRef(0);
+  const consentRef = useRef(false);
 
-  function updateMemoryRequest(value: string) {
-    setMemoryRequest(value);
+  const allMediaReviewed = mediaReviews.length === mediaFiles.length && mediaReviews.every((media) => media.decision_status !== "unselected");
+  const selectedMedia = mediaReviews.find((media) => media.decision_status === "selected");
+  const selectedMediaCount = mediaReviews.filter((media) => media.decision_status === "selected").length;
+
+  function clearExport() {
+    setExportHref((current) => {
+      if (current && typeof URL.revokeObjectURL === "function") {
+        URL.revokeObjectURL(current);
+      }
+      return null;
+    });
+  }
+
+  function resetDerivedState() {
+    setIsPlanning(false);
     setStoryboard(null);
     setApproved(false);
     setPlanError(false);
     setRenderStatus("idle");
+    setMediaReviews([]);
+    setPendingDecisionMediaId(null);
+    clearExport();
+  }
+
+  function updateMemoryRequest(value: string) {
+    requestGeneration.current += 1;
+    setMemoryRequest(value);
+    resetDerivedState();
   }
 
   function startVoiceRequest() {
@@ -70,12 +112,42 @@ export function ProductionWizard() {
     }
   }
 
+  async function analyzeMedia(generation: number): Promise<MediaReview[] | null> {
+    if (!consentRef.current) {
+      throw new Error("Explicit media consent is required.");
+    }
+    const responses = await Promise.all(
+      mediaFiles.map(async (file) => {
+        const formData = new FormData();
+        formData.append("consent", String(consentRef.current));
+        formData.append("media", file);
+        return fetch(`${apiBaseUrl}/media/analyze`, { method: "POST", body: formData });
+      }),
+    );
+    if (responses.some((response) => !response.ok)) {
+      throw new Error("Media analysis was not accepted.");
+    }
+    const reviews = (await Promise.all(responses.map((response) => response.json()))) as MediaReview[];
+    if (generation !== requestGeneration.current) {
+      return null;
+    }
+    setMediaReviews(reviews);
+    return reviews;
+  }
+
   async function createPlan() {
+    const generation = requestGeneration.current;
     setIsPlanning(true);
     setPlanError(false);
     setApproved(false);
+    setRenderStatus("idle");
+    clearExport();
 
     try {
+      const reviews = await analyzeMedia(generation);
+      if (!reviews || generation !== requestGeneration.current) {
+        return;
+      }
       const response = await fetch(`${apiBaseUrl}/storyboards`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -91,20 +163,62 @@ export function ProductionWizard() {
         throw new Error("Storyboard request was not accepted.");
       }
 
+      if (generation !== requestGeneration.current) {
+        return;
+      }
       setStoryboard((await response.json()) as Storyboard);
     } catch {
-      setStoryboard(null);
-      setPlanError(true);
+      if (generation === requestGeneration.current) {
+        setStoryboard(null);
+        setPlanError(true);
+      }
     } finally {
-      setIsPlanning(false);
+      if (generation === requestGeneration.current) {
+        setIsPlanning(false);
+      }
+    }
+  }
+
+  async function updateMediaDecision(mediaId: string, status: "selected" | "held_back") {
+    if (pendingDecisionMediaId !== null || renderStatus === "submitting") {
+      return;
+    }
+    const generation = ++requestGeneration.current;
+    setPendingDecisionMediaId(mediaId);
+    setApproved(false);
+    setRenderStatus("idle");
+    clearExport();
+    try {
+      const response = await fetch(`${apiBaseUrl}/media/${mediaId}/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status, reason: status === "selected" ? "User kept this item." : "User held this item back." }),
+      });
+      if (!response.ok) {
+        throw new Error("Media decision was not accepted.");
+      }
+      if (generation !== requestGeneration.current) {
+        return;
+      }
+      setMediaReviews((current) => current.map((media) => (media.media_id === mediaId ? { ...media, decision_status: status } : media)));
+    } catch {
+      if (generation === requestGeneration.current) {
+        setPlanError(true);
+      }
+    } finally {
+      if (generation === requestGeneration.current) {
+        setPendingDecisionMediaId(null);
+      }
     }
   }
 
   async function submitRenderRequest() {
-    if (!storyboard) {
+    if (!consentRef.current || !storyboard || !selectedMedia || selectedMediaCount !== 1) {
       return;
     }
 
+    const generation = requestGeneration.current;
+    clearExport();
     setRenderStatus("submitting");
 
     try {
@@ -120,10 +234,30 @@ export function ProductionWizard() {
       if (!response.ok) {
         throw new Error("Render request was not accepted.");
       }
+      if (generation !== requestGeneration.current || !consentRef.current) {
+        return;
+      }
+
+      const exportForm = new FormData();
+      exportForm.append("title", storyboard.title);
+      exportForm.append("caption", storyboard.caption);
+      exportForm.append("approved", "true");
+      exportForm.append("media_id", selectedMedia.media_id);
+      const exportResponse = await fetch(`${apiBaseUrl}/renders/export`, { method: "POST", body: exportForm });
+      if (!exportResponse.ok) {
+        throw new Error("Video export was not accepted.");
+      }
+      const exportBlob = await exportResponse.blob();
+      if (generation !== requestGeneration.current || !consentRef.current) {
+        return;
+      }
+      setExportHref(typeof URL.createObjectURL === "function" ? URL.createObjectURL(exportBlob) : null);
 
       setRenderStatus("ready");
     } catch {
-      setRenderStatus("error");
+      if (generation === requestGeneration.current) {
+        setRenderStatus("error");
+      }
     }
   }
 
@@ -163,12 +297,11 @@ export function ProductionWizard() {
           id="memory-media"
           multiple
           onChange={(event) => {
+            requestGeneration.current += 1;
             setMediaFiles(Array.from(event.target.files ?? []));
+            consentRef.current = false;
             setHasMediaPermission(false);
-            setStoryboard(null);
-            setApproved(false);
-            setPlanError(false);
-            setRenderStatus("idle");
+            resetDerivedState();
           }}
           type="file"
         />
@@ -182,7 +315,15 @@ export function ProductionWizard() {
         <input
           checked={hasMediaPermission}
           id="media-permission"
-          onChange={(event) => setHasMediaPermission(event.target.checked)}
+          onChange={(event) => {
+            const granted = event.target.checked;
+            consentRef.current = granted;
+            setHasMediaPermission(granted);
+            if (!granted) {
+              requestGeneration.current += 1;
+              resetDerivedState();
+            }
+          }}
           type="checkbox"
         />
         <span>I have permission to use these media.</span>
@@ -194,12 +335,49 @@ export function ProductionWizard() {
         onClick={createPlan}
         type="button"
       >
-        {isPlanning ? "Creating your plan…" : "Create a plan"}
+        {isPlanning ? "Reviewing your media…" : "Create a plan"}
       </button>
+
+      {mediaReviews.length > 0 && (
+        <section aria-label="Media review" className="wizard__media-review">
+          <p className="wizard__step">02 / MEDIA REVIEW</p>
+          <h3>Check each item before your plan is approved.</h3>
+          {mediaReviews.map((media) => (
+            <article className="wizard__media-card" key={media.media_id}>
+              <p>{media.description}</p>
+              {media.privacy_flags.length > 0 && (
+                <ul aria-label="Privacy flags" className="wizard__privacy-flags">
+                  {media.privacy_flags.map((flag) => <li key={flag}>{privacyFlagLabels[flag]}</li>)}
+                </ul>
+              )}
+              <div className="wizard__media-actions">
+                <button
+                  aria-pressed={media.decision_status === "selected"}
+                  className="button button--secondary"
+                  disabled={pendingDecisionMediaId !== null || renderStatus === "submitting" || (media.decision_status !== "selected" && Boolean(selectedMedia))}
+                  onClick={() => updateMediaDecision(media.media_id, "selected")}
+                  type="button"
+                >
+                  {media.decision_status === "selected" ? "Kept" : "Keep this item"}
+                </button>
+                <button
+                  aria-pressed={media.decision_status === "held_back"}
+                  className="button button--secondary"
+                  disabled={pendingDecisionMediaId !== null || renderStatus === "submitting"}
+                  onClick={() => updateMediaDecision(media.media_id, "held_back")}
+                  type="button"
+                >
+                  {media.decision_status === "held_back" ? "Held back" : "Hold this item back"}
+                </button>
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
 
       {storyboard && (
         <section aria-label="Generated plan" className="wizard__plan">
-          <p className="wizard__step">02 / YOUR PLAN</p>
+          <p className="wizard__step">03 / YOUR PLAN</p>
           <h3>{storyboard.title}</h3>
           <p>{storyboard.caption}</p>
         </section>
@@ -207,13 +385,13 @@ export function ProductionWizard() {
 
       <section aria-label="Approval" className="wizard__approval">
         <div>
-          <p className="wizard__step">03 / REVIEW</p>
+          <p className="wizard__step">04 / REVIEW</p>
           <h3>Your plan stays in your control.</h3>
           <p>Nothing is exported until you approve the plan.</p>
         </div>
         <button
           className="button button--secondary"
-          disabled={!storyboard}
+          disabled={!storyboard || !allMediaReviewed || !selectedMedia || selectedMediaCount !== 1}
           onClick={() => setApproved(true)}
           type="button"
         >
@@ -236,6 +414,11 @@ export function ProductionWizard() {
         {renderStatus === "ready" && "Your approved video request is ready."}
         {renderStatus === "error" && "We could not prepare your video request. Please try again."}
       </p>
+      {exportHref && (
+        <a className="button button--secondary wizard__download" download="memory-director-export.zip" href={exportHref}>
+          Download your video package
+        </a>
+      )}
     </section>
   );
 }
