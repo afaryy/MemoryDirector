@@ -29,7 +29,7 @@ run "creates_public_api_and_web_services_from_immutable_images" {
   }
 
   assert {
-    condition     = output.api_memory == "1Gi"
+    condition     = output.api_memory == "2Gi"
     error_message = "The API needs enough memory for ffmpeg media rendering."
   }
 }
