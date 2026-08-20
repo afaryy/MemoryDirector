@@ -182,7 +182,9 @@ jobs:
             echo "::error title=MCP initialize HTTP status::$init_status"
             exit 1
           fi
-          jq -e '.result.serverInfo.name? and (.error? | not)' "$init_file" >/dev/null
+          if ! jq -e '.result.serverInfo.name? and (.error? | not)' "$init_file" >/dev/null; then
+            sed -n 's/^data: //p' "$init_file" | jq -e 'select(.result.serverInfo.name? and (.error? | not))' >/dev/null
+          fi
           session_id="$(awk 'tolower($1) == "mcp-session-id:" {print $2}' "$headers_file" | tr -d '\r' | tail -n 1)"
           test -n "$session_id"
 
@@ -200,5 +202,7 @@ jobs:
             echo "::error title=MCP run_query HTTP status::$call_status"
             exit 1
           fi
-          jq -e '(.error? | not) and (.result.content | length > 0)' "$call_file" >/dev/null
+          if ! jq -e '(.error? | not) and (.result.content | length > 0)' "$call_file" >/dev/null; then
+            sed -n 's/^data: //p' "$call_file" | jq -e 'select((.error? | not) and (.result.content | length > 0))' >/dev/null
+          fi
           echo "Authenticated MCP run_query smoke test passed."
