@@ -119,6 +119,47 @@ describe("ProductionWizard", () => {
     expect(await screen.findByText("Your approved video request is ready.")).toBeVisible();
   });
 
+  it("shows the explainable music preference used by the plan", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          media_id: "sha256:beach",
+          description: "a bright beach",
+          quality_score: 0.9,
+          privacy_flags: [],
+          orientation: "landscape",
+          duration_seconds: null,
+          decision_status: "unselected",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          title: "A Family Day by the Sea",
+          caption: "Small moments, held close.",
+          music_direction: "gentle festive instrumental",
+          preference_explanation: "You chose gentle festive twice before for similar memories.",
+          preference_evidence_count: 2,
+        }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ProductionWizard />);
+
+    fireEvent.change(screen.getByLabelText("What would you like to make?"), {
+      target: { value: "Make a cheerful travel video." },
+    });
+    fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
+      target: { files: [new File(["photo"], "beach.jpg", { type: "image/jpeg" })] },
+    });
+    fireEvent.click(screen.getByLabelText("I have permission to use these media."));
+    fireEvent.click(screen.getByRole("button", { name: "Create a plan" }));
+
+    expect(await screen.findByText("Suggested sound: gentle festive instrumental")).toBeVisible();
+    expect(screen.getByText("You chose gentle festive twice before for similar memories.")).toBeVisible();
+  });
+
   it("reviews privacy flags before exporting the selected media package", async () => {
     const exportBlob = new Blob(["zip-bytes"], { type: "application/zip" });
     const fetchMock = vi
@@ -221,7 +262,7 @@ describe("ProductionWizard", () => {
     expect(screen.getByRole("button", { name: "Make this video" })).toBeDisabled();
   });
 
-  it("allows only one selected item for the singular export contract", async () => {
+  it("allows multiple selected items to form one memory video", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({
@@ -253,7 +294,7 @@ describe("ProductionWizard", () => {
         json: async () => ({ title: "Two Moments", caption: "Together." }),
       })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ status: "selected" }) })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: "held_back" }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: "selected" }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ status: "held_back" }) });
     vi.stubGlobal("fetch", fetchMock);
     render(<ProductionWizard />);
@@ -277,15 +318,15 @@ describe("ProductionWizard", () => {
     const keepButtons = screen.getAllByRole("button", { name: "Keep this item" });
     fireEvent.click(keepButtons[0]);
     expect(await screen.findByRole("button", { name: "Kept" })).toBeEnabled();
-    expect(keepButtons[1]).toBeDisabled();
-    fireEvent.click(screen.getAllByRole("button", { name: "Hold this item back" })[1]);
-    expect(await screen.findByRole("button", { name: "Held back" })).toBeEnabled();
+    expect(keepButtons[1]).toBeEnabled();
+    fireEvent.click(keepButtons[1]);
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "Kept" })).toHaveLength(2));
     expect(screen.getByRole("button", { name: "Approve plan" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Approve plan" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Make this video" })).toBeEnabled());
-    fireEvent.click(screen.getByRole("button", { name: "Hold this item back" }));
-    expect(await screen.findByRole("button", { name: "Held back" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Approve plan" })).toBeDisabled();
+    fireEvent.click(screen.getAllByRole("button", { name: "Hold this item back" })[0]);
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "Held back" })).toHaveLength(1));
+    expect(screen.getByRole("button", { name: "Approve plan" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Make this video" })).toBeDisabled();
   });
 

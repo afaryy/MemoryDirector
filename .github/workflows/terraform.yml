@@ -55,6 +55,9 @@ on:
       api_base_url:
         description: "Required for web service when operating it independently"
         required: false
+      mcp_endpoint:
+        description: "Private ClickHouse MCP endpoint from the platform output"
+        required: false
       confirm:
         description: "Required only for destroy: DESTROY_SANDBOX"
         required: false
@@ -162,7 +165,7 @@ jobs:
             if [ "${{ inputs.operation }}" != "validate" ]; then
               test -n "${{ inputs.api_image }}" && test -n "${{ inputs.web_image }}"
             fi
-            image_args="-var=api_image=${{ inputs.api_image }} -var=web_image=${{ inputs.web_image }} -var=service=${{ inputs.service }} -var=api_base_url=${{ inputs.api_base_url }}"
+            image_args="-var=api_image=${{ inputs.api_image }} -var=web_image=${{ inputs.web_image }} -var=service=${{ inputs.service }} -var=api_base_url=${{ inputs.api_base_url }} -var=mcp_endpoint=${{ inputs.mcp_endpoint }}"
           else
             image_args="-var=enable_mcp=${{ inputs.enable_mcp }}"
           fi

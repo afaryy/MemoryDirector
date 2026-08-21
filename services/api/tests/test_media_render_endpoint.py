@@ -61,7 +61,11 @@ class RenderAnalyzer:
 
 
 class RecordingExecutor:
+    def __init__(self) -> None:
+        self.commands: list[list[str]] = []
+
     def run(self, command: list[str]) -> None:
+        self.commands.append(command)
         output = command[-1]
         if output.endswith(".mp4"):
             with open(output, "wb") as video:
@@ -124,3 +128,29 @@ async def test_held_back_analyzed_media_cannot_reach_renderer(monkeypatch: pytes
         )
 
     assert exported.status_code == 409
+
+
+@pytest.mark.anyio
+async def test_two_selected_analyzed_media_are_combined_in_one_export(monkeypatch: pytest.MonkeyPatch) -> None:
+    storage = RenderStorage()
+    monkeypatch.setattr(main_module, "get_media_storage", lambda: storage, raising=False)
+    monkeypatch.setattr(main_module, "get_media_analyzer", lambda: RenderAnalyzer(), raising=False)
+    executor = RecordingExecutor()
+    renderer = DeterministicVerticalRenderer(executor)
+    monkeypatch.setattr(main_module, "get_renderer", lambda: renderer)
+
+    async with AsyncClient(transport=ASGITransport(app=main_module.app), base_url="http://test") as client:
+        first = await client.post("/media/analyze", files={"media": ("first.jpg", b"first", "image/jpeg")}, data={"consent": "true"})
+        second = await client.post("/media/analyze", files={"media": ("second.jpg", b"second", "image/jpeg")}, data={"consent": "true"})
+        first_id = first.json()["media_id"]
+        second_id = second.json()["media_id"]
+        await client.post(f"/media/{first_id}/decision", json={"status": "selected", "reason": "best moment"})
+        await client.post(f"/media/{second_id}/decision", json={"status": "selected", "reason": "best moment"})
+        exported = await client.post(
+            "/renders/export",
+            data={"title": "A memory", "caption": "Together.", "approved": "true"},
+            files=[("media_ids", (None, first_id)), ("media_ids", (None, second_id))],
+        )
+
+    assert exported.status_code == 200
+    assert any("concat=n=2:v=1:a=0" in " ".join(command) for command in executor.commands)
