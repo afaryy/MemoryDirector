@@ -54,7 +54,7 @@ locals {
   labels             = merge(try(local.common.labels, {}), try(local.environment.labels, {}), try(local.project.labels, {}))
   region             = coalesce(try(local.environment.region, null), try(local.project.region, null), try(local.common.default_region, null))
   name_prefix        = local.project.resource_name
-  mcp_endpoint       = coalesce(var.mcp_endpoint, try(local.project.mcp_endpoint, null))
+  mcp_endpoint       = var.mcp_endpoint != null ? var.mcp_endpoint : try(local.project.mcp_endpoint, null)
   mcp_secret_project = try(local.project.mcp_secret_project_id, local.project.project_id)
 }
 
