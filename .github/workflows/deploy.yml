@@ -71,6 +71,17 @@ jobs:
           service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
 
       - uses: google-github-actions/setup-gcloud@v2
+      - name: Resolve private ClickHouse MCP endpoint
+        id: mcp
+        shell: bash
+        run: |
+          set -euo pipefail
+          mcp_uri="$(gcloud run services describe "${{ steps.config.outputs.resource_name }}-mcp" \
+            --project "${{ steps.config.outputs.project_id }}" \
+            --region "${{ steps.config.outputs.region }}" \
+            --format='value(status.url)')"
+          test -n "$mcp_uri"
+          echo "uri=$mcp_uri" >> "$GITHUB_OUTPUT"
       - run: gcloud auth configure-docker "${{ steps.config.outputs.region }}-docker.pkg.dev" --quiet
       - uses: docker/setup-buildx-action@v3
 
@@ -97,7 +108,8 @@ jobs:
             -var="environment_config=${{ steps.config.outputs.environment_config_file }}" \
             -var="service=api" \
             -var="api_image=${{ steps.config.outputs.registry }}/api:${{ steps.config.outputs.sha }}" \
-            -var="web_image=unused"
+            -var="web_image=unused" \
+            -var="mcp_endpoint=${{ steps.mcp.outputs.uri }}"
 
       - name: Resolve deployed API URL
         if: steps.config.outputs.component == 'web' || steps.config.outputs.component == 'all'
