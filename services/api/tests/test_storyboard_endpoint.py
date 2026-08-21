@@ -63,6 +63,11 @@ class FakePreferenceRepository:
         )
 
 
+class UnavailablePreferenceRepository:
+    def recommend(self, user_id: str, occasion: str) -> PreferenceRecommendation:
+        raise RuntimeError("MCP preference lookup timed out")
+
+
 @pytest.mark.anyio
 async def test_storyboard_endpoint_surfaces_clickhouse_preference_explanation(
     monkeypatch: pytest.MonkeyPatch,
@@ -85,3 +90,28 @@ async def test_storyboard_endpoint_surfaces_clickhouse_preference_explanation(
     assert response.status_code == 201
     assert response.json()["music_direction"] == "gentle festive instrumental"
     assert response.json()["preference_explanation"].startswith("You chose gentle festive")
+
+
+@pytest.mark.anyio
+async def test_storyboard_endpoint_keeps_base_plan_when_preference_memory_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(main_module, "get_production_planner", lambda: FakePlanner())
+    monkeypatch.setattr(main_module, "get_preference_repository", lambda: UnavailablePreferenceRepository())
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/storyboards",
+            json={
+                "occasion": "A family day by the sea",
+                "moods": ["warm", "cheerful"],
+                "media_count": 3,
+                "media_consent": True,
+            },
+        )
+
+    assert response.status_code == 201
+    assert response.json() == {
+        "title": "A Family Day by the Sea",
+        "caption": "Small moments, held close.",
+    }
