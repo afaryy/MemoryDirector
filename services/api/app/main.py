@@ -1,5 +1,6 @@
 import os
 import io
+import logging
 import tempfile
 import zipfile
 from pathlib import Path
@@ -33,6 +34,7 @@ from app.render import (
 )
 
 app = FastAPI(title="Memory Director API")
+logger = logging.getLogger(__name__)
 allowed_origins = [origin.strip() for origin in os.environ.get("WEB_ORIGINS", "http://localhost:3000").split(",")]
 app.add_middleware(
     CORSMiddleware,
@@ -262,16 +264,14 @@ def create_storyboard(
     payload: StoryboardPayload,
 ) -> Storyboard:
     storyboard = get_production_planner().plan(payload.occasion, payload.moods)
-    repository = get_preference_repository()
-    if repository is None:
-        return storyboard
     try:
+        repository = get_preference_repository()
+        if repository is None:
+            return storyboard
         recommendation = repository.recommend(payload.user_id, payload.occasion)
-    except Exception as error:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Preference memory is temporarily unavailable.",
-        ) from error
+    except Exception:
+        logger.warning("Preference memory unavailable; continuing with the base storyboard", exc_info=True)
+        return storyboard
     if recommendation is None:
         return storyboard
     return storyboard.model_copy(

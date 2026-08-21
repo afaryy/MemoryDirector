@@ -23,6 +23,8 @@ def test_planner_uses_gateway_response_without_network() -> None:
 
     assert storyboard.title == "A Cheerful Melbourne Weekend"
     assert gateway.prompts[0].startswith("You are Memory Director")
+    assert "instrumental music direction" in gateway.prompts[0]
+    assert "copyrighted recording" in gateway.prompts[0]
 
 
 def test_gateway_uses_vertex_ai_adc_without_api_key(monkeypatch) -> None:
