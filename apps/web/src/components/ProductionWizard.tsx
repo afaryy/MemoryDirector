@@ -5,6 +5,9 @@ import { useRef, useState } from "react";
 type Storyboard = {
   title: string;
   caption: string;
+  music_direction?: string;
+  preference_explanation?: string;
+  preference_evidence_count?: number;
 };
 
 type PrivacyFlag = "contains_face" | "contains_text" | "possible_sensitive_document";
@@ -59,8 +62,8 @@ export function ProductionWizard() {
   const consentRef = useRef(false);
 
   const allMediaReviewed = mediaReviews.length === mediaFiles.length && mediaReviews.every((media) => media.decision_status !== "unselected");
-  const selectedMedia = mediaReviews.find((media) => media.decision_status === "selected");
-  const selectedMediaCount = mediaReviews.filter((media) => media.decision_status === "selected").length;
+  const selectedMedia = mediaReviews.filter((media) => media.decision_status === "selected");
+  const selectedMediaCount = selectedMedia.length;
 
   function clearExport() {
     setExportHref((current) => {
@@ -213,7 +216,7 @@ export function ProductionWizard() {
   }
 
   async function submitRenderRequest() {
-    if (!consentRef.current || !storyboard || !selectedMedia || selectedMediaCount !== 1) {
+    if (!consentRef.current || !storyboard || selectedMedia.length === 0) {
       return;
     }
 
@@ -242,7 +245,7 @@ export function ProductionWizard() {
       exportForm.append("title", storyboard.title);
       exportForm.append("caption", storyboard.caption);
       exportForm.append("approved", "true");
-      exportForm.append("media_id", selectedMedia.media_id);
+      selectedMedia.forEach((media) => exportForm.append("media_ids", media.media_id));
       const exportResponse = await fetch(`${apiBaseUrl}/renders/export`, { method: "POST", body: exportForm });
       if (!exportResponse.ok) {
         throw new Error("Video export was not accepted.");
@@ -354,7 +357,7 @@ export function ProductionWizard() {
                 <button
                   aria-pressed={media.decision_status === "selected"}
                   className="button button--secondary"
-                  disabled={pendingDecisionMediaId !== null || renderStatus === "submitting" || (media.decision_status !== "selected" && Boolean(selectedMedia))}
+                  disabled={pendingDecisionMediaId !== null || renderStatus === "submitting"}
                   onClick={() => updateMediaDecision(media.media_id, "selected")}
                   type="button"
                 >
@@ -378,9 +381,15 @@ export function ProductionWizard() {
       {storyboard && (
         <section aria-label="Generated plan" className="wizard__plan">
           <p className="wizard__step">03 / YOUR PLAN</p>
-          <h3>{storyboard.title}</h3>
-          <p>{storyboard.caption}</p>
-        </section>
+        <h3>{storyboard.title}</h3>
+        <p>{storyboard.caption}</p>
+        {storyboard.music_direction && (
+          <div className="wizard__recommendation" aria-label="Music recommendation">
+            <strong>Suggested sound: {storyboard.music_direction}</strong>
+            {storyboard.preference_explanation && <p>{storyboard.preference_explanation}</p>}
+          </div>
+        )}
+      </section>
       )}
 
       <section aria-label="Approval" className="wizard__approval">
@@ -391,7 +400,7 @@ export function ProductionWizard() {
         </div>
         <button
           className="button button--secondary"
-          disabled={!storyboard || !allMediaReviewed || !selectedMedia || selectedMediaCount !== 1}
+          disabled={!storyboard || !allMediaReviewed || selectedMediaCount === 0}
           onClick={() => setApproved(true)}
           type="button"
         >

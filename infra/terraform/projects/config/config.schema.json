@@ -16,6 +16,7 @@
     "mcp_image": { "type": "string", "minLength": 1 },
     "mcp_secret_project_id": { "type": "string", "minLength": 1 },
     "mcp_invoker_service_account_email": { "type": "string", "pattern": "^[^@\\s]+@[^@\\s]+\\.iam\\.gserviceaccount\\.com$" },
+    "mcp_endpoint": { "type": "string", "format": "uri", "pattern": "^https://" },
     "labels": { "type": "object", "additionalProperties": { "type": "string" } }
   }
 }

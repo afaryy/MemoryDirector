@@ -21,16 +21,19 @@ human release decision: approved demo media and the final recording URL.
 
 ## Hosted UI integration gate
 
-The current `ProductionWizard` calls `/storyboards` and `/renders`. It does not
-yet call `/media/analyze`, `/production-proposals`, the ClickHouse MCP runtime,
-or `/renders/export`. Keep the following unchecked until the visible flow and
-recording prove those integrations:
+The current `ProductionWizard` calls `/media/analyze`, `/storyboards`, media
+decision endpoints, `/renders`, and `/renders/export`. The API now calls the
+authenticated ClickHouse MCP runtime when `CLICKHOUSE_MCP_ENDPOINT` and the
+Secret Manager credential payload are configured. Keep the hosted evidence
+unchecked until the visible flow and recording prove the cloud wiring:
 
-- [ ] Wire media analysis and privacy-flag review into the Web flow.
-- [ ] Wire place confirmation and music-direction review into the Web flow.
-- [ ] Wire the authenticated ClickHouse MCP preference query into the visible
-      recommendation step.
-- [ ] Wire the approved export package into the Web flow and record it.
+- [x] Wire media analysis and privacy-flag review into the Web flow.
+- [x] Wire the authenticated ClickHouse MCP preference query into the visible
+      recommendation step in the API/Web contract.
+- [x] Wire the approved export package into the Web flow.
+- [ ] Wire place confirmation into the visible recommendation step.
+- [ ] Verify the hosted ClickHouse endpoint, recommendation, and export in the
+      final recording.
 
 ## Human release gates
 

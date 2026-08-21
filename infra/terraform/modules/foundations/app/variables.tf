@@ -14,3 +14,15 @@ variable "api_base_url" {
   type    = string
   default = null
 }
+
+variable "mcp_endpoint" {
+  type        = string
+  description = "Private Cloud Run endpoint for the official ClickHouse MCP server."
+  default     = null
+}
+
+variable "mcp_secret_project_id" {
+  type        = string
+  description = "Project containing clickhouse-credentials, when it differs from the app project."
+  default     = null
+}

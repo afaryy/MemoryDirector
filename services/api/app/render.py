@@ -49,7 +49,12 @@ class DeterministicVerticalRenderer:
         self._executor = executor
 
     def render(self, request: RenderRequest, source_path: Path, output_directory: Path) -> RenderArtifact:
-        source_digest = _source_digest(source_path)
+        return self.render_many(request, [source_path], output_directory)
+
+    def render_many(self, request: RenderRequest, source_paths: list[Path], output_directory: Path) -> RenderArtifact:
+        if not source_paths:
+            raise ValueError("At least one media source is required")
+        source_digest = "\0".join(_source_digest(path) for path in source_paths)
         render_id = sha256(f"{request.title}\0{request.caption}\0{source_digest}".encode()).hexdigest()[:12]
         output_directory.mkdir(parents=True, exist_ok=True)
         video_path = output_directory / f"{render_id}.mp4"
@@ -57,25 +62,58 @@ class DeterministicVerticalRenderer:
         caption_path = output_directory / f"{render_id}.txt"
         caption_path.write_text(f"{request.title}\n\n{request.caption}\n")
 
-        self._executor.run(
-            [
-                "ffmpeg",
-                "-y",
-                "-stream_loop",
-                "-1",
-                "-i",
-                str(source_path),
-                "-t",
-                "45",
-                "-r",
-                "30",
-                "-vf",
-                "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black",
-                "-s",
-                "1080:1920",
-                str(video_path),
-            ]
-        )
+        if len(source_paths) == 1:
+            self._executor.run(
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-stream_loop",
+                    "-1",
+                    "-i",
+                    str(source_paths[0]),
+                    "-t",
+                    "45",
+                    "-r",
+                    "30",
+                    "-vf",
+                    "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black",
+                    "-s",
+                    "1080:1920",
+                    str(video_path),
+                ]
+            )
+        else:
+            segment_seconds = max(3, 45 // len(source_paths))
+            command = ["ffmpeg", "-y"]
+            for source_path in source_paths:
+                if source_path.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}:
+                    command.extend(["-loop", "1"])
+                else:
+                    command.extend(["-stream_loop", "-1"])
+                command.extend(["-i", str(source_path)])
+            filters = []
+            for index in range(len(source_paths)):
+                filters.append(
+                    f"[{index}:v]scale=1080:1920:force_original_aspect_ratio=decrease,"
+                    f"pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black,"
+                    f"trim=duration={segment_seconds},setpts=PTS-STARTPTS[v{index}]"
+                )
+            inputs = "".join(f"[v{index}]" for index in range(len(source_paths)))
+            command.extend(
+                [
+                    "-filter_complex",
+                    ";".join(filters) + f";{inputs}concat=n={len(source_paths)}:v=1:a=0[outv]",
+                    "-map",
+                    "[outv]",
+                    "-t",
+                    "45",
+                    "-r",
+                    "30",
+                    "-an",
+                    str(video_path),
+                ]
+            )
+            self._executor.run(command)
         self._executor.run(
             [
                 "ffmpeg",

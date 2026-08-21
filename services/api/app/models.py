@@ -36,6 +36,9 @@ class CurationPlan(BaseModel):
 class Storyboard(BaseModel):
     title: str
     caption: str
+    music_direction: str | None = None
+    preference_explanation: str | None = None
+    preference_evidence_count: int | None = Field(default=None, ge=0)
 
 
 class MusicDirection(BaseModel):
