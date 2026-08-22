@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from app.models import Storyboard
-from app.render import DeterministicVerticalRenderer, RenderRequest, create_render_request
+from app.render import DeterministicVerticalRenderer, RenderRequest, SubprocessRenderExecutor, create_render_request
 
 
 class RecordingExecutor:
@@ -30,6 +30,7 @@ def test_renderer_builds_a_deterministic_vertical_export_package(tmp_path: Path)
     assert executor.commands[0][:5] == ["ffmpeg", "-y", "-stream_loop", "-1", "-i"]
     assert "1080:1920" in executor.commands[0]
     assert executor.commands[0][executor.commands[0].index("-t") + 1] == "60"
+    assert executor.commands[0][executor.commands[0].index("-preset") + 1] == "veryfast"
     assert "-frames:v" in executor.commands[1]
 
 
@@ -80,3 +81,17 @@ def test_renderer_can_sequence_multiple_media_sources(tmp_path: Path) -> None:
     assert "concat=n=2:v=1:a=0" in " ".join(command)
     assert "trim=duration=30" in " ".join(command)
     assert command[command.index("-t") + 1] == "60"
+    assert command[command.index("-preset") + 1] == "veryfast"
+
+
+def test_subprocess_executor_allows_sixty_second_export_to_finish(monkeypatch) -> None:
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append((command, kwargs))
+
+    monkeypatch.setattr("app.render.subprocess.run", fake_run)
+
+    SubprocessRenderExecutor().run(["ffmpeg", "-version"])
+
+    assert calls[0][1]["timeout"] == 300
