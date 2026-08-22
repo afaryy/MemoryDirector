@@ -36,7 +36,10 @@ class SubprocessRenderExecutor:
     """Run the pinned ffmpeg commands used by the deterministic renderer."""
 
     def run(self, command: list[str]) -> None:
-        subprocess.run(command, check=True, capture_output=True, text=True, timeout=120)
+        # A fixed 60-second 1080x1920 render can take longer than two minutes on
+        # the smallest Cloud Run instance. Keep the request bounded, but allow
+        # enough time for the user-approved export to complete.
+        subprocess.run(command, check=True, capture_output=True, text=True, timeout=300)
 
 
 def create_render_request(storyboard: Storyboard, approved: bool) -> RenderRequest:
@@ -77,6 +80,14 @@ class DeterministicVerticalRenderer:
                     str(TARGET_VIDEO_SECONDS),
                     "-r",
                     "30",
+                    "-c:v",
+                    "libx264",
+                    "-preset",
+                    "veryfast",
+                    "-crf",
+                    "23",
+                    "-pix_fmt",
+                    "yuv420p",
                     "-vf",
                     "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black",
                     "-s",
@@ -111,6 +122,14 @@ class DeterministicVerticalRenderer:
                     str(TARGET_VIDEO_SECONDS),
                     "-r",
                     "30",
+                    "-c:v",
+                    "libx264",
+                    "-preset",
+                    "veryfast",
+                    "-crf",
+                    "23",
+                    "-pix_fmt",
+                    "yuv420p",
                     "-an",
                     str(video_path),
                 ]
