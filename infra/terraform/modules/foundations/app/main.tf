@@ -13,6 +13,7 @@ module "api" {
   service_account_email = "memory-director-runtime@${var.project_id}.iam.gserviceaccount.com"
   container_port        = 8000
   memory                = "2Gi"
+  timeout               = "900s"
   environment_variables = merge({
     WEB_ORIGINS           = "*"
     GOOGLE_CLOUD_PROJECT  = var.project_id
