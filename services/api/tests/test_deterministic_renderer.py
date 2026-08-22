@@ -29,7 +29,7 @@ def test_renderer_builds_a_deterministic_vertical_export_package(tmp_path: Path)
     assert artifact.caption_path.read_text().splitlines() == ["Weekend", "", "A bright trip."]
     assert executor.commands[0][:5] == ["ffmpeg", "-y", "-stream_loop", "-1", "-i"]
     assert "1080:1920" in executor.commands[0]
-    assert executor.commands[0][executor.commands[0].index("-t") + 1] == "45"
+    assert executor.commands[0][executor.commands[0].index("-t") + 1] == "60"
     assert "-frames:v" in executor.commands[1]
 
 
@@ -78,3 +78,5 @@ def test_renderer_can_sequence_multiple_media_sources(tmp_path: Path) -> None:
     command = executor.commands[0]
     assert command.count("-i") == 2
     assert "concat=n=2:v=1:a=0" in " ".join(command)
+    assert "trim=duration=30" in " ".join(command)
+    assert command[command.index("-t") + 1] == "60"

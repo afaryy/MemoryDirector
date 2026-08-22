@@ -6,6 +6,8 @@ from typing import Protocol
 
 from app.models import Storyboard
 
+TARGET_VIDEO_SECONDS = 60
+
 
 class ApprovalRequired(Exception):
     """Raised when a render is requested before the user approves its plan."""
@@ -72,7 +74,7 @@ class DeterministicVerticalRenderer:
                     "-i",
                     str(source_paths[0]),
                     "-t",
-                    "45",
+                    str(TARGET_VIDEO_SECONDS),
                     "-r",
                     "30",
                     "-vf",
@@ -83,7 +85,7 @@ class DeterministicVerticalRenderer:
                 ]
             )
         else:
-            segment_seconds = max(3, 45 // len(source_paths))
+            segment_seconds = max(3, TARGET_VIDEO_SECONDS // len(source_paths))
             command = ["ffmpeg", "-y"]
             for source_path in source_paths:
                 if source_path.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}:
@@ -106,7 +108,7 @@ class DeterministicVerticalRenderer:
                     "-map",
                     "[outv]",
                     "-t",
-                    "45",
+                    str(TARGET_VIDEO_SECONDS),
                     "-r",
                     "30",
                     "-an",
