@@ -264,87 +264,102 @@ export function ProductionWizard() {
     }
   }
 
+  const currentStage = storyboard ? (approved ? 4 : 3) : mediaReviews.length > 0 || isPlanning ? 2 : 1;
+
   return (
     <section aria-labelledby="production-title" className="wizard">
+      <div className="wizard__progress" aria-label="Production progress">
+        <span className="wizard__progress-count">{currentStage} / 4</span>
+        <ol>
+          <li className={currentStage === 1 ? "is-active" : "is-complete"}>Request</li>
+          <li className={currentStage === 2 ? "is-active" : currentStage > 2 ? "is-complete" : ""}>Media</li>
+          <li className={currentStage === 3 ? "is-active" : currentStage > 3 ? "is-complete" : ""}>Plan</li>
+          <li className={currentStage === 4 ? "is-active" : ""}>Save</li>
+        </ol>
+      </div>
+
       <header className="wizard__header">
-        <p className="wizard__step">01 / YOUR REQUEST</p>
+        <p className="wizard__step">01 / REQUEST</p>
         <h2 id="production-title">Start with what you want to remember.</h2>
         <p>
-          Tell Memory Director about the occasion, then review every suggestion before a video is made.
+          Tell us what you want to remember. We will find the story in your photos and videos.
         </p>
       </header>
 
-      <label className="wizard__request" htmlFor="memory-request">
-        <span>What would you like to make?</span>
-        <textarea
-          id="memory-request"
-          placeholder="For example: Make a cheerful travel video."
-          rows={3}
-          value={memoryRequest}
-          onChange={(event) => updateMemoryRequest(event.target.value)}
-        />
-      </label>
-      <button
-        aria-pressed={isListening}
-        className="button button--secondary"
-        onClick={startVoiceRequest}
-        type="button"
-      >
-        {isListening ? "Listening…" : "Speak your request"}
-      </button>
+      <section className="wizard__stage wizard__stage--request" aria-label="Your request">
+        <label className="wizard__request" htmlFor="memory-request">
+          <span>What would you like to make?</span>
+          <textarea
+            id="memory-request"
+            placeholder="For example: Make a cheerful travel video."
+            rows={3}
+            value={memoryRequest}
+            onChange={(event) => updateMemoryRequest(event.target.value)}
+          />
+        </label>
+        <button
+          aria-pressed={isListening}
+          className="button button--secondary"
+          onClick={startVoiceRequest}
+          type="button"
+        >
+          {isListening ? "Listening…" : "Speak your request"}
+        </button>
 
-      <label className="wizard__media" htmlFor="memory-media">
-        <span>Choose photos and videos</span>
-        <input
-          accept="image/*,video/*"
-          id="memory-media"
-          multiple
-          onChange={(event) => {
-            requestGeneration.current += 1;
-            setMediaFiles(Array.from(event.target.files ?? []));
-            consentRef.current = false;
-            setHasMediaPermission(false);
-            resetDerivedState();
-          }}
-          type="file"
-        />
-      </label>
-      {mediaFiles.length > 0 && (
-        <p className="wizard__media-count">
-          {mediaFiles.length} {mediaFiles.length === 1 ? "item" : "items"} selected from your device.
-        </p>
-      )}
-      <label className="wizard__consent" htmlFor="media-permission">
-        <input
-          checked={hasMediaPermission}
-          id="media-permission"
-          onChange={(event) => {
-            const granted = event.target.checked;
-            consentRef.current = granted;
-            setHasMediaPermission(granted);
-            if (!granted) {
+        <label className="wizard__media" htmlFor="memory-media">
+          <span>Choose photos and videos</span>
+          <input
+            accept="image/*,video/*"
+            id="memory-media"
+            multiple
+            onChange={(event) => {
               requestGeneration.current += 1;
+              setMediaFiles(Array.from(event.target.files ?? []));
+              consentRef.current = false;
+              setHasMediaPermission(false);
               resetDerivedState();
-            }
-          }}
-          type="checkbox"
-        />
-        <span>I have permission to use these media.</span>
-      </label>
+            }}
+            type="file"
+          />
+        </label>
+        {mediaFiles.length > 0 && (
+          <p className="wizard__media-count">
+            {mediaFiles.length} {mediaFiles.length === 1 ? "item" : "items"} selected from your device.
+          </p>
+        )}
+        <label className="wizard__consent" htmlFor="media-permission">
+          <input
+            checked={hasMediaPermission}
+            id="media-permission"
+            onChange={(event) => {
+              const granted = event.target.checked;
+              consentRef.current = granted;
+              setHasMediaPermission(granted);
+              if (!granted) {
+                requestGeneration.current += 1;
+                resetDerivedState();
+              }
+            }}
+            type="checkbox"
+          />
+          <span>I have permission to use these media.</span>
+        </label>
 
-      <button
-        className="button button--secondary"
-        disabled={!memoryRequest.trim() || mediaFiles.length === 0 || !hasMediaPermission || isPlanning}
-        onClick={createPlan}
-        type="button"
-      >
-        {isPlanning ? "Reviewing your media…" : "Create a plan"}
-      </button>
+        <button
+          className="button button--secondary"
+          disabled={!memoryRequest.trim() || mediaFiles.length === 0 || !hasMediaPermission || isPlanning}
+          onClick={createPlan}
+          type="button"
+        >
+          {isPlanning ? "Reviewing your media…" : "Create a plan"}
+        </button>
+      </section>
 
       {mediaReviews.length > 0 && (
         <section aria-label="Media review" className="wizard__media-review">
-          <p className="wizard__step">02 / MEDIA REVIEW</p>
-          <h3>Check each item before your plan is approved.</h3>
+          <p className="wizard__step">02 / MEDIA</p>
+          <h3>Check the moments Memory Director found.</h3>
+          <p className="wizard__section-note">Keep the moments you want in the story. Nothing is deleted.</p>
           {mediaReviews.map((media) => (
             <article className="wizard__media-card" key={media.media_id}>
               <p>{media.description}</p>
@@ -378,44 +393,57 @@ export function ProductionWizard() {
         </section>
       )}
 
-      {storyboard && (
-        <section aria-label="Generated plan" className="wizard__plan">
-          <p className="wizard__step">03 / YOUR PLAN</p>
-        <h3>{storyboard.title}</h3>
-        <p>{storyboard.caption}</p>
-        {storyboard.music_direction && (
-          <div className="wizard__recommendation" aria-label="Music recommendation">
-            <strong>Suggested sound: {storyboard.music_direction}</strong>
-            {storyboard.preference_explanation && <p>{storyboard.preference_explanation}</p>}
-          </div>
-        )}
-      </section>
+      {isPlanning && (
+        <section aria-label="Creating your plan" className="wizard__stage wizard__stage--waiting">
+          <p className="wizard__step">03 / PLAN</p>
+          <h3>Making a simple plan from your memories…</h3>
+          <p>We are reviewing your selected media now.</p>
+        </section>
       )}
 
-      <section aria-label="Approval" className="wizard__approval">
-        <div>
-          <p className="wizard__step">04 / REVIEW</p>
-          <h3>Your plan stays in your control.</h3>
-          <p>Nothing is exported until you approve the plan.</p>
-        </div>
-        <button
-          className="button button--secondary"
-          disabled={!storyboard || !allMediaReviewed || selectedMediaCount === 0}
-          onClick={() => setApproved(true)}
-          type="button"
-        >
-          Approve plan
-        </button>
-      </section>
+      {storyboard && (
+        <section aria-label="Generated plan" className="wizard__plan">
+          <p className="wizard__step">03 / PLAN</p>
+          <h3>{storyboard.title}</h3>
+          <p>{storyboard.caption}</p>
+          {storyboard.music_direction && (
+            <div className="wizard__recommendation" aria-label="Music recommendation">
+              <strong>Suggested sound: {storyboard.music_direction}</strong>
+              {storyboard.preference_explanation && <p>{storyboard.preference_explanation}</p>}
+            </div>
+          )}
+        </section>
+      )}
 
-      <button
-        className="button button--primary"
-        disabled={!approved || renderStatus === "submitting"}
-        onClick={submitRenderRequest}
-        type="button"
-      >
-        Make this video
-      </button>
+      {storyboard && (
+        <section aria-label="Approval" className="wizard__approval">
+          <div>
+            <p className="wizard__step">04 / SAVE</p>
+            <h3>Your plan stays in your control.</h3>
+            <p>Review the plan, then save the finished video to your device.</p>
+          </div>
+          {!approved ? (
+            <button
+              className="button button--secondary"
+              disabled={!allMediaReviewed || selectedMediaCount === 0}
+              onClick={() => setApproved(true)}
+              type="button"
+            >
+              Approve plan
+            </button>
+          ) : (
+            <button
+              className="button button--primary"
+              disabled={renderStatus === "submitting"}
+              onClick={submitRenderRequest}
+              type="button"
+            >
+              {renderStatus === "submitting" ? "Saving your video…" : "Make this video"}
+            </button>
+          )}
+        </section>
+      )}
+
       <p aria-live="polite" className="wizard__status" id="voice-input-status" role="status">
         {planError && "We could not create your plan. Please try again."}
         {voiceError && "Voice input is not available. You can type your request instead."}

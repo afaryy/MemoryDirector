@@ -13,10 +13,17 @@ describe("ProductionWizard", () => {
     render(<ProductionWizard />);
 
     expect(screen.getByRole("button", { name: "Speak your request" })).toBeVisible();
-    const createButton = screen.getByRole("button", { name: "Make this video" });
-    expect(createButton).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Approve plan" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Make this video" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Your plan stays in your control." })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create a plan" })).toBeDisabled();
+  });
+
+  it("shows one clear active stage before any media is submitted", () => {
+    render(<ProductionWizard />);
+
+    expect(screen.getByRole("heading", { name: "Start with what you want to remember." })).toBeVisible();
+    expect(screen.getByText("1 / 4")).toBeVisible();
+    expect(screen.queryByText("04 / REVIEW")).not.toBeInTheDocument();
   });
 
   it("offers typing when the browser cannot start voice input", async () => {
@@ -258,8 +265,8 @@ describe("ProductionWizard", () => {
     fireEvent.click(permission);
 
     expect(screen.queryByText("a family garden")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Approve plan" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Make this video" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Approve plan" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Make this video" })).not.toBeInTheDocument();
   });
 
   it("allows multiple selected items to form one memory video", async () => {
@@ -327,7 +334,7 @@ describe("ProductionWizard", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Hold this item back" })[0]);
     await waitFor(() => expect(screen.getAllByRole("button", { name: "Held back" })).toHaveLength(1));
     expect(screen.getByRole("button", { name: "Approve plan" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Make this video" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Make this video" })).not.toBeInTheDocument();
   });
 
   it("does not export when consent is withdrawn during rendering", async () => {
@@ -374,7 +381,7 @@ describe("ProductionWizard", () => {
 
     fireEvent.click(permission);
     resolveRender?.({ ok: true });
-    await waitFor(() => expect(screen.getByRole("button", { name: "Make this video" })).toBeDisabled());
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Make this video" })).not.toBeInTheDocument());
     expect(fetchMock).not.toHaveBeenCalledWith("http://localhost:8000/renders/export", expect.anything());
   });
 
