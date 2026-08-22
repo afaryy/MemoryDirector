@@ -5,6 +5,12 @@ variable "image" { type = string }
 variable "service_account_email" { type = string }
 variable "container_port" { type = number }
 
+variable "timeout" {
+  type        = string
+  description = "Maximum request duration for the Cloud Run service."
+  default     = "300s"
+}
+
 variable "memory" {
   type    = string
   default = "512Mi"
