@@ -36,6 +36,15 @@ type SpeechRecognitionWindow = Window & {
   webkitSpeechRecognition?: new () => SpeechRecognitionInstance;
 };
 
+type MediaMode = "manual" | "auto";
+
+type FindFilters = {
+  dateFrom: string;
+  dateTo: string;
+  place: string;
+  people: string;
+};
+
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
 const privacyFlagLabels: Record<PrivacyFlag, string> = {
@@ -48,6 +57,9 @@ export function ProductionWizard() {
   const [approved, setApproved] = useState(false);
   const [memoryRequest, setMemoryRequest] = useState("");
   const [mediaFiles, setMediaFiles] = useState<File[]>([]);
+  const [mediaMode, setMediaMode] = useState<MediaMode>("manual");
+  const [findFilters, setFindFilters] = useState<FindFilters>({ dateFrom: "", dateTo: "", place: "", people: "" });
+  const [findStatus, setFindStatus] = useState("");
   const [mediaReviews, setMediaReviews] = useState<MediaReview[]>([]);
   const [hasMediaPermission, setHasMediaPermission] = useState(false);
   const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
@@ -60,6 +72,7 @@ export function ProductionWizard() {
   const [pendingDecisionMediaId, setPendingDecisionMediaId] = useState<string | null>(null);
   const requestGeneration = useRef(0);
   const consentRef = useRef(false);
+  const mediaInputRef = useRef<HTMLInputElement>(null);
 
   const allMediaReviewed = mediaReviews.length === mediaFiles.length && mediaReviews.every((media) => media.decision_status !== "unselected");
   const selectedMedia = mediaReviews.filter((media) => media.decision_status === "selected");
@@ -89,6 +102,40 @@ export function ProductionWizard() {
     requestGeneration.current += 1;
     setMemoryRequest(value);
     resetDerivedState();
+  }
+
+  function removeMediaFile(index: number) {
+    requestGeneration.current += 1;
+    setMediaFiles((current) => current.filter((_, currentIndex) => currentIndex !== index));
+    consentRef.current = false;
+    setHasMediaPermission(false);
+    resetDerivedState();
+  }
+
+  function changeMediaMode(mode: MediaMode) {
+    setMediaMode(mode);
+    setFindStatus("");
+    setApproved(false);
+    setRenderStatus("idle");
+    clearExport();
+  }
+
+  function findMoments() {
+    if (mediaFiles.length === 0) {
+      setFindStatus("Choose photos and videos first, then we can find moments within them.");
+      return;
+    }
+    const criteria = [
+      findFilters.dateFrom && `from ${findFilters.dateFrom}`,
+      findFilters.dateTo && `to ${findFilters.dateTo}`,
+      findFilters.place && `around ${findFilters.place}`,
+      findFilters.people && `with ${findFilters.people}`,
+    ].filter(Boolean).join(", ");
+    setFindStatus(
+      criteria
+        ? `Search scope set: ${mediaFiles.length} selected ${mediaFiles.length === 1 ? "item" : "items"}. We will look ${criteria}.`
+        : `Search scope set: ${mediaFiles.length} selected ${mediaFiles.length === 1 ? "item" : "items"}.`,
+    );
   }
 
   function startVoiceRequest() {
@@ -155,7 +202,13 @@ export function ProductionWizard() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          occasion: memoryRequest,
+          occasion: [
+            memoryRequest,
+            mediaMode === "auto" && findFilters.dateFrom ? `Date from: ${findFilters.dateFrom}` : "",
+            mediaMode === "auto" && findFilters.dateTo ? `Date to: ${findFilters.dateTo}` : "",
+            mediaMode === "auto" && findFilters.place ? `Place or scenery: ${findFilters.place}` : "",
+            mediaMode === "auto" && findFilters.people ? `People: ${findFilters.people}` : "",
+          ].filter(Boolean).join("\n"),
           moods: ["warm", "cheerful"],
           media_count: mediaFiles.length,
           media_consent: hasMediaPermission,
@@ -280,52 +333,134 @@ export function ProductionWizard() {
 
       <header className="wizard__header">
         <p className="wizard__step">01 / REQUEST</p>
-        <h2 id="production-title">Start with what you want to remember.</h2>
-        <p>
-          Tell us what you want to remember. We will find the story in your photos and videos.
-        </p>
+        <h2 id="production-title">What would you like to remember?</h2>
+        <p>Tell us the occasion. We will find the story in your media.</p>
       </header>
 
       <section className="wizard__stage wizard__stage--request" aria-label="Your request">
         <label className="wizard__request" htmlFor="memory-request">
-          <span>What would you like to make?</span>
-          <textarea
-            id="memory-request"
-            placeholder="For example: Make a cheerful travel video."
-            rows={3}
-            value={memoryRequest}
-            onChange={(event) => updateMemoryRequest(event.target.value)}
-          />
+          <span>Your memory request</span>
+          <div className="wizard__input-wrap">
+            <textarea
+              id="memory-request"
+              placeholder="For example: a happy afternoon with the grandchildren."
+              rows={3}
+              value={memoryRequest}
+              onChange={(event) => updateMemoryRequest(event.target.value)}
+            />
+            <button
+              aria-label="Voice input"
+              aria-pressed={isListening}
+              className={`button button--voice${isListening ? " is-listening" : ""}`}
+              onClick={startVoiceRequest}
+              title="Voice input"
+              type="button"
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 14.5a3.5 3.5 0 0 0 3.5-3.5V6a3.5 3.5 0 1 0-7 0v5a3.5 3.5 0 0 0 3.5 3.5Zm6-3.5a1 1 0 0 0-2 0 4 4 0 0 1-8 0 1 1 0 0 0-2 0 6 6 0 0 0 5 5.91V19H8a1 1 0 0 0 0 2h8a1 1 0 0 0 0-2h-3v-2.09A6 6 0 0 0 18 11Z" /></svg>
+            </button>
+          </div>
         </label>
-        <button
-          aria-pressed={isListening}
-          className="button button--secondary"
-          onClick={startVoiceRequest}
-          type="button"
-        >
-          {isListening ? "Listening…" : "Speak your request"}
-        </button>
 
-        <label className="wizard__media" htmlFor="memory-media">
-          <span>Choose photos and videos</span>
-          <input
-            accept="image/*,video/*"
-            id="memory-media"
-            multiple
-            onChange={(event) => {
-              requestGeneration.current += 1;
-              setMediaFiles(Array.from(event.target.files ?? []));
-              consentRef.current = false;
-              setHasMediaPermission(false);
-              resetDerivedState();
-            }}
-            type="file"
-          />
-        </label>
+        <div aria-label="How to choose media" className="wizard__media-mode" role="radiogroup">
+          <button
+            aria-checked={mediaMode === "manual"}
+            className={`wizard__mode${mediaMode === "manual" ? " is-active" : ""}`}
+            onClick={() => changeMediaMode("manual")}
+            role="radio"
+            type="button"
+          >
+            I’ll choose
+          </button>
+          <button
+            aria-checked={mediaMode === "auto"}
+            className={`wizard__mode${mediaMode === "auto" ? " is-active" : ""}`}
+            onClick={() => changeMediaMode("auto")}
+            role="radio"
+            type="button"
+          >
+            Find for me
+          </button>
+        </div>
+
+        {mediaMode === "manual" ? (
+          <label className="wizard__media" htmlFor="memory-media">
+            <span>Choose photos and videos</span>
+            <input
+              accept="image/*,video/*"
+              id="memory-media"
+              multiple
+              onChange={(event) => {
+                requestGeneration.current += 1;
+                setMediaFiles(Array.from(event.target.files ?? []));
+                consentRef.current = false;
+                setHasMediaPermission(false);
+                setFindStatus("");
+                resetDerivedState();
+              }}
+              ref={mediaInputRef}
+              type="file"
+            />
+          </label>
+        ) : (
+          <div className="wizard__library-access">
+            <div>
+              <strong>Find moments in your photo library</strong>
+              <span>Select a batch once. We will search only what you allow us to see.</span>
+            </div>
+            <button
+              className="button button--secondary"
+              onClick={() => mediaInputRef.current?.click()}
+              type="button"
+            >
+              Allow access to photos
+            </button>
+            <input
+              accept="image/*,video/*"
+              aria-hidden="true"
+              className="wizard__hidden-file-input"
+              data-testid="photo-access-input"
+              id="memory-media"
+              multiple
+              onChange={(event) => {
+                requestGeneration.current += 1;
+                setMediaFiles(Array.from(event.target.files ?? []));
+                consentRef.current = false;
+                setHasMediaPermission(false);
+                setFindStatus("");
+                resetDerivedState();
+              }}
+              ref={mediaInputRef}
+              type="file"
+            />
+          </div>
+        )}
+
+        {mediaMode === "auto" && (
+          <fieldset className="wizard__find-fields">
+            <legend>Find moments in the photos you choose</legend>
+            <div className="wizard__find-grid">
+              <label htmlFor="find-date-from">Date from<input id="find-date-from" onChange={(event) => setFindFilters((current) => ({ ...current, dateFrom: event.target.value }))} type="date" value={findFilters.dateFrom} /></label>
+              <label htmlFor="find-date-to">Date to<input id="find-date-to" onChange={(event) => setFindFilters((current) => ({ ...current, dateTo: event.target.value }))} type="date" value={findFilters.dateTo} /></label>
+              <label htmlFor="find-place">Place or scenery<input id="find-place" onChange={(event) => setFindFilters((current) => ({ ...current, place: event.target.value }))} placeholder="Beach, garden, city" type="text" value={findFilters.place} /></label>
+              <label htmlFor="find-people">People<input id="find-people" onChange={(event) => setFindFilters((current) => ({ ...current, people: event.target.value }))} placeholder="Family, children" type="text" value={findFilters.people} /></label>
+            </div>
+            <button className="button button--secondary" disabled={mediaFiles.length === 0} onClick={findMoments} type="button">Find moments</button>
+          </fieldset>
+        )}
         {mediaFiles.length > 0 && (
-          <p className="wizard__media-count">
-            {mediaFiles.length} {mediaFiles.length === 1 ? "item" : "items"} selected from your device.
-          </p>
+          <>
+            <p className="wizard__media-count">
+              {mediaFiles.length} {mediaFiles.length === 1 ? "item" : "items"} selected from your device.
+            </p>
+            <ul aria-label="Selected media" className="wizard__selected-files">
+              {mediaFiles.map((file, index) => (
+                <li key={`${file.name}-${index}`}>
+                  <span>{file.name}</span>
+                  <button className="button button--remove" onClick={() => removeMediaFile(index)} type="button">Remove {file.name}</button>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
         <label className="wizard__consent" htmlFor="media-permission">
           <input
@@ -450,6 +585,7 @@ export function ProductionWizard() {
         {renderStatus === "submitting" && "Preparing your approved video request…"}
         {renderStatus === "ready" && "Your approved video request is ready."}
         {renderStatus === "error" && "We could not prepare your video request. Please try again."}
+        {findStatus}
       </p>
       {exportHref && (
         <a className="button button--secondary wizard__download" download="memory-director-export.zip" href={exportHref}>
