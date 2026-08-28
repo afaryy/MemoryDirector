@@ -7,7 +7,7 @@ export default function HomePage() {
         <p className="masthead__mark">MD / 01</p>
         <div>
           <h1>Memory Director</h1>
-          <p>A voice-led memory film producer for older adults.</p>
+          <p className="masthead__subtitle">Turn phone moments into a short film.</p>
         </div>
       </header>
       <ProductionWizard />

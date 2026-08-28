@@ -12,7 +12,7 @@ describe("ProductionWizard", () => {
   it("keeps video creation disabled until the user approves a generated plan", () => {
     render(<ProductionWizard />);
 
-    expect(screen.getByRole("button", { name: "Speak your request" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Voice input" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Make this video" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Your plan stays in your control." })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create a plan" })).toBeDisabled();
@@ -21,7 +21,7 @@ describe("ProductionWizard", () => {
   it("shows one clear active stage before any media is submitted", () => {
     render(<ProductionWizard />);
 
-    expect(screen.getByRole("heading", { name: "Start with what you want to remember." })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "What would you like to remember?" })).toBeVisible();
     expect(screen.getByText("1 / 4")).toBeVisible();
     expect(screen.queryByText("04 / REVIEW")).not.toBeInTheDocument();
   });
@@ -41,7 +41,7 @@ describe("ProductionWizard", () => {
     vi.stubGlobal("SpeechRecognition", FailingRecognition);
     render(<ProductionWizard />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Speak your request" }));
+    fireEvent.click(screen.getByRole("button", { name: "Voice input" }));
 
     expect(await screen.findByText("Voice input is not available. You can type your request instead.")).toBeVisible();
   });
@@ -59,11 +59,104 @@ describe("ProductionWizard", () => {
     vi.stubGlobal("SpeechRecognition", WorkingRecognition);
     render(<ProductionWizard />);
 
-    const voiceButton = screen.getByRole("button", { name: "Speak your request" });
+    const voiceButton = screen.getByRole("button", { name: "Voice input" });
     expect(voiceButton).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(voiceButton);
 
-    expect(screen.getByRole("button", { name: "Listening…" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Voice input" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("offers one mutually exclusive media source mode", () => {
+    render(<ProductionWizard />);
+
+    expect(screen.getByRole("radio", { name: "I’ll choose" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "Find for me" })).toHaveAttribute("aria-checked", "false");
+    expect(screen.queryByLabelText("Date from")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Find for me" }));
+
+    expect(screen.getByRole("radio", { name: "Find for me" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByLabelText("Date from")).toBeVisible();
+    expect(screen.getByLabelText("Place or scenery")).toBeVisible();
+    expect(screen.getByLabelText("People")).toBeVisible();
+
+    fireEvent.click(screen.getByRole("radio", { name: "I’ll choose" }));
+    expect(screen.queryByLabelText("Date from")).not.toBeInTheDocument();
+  });
+
+  it("uses a photo-access action instead of a manual file picker in find-for-me mode", () => {
+    render(<ProductionWizard />);
+
+    fireEvent.click(screen.getByRole("radio", { name: "Find for me" }));
+
+    expect(screen.queryByLabelText("Choose photos and videos")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Allow access to photos" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Find moments" })).toBeDisabled();
+
+    expect(screen.getAllByRole("button", { name: "Allow access to photos" })).toHaveLength(1);
+    fireEvent.change(screen.getByTestId("photo-access-input"), {
+      target: { files: [new File(["photo"], "garden.jpg", { type: "image/jpeg" })] },
+    });
+
+    expect(screen.getByRole("button", { name: "Find moments" })).toBeEnabled();
+  });
+
+  it("passes find-for-me filters into the planning request", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          media_id: "sha256:garden",
+          description: "a family garden",
+          quality_score: 0.9,
+          privacy_flags: [],
+          orientation: "landscape",
+          duration_seconds: null,
+          decision_status: "unselected",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ title: "Garden memories", caption: "A gentle afternoon." }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ProductionWizard />);
+
+    fireEvent.change(screen.getByLabelText("Your memory request"), { target: { value: "A happy afternoon" } });
+    fireEvent.click(screen.getByRole("radio", { name: "Find for me" }));
+    fireEvent.change(screen.getByTestId("photo-access-input"), {
+      target: { files: [new File(["photo"], "garden.jpg", { type: "image/jpeg" })] },
+    });
+    fireEvent.change(screen.getByLabelText("Place or scenery"), { target: { value: "garden" } });
+    fireEvent.change(screen.getByLabelText("People"), { target: { value: "grandchildren" } });
+    fireEvent.click(screen.getByLabelText("I have permission to use these media."));
+    fireEvent.click(screen.getByRole("button", { name: "Create a plan" }));
+
+    await screen.findByText("Garden memories");
+    const storyboardCall = fetchMock.mock.calls[1];
+    const storyboardPayload = JSON.parse(String(storyboardCall[1].body));
+    expect(storyboardPayload.occasion).toContain("Place or scenery: garden");
+    expect(storyboardPayload.occasion).toContain("People: grandchildren");
+  });
+
+  it("lets the user remove a selected media item before planning", () => {
+    render(<ProductionWizard />);
+
+    fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
+      target: {
+        files: [
+          new File(["first"], "first.jpg", { type: "image/jpeg" }),
+          new File(["second"], "second.jpg", { type: "image/jpeg" }),
+        ],
+      },
+    });
+
+    expect(screen.getByText("first.jpg")).toBeVisible();
+    expect(screen.getByText("second.jpg")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Remove first.jpg" }));
+    expect(screen.queryByText("first.jpg")).not.toBeInTheDocument();
+    expect(screen.getByText("second.jpg")).toBeVisible();
   });
 
   it("submits an approved render request and confirms it to the user", async () => {
@@ -92,7 +185,7 @@ describe("ProductionWizard", () => {
     vi.stubGlobal("URL", { createObjectURL: vi.fn(() => "blob:memory-director-export") });
     render(<ProductionWizard />);
 
-    fireEvent.change(screen.getByLabelText("What would you like to make?"), {
+    fireEvent.change(screen.getByLabelText("Your memory request"), {
       target: { value: "Make a cheerful travel video." },
     });
     fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
@@ -154,7 +247,7 @@ describe("ProductionWizard", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(<ProductionWizard />);
 
-    fireEvent.change(screen.getByLabelText("What would you like to make?"), {
+    fireEvent.change(screen.getByLabelText("Your memory request"), {
       target: { value: "Make a cheerful travel video." },
     });
     fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
@@ -194,7 +287,7 @@ describe("ProductionWizard", () => {
     vi.stubGlobal("URL", { createObjectURL: vi.fn(() => "blob:memory-director-export") });
     render(<ProductionWizard />);
 
-    fireEvent.change(screen.getByLabelText("What would you like to make?"), {
+    fireEvent.change(screen.getByLabelText("Your memory request"), {
       target: { value: "Make a cheerful family video." },
     });
     fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
@@ -247,7 +340,7 @@ describe("ProductionWizard", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(<ProductionWizard />);
 
-    fireEvent.change(screen.getByLabelText("What would you like to make?"), {
+    fireEvent.change(screen.getByLabelText("Your memory request"), {
       target: { value: "Make a family video." },
     });
     fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
@@ -306,7 +399,7 @@ describe("ProductionWizard", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(<ProductionWizard />);
 
-    fireEvent.change(screen.getByLabelText("What would you like to make?"), {
+    fireEvent.change(screen.getByLabelText("Your memory request"), {
       target: { value: "Make a family video." },
     });
     fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
@@ -362,7 +455,7 @@ describe("ProductionWizard", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(<ProductionWizard />);
 
-    fireEvent.change(screen.getByLabelText("What would you like to make?"), {
+    fireEvent.change(screen.getByLabelText("Your memory request"), {
       target: { value: "Make a family video." },
     });
     fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
@@ -399,7 +492,7 @@ describe("ProductionWizard", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(<ProductionWizard />);
 
-    fireEvent.change(screen.getByLabelText("What would you like to make?"), { target: { value: "Make a family video." } });
+    fireEvent.change(screen.getByLabelText("Your memory request"), { target: { value: "Make a family video." } });
     fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
       target: { files: [new File(["first"], "first.jpg", { type: "image/jpeg" }), new File(["second"], "second.jpg", { type: "image/jpeg" })] },
     });
