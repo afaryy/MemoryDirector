@@ -1,0 +1,147 @@
+name: Public domain control
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "Public-edge operation"
+        required: true
+        type: choice
+        options: [provision, lockdown, destroy]
+      project_config:
+        description: "Non-sensitive project configuration path"
+        required: true
+        default: "infra/terraform/projects/config/memory-director.json"
+      environment_config:
+        description: "Non-sensitive environment configuration path"
+        required: true
+        default: "infra/terraform/projects/config/sandbox.json"
+      confirm:
+        description: "Required only for destroy: DESTROY_PUBLIC_EDGE"
+        required: false
+
+concurrency:
+  group: public-domain-control-sandbox
+  cancel-in-progress: false
+
+jobs:
+  public-edge:
+    runs-on: ubuntu-latest
+    environment: sandbox
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require a commit reachable from main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+      - name: Require explicit public-edge destroy confirmation
+        if: inputs.operation == 'destroy'
+        run: test "${{ inputs.confirm }}" = "DESTROY_PUBLIC_EDGE"
+      - id: config
+        name: Read non-sensitive configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          project_config_file="$GITHUB_WORKSPACE/${{ inputs.project_config }}"
+          environment_config_file="$GITHUB_WORKSPACE/${{ inputs.environment_config }}"
+          test -f "$project_config_file"
+          test -f "$environment_config_file"
+          state_bucket="$(jq -r '.state_bucket_name // empty' "$project_config_file")"
+          project_id="$(jq -r '.project_id // empty' "$project_config_file")"
+          resource_name="$(jq -r '.resource_name // empty' "$project_config_file")"
+          domain="$(jq -r '.public_edge.apex_domain // empty' "$project_config_file")"
+          region="$(jq -r '.region // empty' "$project_config_file")"
+          if [ -z "$region" ]; then
+            region="$(jq -r '.default_region' infra/terraform/projects/config/common-environment.json)"
+          fi
+          test -n "$state_bucket"
+          test -n "$project_id"
+          test -n "$resource_name"
+          test -n "$domain"
+          {
+            echo "project_config_file=$project_config_file"
+            echo "environment_config_file=$environment_config_file"
+            echo "state_bucket=$state_bucket"
+            echo "project_id=$project_id"
+            echo "resource_name=$resource_name"
+            echo "domain=$domain"
+            echo "region=$region"
+          } >> "$GITHUB_OUTPUT"
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - uses: hashicorp/setup-terraform@v3
+      - name: Require Cloudflare DNS token
+        run: test -n "$CLOUDFLARE_API_TOKEN"
+      - name: Initialize public-edge state
+        run: |
+          terraform -chdir=infra/terraform/components/public-edge init \
+            -backend-config="bucket=${{ steps.config.outputs.state_bucket }}" \
+            -backend-config="prefix=memory-director/sandbox/public-edge"
+      - name: Apply or destroy public-edge resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(
+            -var="project_config=${{ steps.config.outputs.project_config_file }}"
+            -var="environment_config=${{ steps.config.outputs.environment_config_file }}"
+            -var="operation_mode=${{ inputs.operation == 'lockdown' && 'lockdown' || 'provision' }}"
+          )
+          if [ "${{ inputs.operation }}" = "destroy" ]; then
+            terraform -chdir=infra/terraform/components/public-edge destroy -auto-approve "${args[@]}"
+          else
+            terraform -chdir=infra/terraform/components/public-edge apply -auto-approve "${args[@]}"
+          fi
+      - name: Record public-edge outputs
+        if: inputs.operation != 'destroy'
+        shell: bash
+        run: |
+          set -euo pipefail
+          terraform -chdir=infra/terraform/components/public-edge output -json | tee public-edge-outputs.json
+          {
+            echo "## Public edge"
+            echo
+            echo "- Domain: https://${{ steps.config.outputs.domain }}"
+            echo "- IP: $(jq -r '.edge_ip.value' public-edge-outputs.json)"
+            echo "- Certificate resource: $(jq -r '.certificate_name.value' public-edge-outputs.json)"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify HTTPS before lockdown
+        if: inputs.operation == 'lockdown'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --retry-delay 10 "https://${{ steps.config.outputs.domain }}/" >/dev/null
+          curl --fail --location --retry 3 --retry-delay 10 "https://${{ steps.config.outputs.domain }}/api/health" >/dev/null
+      - name: Restrict API and web Cloud Run ingress
+        if: inputs.operation == 'lockdown'
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_prefix="memory-director/sandbox/app-api"
+          web_prefix="memory-director/sandbox/app-web"
+          api_image="$(terraform -chdir=infra/terraform/components/app init -reconfigure -backend-config="bucket=${{ steps.config.outputs.state_bucket }}" -backend-config="prefix=$api_prefix" >/dev/null && terraform -chdir=infra/terraform/components/app output -raw api_image)"
+          web_image="$(terraform -chdir=infra/terraform/components/app init -reconfigure -backend-config="bucket=${{ steps.config.outputs.state_bucket }}" -backend-config="prefix=$web_prefix" >/dev/null && terraform -chdir=infra/terraform/components/app output -raw web_image)"
+          mcp_endpoint="$(gcloud run services describe "${{ steps.config.outputs.resource_name }}-mcp" --project "${{ steps.config.outputs.project_id }}" --region "${{ steps.config.outputs.region }}" --format='value(status.url)')"
+          terraform -chdir=infra/terraform/components/app init -reconfigure -backend-config="bucket=${{ steps.config.outputs.state_bucket }}" -backend-config="prefix=$api_prefix"
+          terraform -chdir=infra/terraform/components/app apply -auto-approve \
+            -var="project_config=${{ steps.config.outputs.project_config_file }}" \
+            -var="environment_config=${{ steps.config.outputs.environment_config_file }}" \
+            -var="service=api" -var="api_image=$api_image" -var="web_image=unused" \
+            -var="mcp_endpoint=$mcp_endpoint" -var="public_ingress=false"
+          terraform -chdir=infra/terraform/components/app init -reconfigure -backend-config="bucket=${{ steps.config.outputs.state_bucket }}" -backend-config="prefix=$web_prefix"
+          terraform -chdir=infra/terraform/components/app apply -auto-approve \
+            -var="project_config=${{ steps.config.outputs.project_config_file }}" \
+            -var="environment_config=${{ steps.config.outputs.environment_config_file }}" \
+            -var="service=web" -var="api_image=unused" -var="web_image=$web_image" \
+            -var="api_base_url=https://${{ steps.config.outputs.domain }}/api" -var="public_ingress=false"

@@ -109,6 +109,11 @@ jobs:
       - run: terraform -chdir=infra/terraform/modules/foundations/app test
       - run: terraform -chdir=infra/terraform/components/app init -backend=false
       - run: terraform -chdir=infra/terraform/components/app validate
+      - run: terraform -chdir=infra/terraform/modules/foundations/public_edge init -backend=false
+      - run: terraform -chdir=infra/terraform/modules/foundations/public_edge validate
+      - run: terraform -chdir=infra/terraform/modules/foundations/public_edge test
+      - run: terraform -chdir=infra/terraform/components/public-edge init -backend=false
+      - run: terraform -chdir=infra/terraform/components/public-edge validate
 
   terraform-operation:
     if: github.event_name == 'workflow_dispatch'
