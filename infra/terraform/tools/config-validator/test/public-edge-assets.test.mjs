@@ -20,3 +20,8 @@ test("public-edge operations documentation covers rollout and rollback", () => {
     assert.match(operations, new RegExp(requiredText));
   }
 });
+
+test("serverless NEG backends do not set unsupported backend timeouts", () => {
+  const module = readFileSync(new URL("infra/terraform/modules/foundations/public_edge/main.tf", repositoryRoot), "utf8");
+  assert.doesNotMatch(module, /resource "google_compute_backend_service" "(?:api|web)" \{[\s\S]*?timeout_sec/);
+});
