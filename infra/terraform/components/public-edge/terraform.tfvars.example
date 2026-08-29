@@ -1,0 +1,3 @@
+project_config     = "../../projects/config/memory-director.json"
+environment_config = "../../projects/config/sandbox.json"
+operation_mode     = "provision"

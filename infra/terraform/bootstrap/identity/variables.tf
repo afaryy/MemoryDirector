@@ -5,6 +5,8 @@ variable "project_roles" {
   default = [
     "roles/aiplatform.admin",
     "roles/artifactregistry.admin",
+    "roles/compute.loadBalancerAdmin",
+    "roles/compute.networkAdmin",
     "roles/iam.serviceAccountAdmin",
     "roles/iam.serviceAccountUser",
     "roles/resourcemanager.projectIamAdmin",
