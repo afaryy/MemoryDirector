@@ -15,6 +15,12 @@ variable "api_base_url" {
   default = null
 }
 
+variable "public_ingress" {
+  type        = bool
+  description = "Whether Cloud Run accepts direct public ingress before public-edge lockdown."
+  default     = true
+}
+
 variable "mcp_endpoint" {
   type        = string
   description = "Private Cloud Run endpoint for the official ClickHouse MCP server."

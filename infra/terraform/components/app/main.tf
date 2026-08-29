@@ -41,6 +41,12 @@ variable "api_base_url" {
   default     = null
 }
 
+variable "public_ingress" {
+  type        = bool
+  description = "Whether deployed Cloud Run services accept direct public ingress."
+  default     = true
+}
+
 variable "mcp_endpoint" {
   type        = string
   description = "Private ClickHouse MCP endpoint; can be supplied after platform apply."
@@ -69,6 +75,7 @@ module "app" {
   web_image             = var.web_image
   service               = var.service
   api_base_url          = var.api_base_url
+  public_ingress        = var.public_ingress
   mcp_endpoint          = local.mcp_endpoint
   mcp_secret_project_id = local.mcp_secret_project
 }

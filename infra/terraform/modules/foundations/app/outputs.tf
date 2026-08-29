@@ -1,6 +1,8 @@
 output "api_uri" { value = try(module.api[0].uri, null) }
 output "api_memory" { value = try(module.api[0].memory, null) }
+output "api_ingress" { value = try(module.api[0].ingress, null) }
 output "web_uri" { value = try(module.web[0].uri, null) }
+output "web_ingress" { value = try(module.web[0].ingress, null) }
 output "runtime_service_account_email" { value = "memory-director-runtime@${var.project_id}.iam.gserviceaccount.com" }
 output "service" { value = var.service }
 output "api_image" { value = var.api_image }
