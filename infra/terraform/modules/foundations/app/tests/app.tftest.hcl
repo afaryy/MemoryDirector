@@ -33,3 +33,22 @@ run "creates_public_api_and_web_services_from_immutable_images" {
     error_message = "The API needs enough memory for ffmpeg media rendering."
   }
 }
+
+run "uses_load_balancer_ingress_when_public_ingress_is_disabled" {
+  command = plan
+
+  variables {
+    project_id     = "memory-director-sandbox"
+    region         = "australia-southeast1"
+    name_prefix    = "memory-director-sandbox"
+    api_image      = "example.invalid/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    web_image      = "example.invalid/web@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    service        = "all"
+    public_ingress = false
+  }
+
+  assert {
+    condition     = output.api_ingress == "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER" && output.web_ingress == "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+    error_message = "Locked services must accept traffic only through the load balancer."
+  }
+}

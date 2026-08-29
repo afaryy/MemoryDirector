@@ -17,6 +17,16 @@
     "mcp_secret_project_id": { "type": "string", "minLength": 1 },
     "mcp_invoker_service_account_email": { "type": "string", "pattern": "^[^@\\s]+@[^@\\s]+\\.iam\\.gserviceaccount\\.com$" },
     "mcp_endpoint": { "type": "string", "pattern": "^https://" },
+    "public_edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apex_domain", "cloudflare_zone_id", "api_path_prefix"],
+      "properties": {
+        "apex_domain": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]+[a-z0-9]$" },
+        "cloudflare_zone_id": { "type": "string", "pattern": "^[a-f0-9]{32}$" },
+        "api_path_prefix": { "type": "string", "const": "/api" }
+      }
+    },
     "labels": { "type": "object", "additionalProperties": { "type": "string" } }
   }
 }

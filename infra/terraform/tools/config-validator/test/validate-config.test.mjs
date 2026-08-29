@@ -16,3 +16,28 @@ test("rejects configuration with an unknown property", () => {
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /unexpected_secret/);
 });
+
+test("accepts a complete non-sensitive public-edge configuration", () => {
+  const result = spawnSync("node", [fileURLToPath(validator), "--json", JSON.stringify({
+    project_id: "staylong",
+    public_edge: {
+      apex_domain: "memorydirector.com",
+      cloudflare_zone_id: "d963f645b3ea1a7b68611369f90cc276",
+      api_path_prefix: "/api",
+    },
+  })], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test("rejects an invalid public-edge API path prefix", () => {
+  const result = spawnSync("node", [fileURLToPath(validator), "--json", JSON.stringify({
+    project_id: "staylong",
+    public_edge: {
+      apex_domain: "memorydirector.com",
+      cloudflare_zone_id: "d963f645b3ea1a7b68611369f90cc276",
+      api_path_prefix: "api",
+    },
+  })], { encoding: "utf8" });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /api_path_prefix/);
+});

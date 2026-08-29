@@ -131,7 +131,7 @@ jobs:
         with:
           context: apps/web
           push: true
-          build-args: NEXT_PUBLIC_API_BASE_URL=${{ steps.api.outputs.uri }}
+          build-args: NEXT_PUBLIC_API_BASE_URL=/api
           tags: ${{ steps.config.outputs.registry }}/web:${{ steps.config.outputs.sha }}
 
       - name: Apply web service

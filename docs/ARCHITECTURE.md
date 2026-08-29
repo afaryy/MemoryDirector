@@ -48,3 +48,14 @@ flowchart LR
 ## Deployment target
 
 The intended deployment is a Next.js web client plus FastAPI/render services on Cloud Run, Google Cloud AI for Gemini and media analysis, ClickHouse Cloud through the official MCP server, and Google Secret Manager for credentials. The app component receives `MEDIA_BUCKET`, `GOOGLE_CLOUD_PROJECT`, and `GOOGLE_CLOUD_LOCATION` as non-secret Terraform-managed settings; bootstrap remains outside daily app/platform workflows.
+
+## Public edge
+
+`memorydirector.com` is served through a Global External Application Load
+Balancer. Cloudflare provides DNS-only apex and `www` records; the load
+balancer terminates Google-managed TLS, redirects HTTP to HTTPS and `www` to
+the apex, sends browser requests to the web Cloud Run service, and rewrites
+same-origin `/api/*` requests before forwarding them to FastAPI through a
+serverless NEG. The `public-edge` Terraform component has isolated state and a
+separate manually triggered workflow. Cloud Run ingress is tightened only
+after a real HTTPS smoke test passes.

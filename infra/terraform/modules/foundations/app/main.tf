@@ -14,6 +14,7 @@ module "api" {
   container_port        = 8000
   memory                = "2Gi"
   timeout               = "900s"
+  ingress               = var.public_ingress ? "INGRESS_TRAFFIC_ALL" : "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
   environment_variables = merge({
     WEB_ORIGINS           = "*"
     GOOGLE_CLOUD_PROJECT  = var.project_id
@@ -37,5 +38,6 @@ module "web" {
   image                 = var.web_image
   service_account_email = "memory-director-runtime@${var.project_id}.iam.gserviceaccount.com"
   container_port        = 3000
+  ingress               = var.public_ingress ? "INGRESS_TRAFFIC_ALL" : "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
   environment_variables = { API_BASE_URL = coalesce(var.api_base_url, try(module.api[0].uri, "")) }
 }
