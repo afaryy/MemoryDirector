@@ -71,6 +71,47 @@ jobs:
           service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
 
       - uses: google-github-actions/setup-gcloud@v2
+      - name: Preserve existing Cloud Run ingress mode
+        id: ingress
+        shell: bash
+        run: |
+          set -euo pipefail
+          ingress_values=()
+          for service in api web; do
+            if ! ingress="$(gcloud run services describe "${{ steps.config.outputs.resource_name }}-$service" \
+              --project "${{ steps.config.outputs.project_id }}" \
+              --region "${{ steps.config.outputs.region }}" \
+              --format="value(metadata.annotations.'run.googleapis.com/ingress')" 2>&1)"; then
+              if [[ "$ingress" == *"NOT_FOUND"* ]]; then
+                continue
+              fi
+              printf '%s\n' "$ingress" >&2
+              exit 1
+            fi
+            test -n "$ingress"
+            if [ -n "$ingress" ]; then
+              ingress_values+=("$ingress")
+            fi
+          done
+
+          public_ingress=true
+          if [ "${#ingress_values[@]}" -gt 0 ]; then
+            for ingress in "${ingress_values[@]}"; do
+              case "$ingress" in
+                all) ;;
+                internal-and-cloud-load-balancing) public_ingress=false ;;
+                *) echo "Unsupported Cloud Run ingress value: $ingress" >&2; exit 1 ;;
+              esac
+            done
+          fi
+
+          if [ "$public_ingress" = false ]; then
+            for ingress in "${ingress_values[@]}"; do
+              test "$ingress" = "internal-and-cloud-load-balancing"
+            done
+          fi
+
+          echo "public_ingress=$public_ingress" >> "$GITHUB_OUTPUT"
       - name: Resolve private ClickHouse MCP endpoint
         id: mcp
         shell: bash
@@ -109,7 +150,8 @@ jobs:
             -var="service=api" \
             -var="api_image=${{ steps.config.outputs.registry }}/api:${{ steps.config.outputs.sha }}" \
             -var="web_image=unused" \
-            -var="mcp_endpoint=${{ steps.mcp.outputs.uri }}"
+            -var="mcp_endpoint=${{ steps.mcp.outputs.uri }}" \
+            -var="public_ingress=${{ steps.ingress.outputs.public_ingress }}"
 
       - name: Resolve deployed API URL
         if: steps.config.outputs.component == 'web' || steps.config.outputs.component == 'all'
@@ -149,4 +191,5 @@ jobs:
             -var="service=web" \
             -var="api_image=unused" \
             -var="web_image=${{ steps.config.outputs.registry }}/web:${{ steps.config.outputs.sha }}" \
-            -var="api_base_url=${{ steps.api.outputs.uri }}"
+            -var="api_base_url=${{ steps.api.outputs.uri }}" \
+            -var="public_ingress=${{ steps.ingress.outputs.public_ingress }}"

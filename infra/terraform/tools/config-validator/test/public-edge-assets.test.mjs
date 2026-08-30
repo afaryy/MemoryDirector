@@ -35,3 +35,17 @@ test("lockdown reads the deployed Cloud Run images instead of absent Terraform s
   assert.match(workflow, /test -n "\$mcp_endpoint"/);
   assert.doesNotMatch(workflow, /terraform -chdir=infra\/terraform\/components\/app output -raw (?:api_image|web_image)/);
 });
+
+test("deployment serializes with lockdown and preserves the existing ingress mode", () => {
+  const deploy = readFileSync(new URL(".github/workflows/deploy.yml", repositoryRoot), "utf8");
+  const publicDomain = readFileSync(new URL(".github/workflows/public-domain-control.yml", repositoryRoot), "utf8");
+
+  assert.match(deploy, /concurrency:\n  group: deploy-sandbox/);
+  assert.match(publicDomain, /concurrency:\n  group: deploy-sandbox/);
+  assert.match(deploy, /id: ingress/);
+  assert.match(deploy, /for service in api web; do/);
+  assert.match(deploy, /gcloud run services describe "\$\{\{ steps\.config\.outputs\.resource_name \}\}-\$service"/);
+  assert.match(deploy, /NOT_FOUND/);
+  assert.doesNotMatch(deploy, /2>\/dev\/null \|\| true/);
+  assert.match(deploy, /-var="public_ingress=\$\{\{ steps\.ingress\.outputs\.public_ingress \}\}"/);
+});
