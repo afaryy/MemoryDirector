@@ -28,11 +28,11 @@ resource "google_project_service" "identity" {
 module "github_oidc" {
   source = "../../base/github_oidc_provider"
 
-  project_id        = var.project_id
-  pool_id           = "github-actions"
-  github_repository = "${var.github_owner}/${var.github_repo}"
-  allowed_ref       = var.allowed_ref
-  environment       = var.environment
+  project_id          = var.project_id
+  pool_id             = "github-actions"
+  github_repositories = var.github_repositories
+  allowed_ref         = var.allowed_ref
+  environment         = var.environment
 
   depends_on = [google_project_service.identity]
 }
@@ -49,9 +49,15 @@ module "terraform_deployer" {
 }
 
 resource "google_service_account_iam_member" "github_workload_identity_user" {
+  for_each           = var.github_repositories
   service_account_id = module.terraform_deployer.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/${module.github_oidc.name}/attribute.repository/${var.github_owner}/${var.github_repo}"
+  member             = "principalSet://iam.googleapis.com/${module.github_oidc.name}/attribute.repository/${each.value}"
+}
+
+moved {
+  from = google_service_account_iam_member.github_workload_identity_user
+  to   = google_service_account_iam_member.github_workload_identity_user["afaryy/MemoryDirector"]
 }
 
 resource "google_project_iam_member" "terraform_deployer" {
