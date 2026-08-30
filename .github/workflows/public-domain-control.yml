@@ -21,7 +21,7 @@ on:
         required: false
 
 concurrency:
-  group: public-domain-control-sandbox
+  group: deploy-sandbox
   cancel-in-progress: false
 
 jobs:
