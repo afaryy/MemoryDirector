@@ -25,3 +25,13 @@ test("serverless NEG backends do not set unsupported backend timeouts", () => {
   const module = readFileSync(new URL("infra/terraform/modules/foundations/public_edge/main.tf", repositoryRoot), "utf8");
   assert.doesNotMatch(module, /resource "google_compute_backend_service" "(?:api|web)" \{[\s\S]*?timeout_sec/);
 });
+
+test("lockdown reads the deployed Cloud Run images instead of absent Terraform state outputs", () => {
+  const workflow = readFileSync(new URL(".github/workflows/public-domain-control.yml", repositoryRoot), "utf8");
+  assert.match(workflow, /gcloud run services describe "\$\{\{ steps\.config\.outputs\.resource_name \}\}-api".*--format='value\(spec\.template\.spec\.containers\[0\]\.image\)'/s);
+  assert.match(workflow, /gcloud run services describe "\$\{\{ steps\.config\.outputs\.resource_name \}\}-web".*--format='value\(spec\.template\.spec\.containers\[0\]\.image\)'/s);
+  assert.match(workflow, /test -n "\$api_image"/);
+  assert.match(workflow, /test -n "\$web_image"/);
+  assert.match(workflow, /test -n "\$mcp_endpoint"/);
+  assert.doesNotMatch(workflow, /terraform -chdir=infra\/terraform\/components\/app output -raw (?:api_image|web_image)/);
+});
