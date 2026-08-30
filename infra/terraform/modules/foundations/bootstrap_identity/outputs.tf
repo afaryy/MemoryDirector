@@ -1,4 +1,5 @@
 output "github_repository" { value = "${var.github_owner}/${var.github_repo}" }
+output "github_repositories" { value = tolist(var.github_repositories) }
 output "allowed_ref" { value = var.allowed_ref }
 output "environment" { value = var.environment }
 output "service_account_email" {
