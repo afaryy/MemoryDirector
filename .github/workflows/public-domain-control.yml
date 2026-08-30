@@ -130,9 +130,12 @@ jobs:
           set -euo pipefail
           api_prefix="memory-director/sandbox/app-api"
           web_prefix="memory-director/sandbox/app-web"
-          api_image="$(terraform -chdir=infra/terraform/components/app init -reconfigure -backend-config="bucket=${{ steps.config.outputs.state_bucket }}" -backend-config="prefix=$api_prefix" >/dev/null && terraform -chdir=infra/terraform/components/app output -raw api_image)"
-          web_image="$(terraform -chdir=infra/terraform/components/app init -reconfigure -backend-config="bucket=${{ steps.config.outputs.state_bucket }}" -backend-config="prefix=$web_prefix" >/dev/null && terraform -chdir=infra/terraform/components/app output -raw web_image)"
+          api_image="$(gcloud run services describe "${{ steps.config.outputs.resource_name }}-api" --project "${{ steps.config.outputs.project_id }}" --region "${{ steps.config.outputs.region }}" --format='value(spec.template.spec.containers[0].image)')"
+          web_image="$(gcloud run services describe "${{ steps.config.outputs.resource_name }}-web" --project "${{ steps.config.outputs.project_id }}" --region "${{ steps.config.outputs.region }}" --format='value(spec.template.spec.containers[0].image)')"
           mcp_endpoint="$(gcloud run services describe "${{ steps.config.outputs.resource_name }}-mcp" --project "${{ steps.config.outputs.project_id }}" --region "${{ steps.config.outputs.region }}" --format='value(status.url)')"
+          test -n "$api_image"
+          test -n "$web_image"
+          test -n "$mcp_endpoint"
           terraform -chdir=infra/terraform/components/app init -reconfigure -backend-config="bucket=${{ steps.config.outputs.state_bucket }}" -backend-config="prefix=$api_prefix"
           terraform -chdir=infra/terraform/components/app apply -auto-approve \
             -var="project_config=${{ steps.config.outputs.project_config_file }}" \
