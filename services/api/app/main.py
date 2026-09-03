@@ -22,6 +22,7 @@ from app.media_analysis import (
     media_id_for_bytes,
 )
 from app.media_storage import GcsMediaStorage, MediaStorage
+from app.memory_song import UnsafeSongRequest, build_memory_song_brief
 from app.models import PlaceCandidate, ProductionBrief, ProductionProposal, Storyboard
 from app.preferences import preference_repository_from_environment
 from app.production import ProductionOrchestrator
@@ -71,6 +72,11 @@ class MediaDecisionPayload(BaseModel):
     reason: str = Field(min_length=1, max_length=500)
 
 
+class MemorySongBriefPayload(BaseModel):
+    memory_details: list[str] = Field(min_length=1, max_length=12)
+    requested_style: str = Field(default="warm acoustic", max_length=300)
+
+
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 _media_decisions = MediaDecisionRegistry()
 
@@ -111,6 +117,18 @@ def get_media_analyzer() -> VertexGeminiMediaAnalyzer:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Media analysis is not configured.",
         ) from error
+
+
+@app.post("/memory-songs/brief", status_code=status.HTTP_201_CREATED)
+def create_memory_song_brief(payload: MemorySongBriefPayload) -> dict[str, str]:
+    try:
+        brief = build_memory_song_brief(
+            memory_details=payload.memory_details,
+            requested_style=payload.requested_style,
+        )
+    except UnsafeSongRequest as error:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
+    return {"prompt": brief.prompt, "fallback": brief.fallback}
 
 
 def _contains_private_uri(analysis: MediaAnalysis) -> bool:
