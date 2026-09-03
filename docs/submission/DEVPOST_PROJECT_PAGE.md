@@ -2,8 +2,8 @@
 
 ## One-line pitch
 
-Memory Director turns a phone album into a short, shareable memory film through
-one calm, voice-led decision at a time.
+Memory Director turns deliberately selected phone moments into a short,
+shareable memory film through one calm, voice-led action.
 
 ## The problem
 
@@ -15,13 +15,13 @@ once. A family member becomes the editor by default.
 
 ## What we built
 
-Memory Director is a mobile-first web app and Google Cloud API. The hosted MVP
-already demonstrates a voice/text request, a consent gate, an explainable
-storyboard, explicit plan approval, and an approved render request. The API
-also has a direct, synthetic-fixture export path that returns an MP4, cover
-image, title, and caption for manual sharing. The final submission recording
-must only show the media-analysis, privacy-card, ClickHouse, and export steps
-after those API capabilities are wired into the visible mobile flow.
+Memory Director is a mobile-first web app and Google Cloud API. The target
+journey is deliberately simple: the person speaks or types a request, chooses
+their own photos and videos through the device picker, presses **Make my
+film**, watches a portrait preview, then chooses **Save & share**. The
+submission recording will show only capabilities that are working through this
+visible flow; a synthetic API fixture export is not presented as a complete
+hosted-UI journey.
 
 The agent is deliberately bounded:
 
@@ -30,7 +30,8 @@ The agent is deliberately bounded:
 - uncertain place claims require confirmation;
 - privacy flags remain visible for review;
 - held-back media is not silently deleted;
-- rendering is blocked until the user approves the plan;
+- the browser sees only files the user deliberately selects;
+- the ClickHouse MCP consent/export gate can block rendering and export;
 - no social account or automatic publishing permission is requested.
 
 ## Why it is agentic
@@ -38,21 +39,18 @@ The agent is deliberately bounded:
 The intended production flow coordinates several evidence-based decisions
 instead of applying a single opaque filter:
 
-1. Gemini turns a plain-language memory request into a concise production plan.
+1. Gemini turns a plain-language memory request into a constrained production brief.
 2. Multimodal Gemini analysis describes only observable media properties and
    returns allow-listed privacy signals.
-3. The production flow asks for confirmation when a place or fact is uncertain.
-4. The official `mcp-clickhouse` server is the runtime integration for recalling
-   anonymised creative preferences
-   and render history so a recommendation can explain why a warm, cheerful, or
-   festive direction was suggested.
-5. The user approves the plan before the deterministic renderer creates the
-   final package.
+3. The production flow omits an uncertain place or fact until the user confirms it.
+4. The official `mcp-clickhouse` server is the runtime integration for
+   anonymised preferences and the required consent/export decision.
+5. A deterministic renderer makes the approximately-one-minute portrait film
+   from a constrained storyboard; the model never directly encodes video.
 
-The repository contains the adapter, schema, consent/privacy boundaries, and
-deterministic renderer. The current hosted Web page does not yet call every
-step in this target flow; that wiring and the final recorded proof are explicit
-release gates in the checklist.
+The repository contains early adapter, schema, consent/privacy, and export
+foundations. The simplified UI, visible automatic film, ClickHouse export gate,
+and final recorded proof remain release gates in the checklist.
 
 ## Technology
 
@@ -62,7 +60,9 @@ release gates in the checklist.
 - Google Cloud Vertex AI Gemini for production planning and media analysis.
 - Private Google Cloud Storage for consented originals.
 - ClickHouse Cloud through the official `mcp-clickhouse` integration for the
-  explainable preference-recall path (hosted runtime proof pending UI wiring).
+  explainable preference and consent/export path (hosted runtime proof pending).
+- Google Lyria for the original memory-song feature only after ST-38 implements
+  and verifies its safety/provenance boundary.
 - Terraform modules and GitHub Actions with OIDC/WIF for repeatable sandbox
   infrastructure and deployments.
 
@@ -88,10 +88,9 @@ wiring is complete.
 
 ## What we would do next
 
-The next product step is to connect the same consented flow to a larger,
-rights-registered family album, surface each privacy flag in the mobile review
-card, wire the ClickHouse MCP preference query into the visible flow, and expose
-the approved export package in the Web UI. The core safety boundary remains the
+The next product step is to implement the simplified mobile flow, deterministic
+approximately-one-minute preview, original memory song with a safe fallback,
+and ClickHouse MCP consent/export gate. The core safety boundary remains the
 same: Memory Director directs the memory, but the user decides what leaves the
 phone.
 

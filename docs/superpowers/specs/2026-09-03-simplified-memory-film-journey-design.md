@@ -9,7 +9,7 @@ This specification defines the product contract for ST-35 (mobile UI), ST-36 (au
 ## Primary journey
 
 1. The person describes the memory by typing or speaking in their own words. Example: “Make a cheerful film from Mum's garden visit.”
-2. The person chooses 5–15 photos and/or videos from their device's standard file or photo picker. They can remove a selected item before generating.
+2. The person chooses 1–15 photos and/or videos from their device's standard file or photo picker. They can remove a selected item before generating.
 3. The person presses **Make my film**.
 4. The production crew creates one vertical preview: it selects useful moments, removes redundant material, trims video segments, crops media appropriately, orders the story, adds a title/caption when suitable, chooses sound, and targets an approximately one-minute film.
 5. The person watches the preview. One concise confirmation action, **Save & share**, exports the MP4 and invokes the device's native share sheet.
@@ -29,7 +29,7 @@ The primary action must not display a duration helper. The product introduction 
 - Use the operating system or browser-supported picker. The browser MVP only sees files the person deliberately selects.
 - The interface must not claim general access to the person's phone library, background scanning, person recognition over the whole library, or automatic search across unselected files.
 - Each selected item has an obvious remove action. Selecting more media does not silently remove previously selected items.
-- Mixed photos and videos are supported. The first release caps the list at 15 items so the generation time and film quality remain predictable.
+- Mixed photos and videos are supported. The first release accepts 1–15 items so a single meaningful clip works while generation time and film quality remain predictable.
 
 ### Generation and preview
 
