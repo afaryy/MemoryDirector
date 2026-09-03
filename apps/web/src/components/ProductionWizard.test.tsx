@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { Blob as NodeBlob } from "node:buffer";
 import { strToU8, zipSync } from "fflate";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -19,7 +20,7 @@ function completeReadyState() {
 }
 
 function exportZip() {
-  return new Blob([zipSync({ "garden.mp4": strToU8("fixture-mp4") })], { type: "application/zip" });
+  return new NodeBlob([zipSync({ "garden.mp4": strToU8("fixture-mp4") })], { type: "application/zip" });
 }
 
 describe("ProductionWizard", () => {
@@ -51,6 +52,17 @@ describe("ProductionWizard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Remove first.jpg" }));
     expect(screen.queryByText("first.jpg")).not.toBeInTheDocument();
     expect(screen.getByText("second.jpg")).toBeVisible();
+  });
+
+  it("explains the 15-item limit instead of silently dropping selected media", () => {
+    render(<ProductionWizard />);
+    fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
+      target: {
+        files: Array.from({ length: 16 }, (_, index) => new File([String(index)], `moment-${index}.jpg`, { type: "image/jpeg" })),
+      },
+    });
+
+    expect(screen.getByRole("status")).toHaveTextContent("Choose up to 15 photos and videos for one film.");
   });
 
   it("creates a preview without a blocking plan review", async () => {
