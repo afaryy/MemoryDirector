@@ -42,6 +42,13 @@ component:
 - `GOOGLE_CLOUD_LOCATION`: the configured sandbox region;
 - `MEDIA_BUCKET`: the private platform bucket named `<resource_name>-media`;
 - `GEMINI_MODEL`: optional model override, defaulting to `gemini-2.5-flash`.
+- `LYRIA_LOCATION`: optional Lyria 3 location override, defaulting to `global`.
+
+The original-memory-song path uses the same Cloud Run service account and
+Vertex AI authentication path as the deployed Gemini planner. It does not
+require a browser-visible API key. Lyria 3 remains a preview model; the
+feature must remain marked unverified until a hosted, non-sensitive smoke test
+records a successful generated-audio render.
 
 `POST /media/analyze` requires `consent=true`, accepts only image/video MIME
 types, and limits uploads to 50 MiB. It stores originals privately and returns

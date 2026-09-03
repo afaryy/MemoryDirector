@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
+import app.main as main_module
 
 
 def test_memory_song_brief_endpoint_returns_safe_generation_request() -> None:
@@ -29,3 +30,15 @@ def test_memory_song_brief_endpoint_rejects_voice_cloning() -> None:
 
     assert response.status_code == 422
     assert "original style" in response.json()["detail"]
+
+
+def test_memory_song_generation_endpoint_returns_audio_metadata(monkeypatch) -> None:
+    class FakeLyria:
+        def generate(self, prompt: str):
+            from app.lyria_client import GeneratedSong
+            return GeneratedSong(audio=b"song", lyrics="garden song", model="lyria-test")
+
+    monkeypatch.setattr(main_module, "get_lyria_client", lambda: FakeLyria())
+    response = TestClient(app).post("/memory-songs", json={"memory_details": ["Garden"], "requested_style": "warm"})
+    assert response.status_code == 201
+    assert response.json()["model"] == "lyria-test"

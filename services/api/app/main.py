@@ -1,5 +1,6 @@
 import os
 import io
+import base64
 import logging
 import tempfile
 import zipfile
@@ -23,6 +24,7 @@ from app.media_analysis import (
 )
 from app.media_storage import GcsMediaStorage, MediaStorage
 from app.memory_song import UnsafeSongRequest, build_memory_song_brief
+from app.lyria_client import GoogleLyriaClient
 from app.models import PlaceCandidate, ProductionBrief, ProductionProposal, Storyboard
 from app.preferences import preference_repository_from_environment
 from app.production import ProductionOrchestrator
@@ -119,6 +121,10 @@ def get_media_analyzer() -> VertexGeminiMediaAnalyzer:
         ) from error
 
 
+def get_lyria_client() -> GoogleLyriaClient:
+    return GoogleLyriaClient()
+
+
 @app.post("/memory-songs/brief", status_code=status.HTTP_201_CREATED)
 def create_memory_song_brief(payload: MemorySongBriefPayload) -> dict[str, str]:
     try:
@@ -129,6 +135,18 @@ def create_memory_song_brief(payload: MemorySongBriefPayload) -> dict[str, str]:
     except UnsafeSongRequest as error:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
     return {"prompt": brief.prompt, "fallback": brief.fallback}
+
+
+@app.post("/memory-songs", status_code=status.HTTP_201_CREATED)
+def generate_memory_song(payload: MemorySongBriefPayload) -> dict[str, str]:
+    try:
+        brief = build_memory_song_brief(memory_details=payload.memory_details, requested_style=payload.requested_style)
+        song = get_lyria_client().generate(brief.prompt)
+    except UnsafeSongRequest as error:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
+    except (KeyError, RuntimeError) as error:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Original song is unavailable; choose instrumental or no sound.") from error
+    return {"audio_base64": base64.b64encode(song.audio).decode(), "lyrics": song.lyrics, "model": song.model, "fallback": brief.fallback}
 
 
 def _contains_private_uri(analysis: MediaAnalysis) -> bool:
@@ -189,7 +207,12 @@ def decide_media(media_id: str, payload: MediaDecisionPayload) -> MediaDecisionS
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Media decision is temporarily unavailable.") from error
 
 
-@app.post("/renders", response_model=RenderRequest, status_code=status.HTTP_201_CREATED)
+@app.post(
+    "/renders",
+    response_model=RenderRequest,
+    response_model_exclude_none=True,
+    status_code=status.HTTP_201_CREATED,
+)
 def request_render(payload: RenderPayload) -> RenderRequest:
     try:
         return create_render_request(payload.storyboard, payload.approved)
@@ -202,6 +225,9 @@ async def export_render(
     title: str = Form(..., min_length=1, max_length=120),
     caption: str = Form(..., min_length=1, max_length=500),
     approved: bool = Form(...),
+    soundtrack_mode: Literal["original_song", "instrumental", "no_sound"] = Form("no_sound"),
+    memory_details: list[str] | None = Form(None),
+    requested_style: str = Form("warm acoustic", max_length=300),
     media: UploadFile | None = File(None),
     media_id: str | None = Form(None),
     media_ids: list[str] | None = Form(None),
@@ -252,9 +278,26 @@ async def export_render(
             source_path = temporary_root / f"source-{index}{suffix}"
             source_path.write_bytes(source_bytes)
             source_paths.append(source_path)
+        audio_path: Path | None = None
+        if soundtrack_mode == "original_song":
+            try:
+                brief = build_memory_song_brief(
+                    memory_details=memory_details or [],
+                    requested_style=requested_style,
+                )
+                song = get_lyria_client().generate(brief.prompt)
+            except UnsafeSongRequest as error:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
+            except (KeyError, RuntimeError) as error:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Original song is unavailable; choose instrumental or no sound.",
+                ) from error
+            audio_path = temporary_root / "memory-song.mp3"
+            audio_path.write_bytes(song.audio)
         output_directory = temporary_root / "exports"
         artifact = get_renderer().render_many(
-            RenderRequest(title=title, caption=caption),
+            RenderRequest(title=title, caption=caption, audio_path=audio_path),
             source_paths,
             output_directory,
         )

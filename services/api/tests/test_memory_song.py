@@ -14,11 +14,22 @@ def test_song_brief_uses_only_approved_memory_details() -> None:
     assert brief.fallback == "instrumental"
 
 
+def test_song_brief_allows_an_ordinary_mood_comparison() -> None:
+    brief = build_memory_song_brief(
+        memory_details=["A sunny garden visit"],
+        requested_style="warm and light, like a sunny afternoon",
+    )
+
+    assert "warm and light" in brief.prompt
+
+
 @pytest.mark.parametrize(
     "style_request",
     [
         "Sing exactly like Adele",
         "Use the lyrics from Yesterday",
+        "Make this a Beatles cover",
+        "In the style of Taylor Swift",
         "Clone my mother's voice",
     ],
 )
