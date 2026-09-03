@@ -46,9 +46,20 @@ component:
 
 The original-memory-song path uses the same Cloud Run service account and
 Vertex AI authentication path as the deployed Gemini planner. It does not
-require a browser-visible API key. Lyria 3 remains a preview model; the
-feature must remain marked unverified until a hosted, non-sensitive smoke test
-records a successful generated-audio render.
+require a browser-visible API key. Lyria 3 remains a preview model.
+
+## Original-song hosted smoke evidence
+
+On 2026-09-03, the production export endpoint was verified with a generated
+one-pixel PNG and generic garden-memory text only. The request selected
+`original_song`; the returned ZIP passed integrity testing and contained an
+MP4, JPG cover, and TXT caption. Local container metadata inspection confirmed
+an exact 60-second MP4 with H.264 video and an AAC audio track.
+
+This verifies the deployed API render path, including generated-audio mixing.
+It is not evidence of a complete hosted Web journey, a user-facing song
+preview/regeneration experience, or a production guarantee for a preview
+model. Keep those claims and the final recording gate separate.
 
 `POST /media/analyze` requires `consent=true`, accepts only image/video MIME
 types, and limits uploads to 50 MiB. It stores originals privately and returns

@@ -29,7 +29,7 @@ The MVP focuses on an approximately one-minute vertical travel, family, or every
 
 ## Current delivery status
 
-The repository currently includes browser voice fallback, consent enforcement, Gemini storyboard request boundaries, a ClickHouse preference-query adapter, and export-path foundations. The simplified UI, visible automatic preview, original-song generation, Cloud-hosted ClickHouse consent/export verification, and deterministic MP4 delivery remain in progress.
+The repository currently includes browser voice fallback, consent enforcement, Gemini storyboard request boundaries, a ClickHouse preference-query adapter, and export-path foundations. A deployed, synthetic API smoke test has verified original-song generation mixed into a deterministic 60-second MP4. The simplified UI, visible automatic preview, user-facing song preview/regeneration, Cloud-hosted ClickHouse consent/export verification, and end-to-end visible MP4 delivery remain in progress.
 
 ## Success criteria for the demo
 

@@ -25,8 +25,8 @@ flowchart LR
 | Gemini planner | Structured title and caption generation from a production request | Implemented behind `GEMINI_API_KEY`; live verification pending |
 | Media analysis | Consent-gated private GCS upload, schema-validated Gemini descriptions, quality signals, duplicate detection, privacy flags | Implemented locally; hosted verification pending |
 | ClickHouse adapter | Explainable preference recall and required consent/export decision via official `mcp-clickhouse` | Adapter and schema implemented; hosted runtime gate verification pending |
-| Render service | Deterministic approximately-one-minute 9:16 MP4, caption, and optional sound mix | Planned; automatic preview/export verification pending |
-| Original memory-song service | Approved-fact music brief, safe Lyria 3 song generation, temporary render-only audio, and instrumental/no-sound fallback | Implemented locally and unit-tested; hosted Lyria verification pending |
+| Render service | Deterministic approximately-one-minute 9:16 MP4, caption, and optional sound mix | Synthetic API export verified; visible Web preview/export verification pending |
+| Original memory-song service | Approved-fact music brief, safe Lyria 3 song generation, temporary render-only audio, and instrumental/no-sound fallback | Deployed synthetic API render verified; user-facing preview/regeneration and final-demo verification pending |
 
 ## Production flow
 
