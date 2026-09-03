@@ -9,7 +9,11 @@ from app.render import DeterministicVerticalRenderer
 
 
 class RecordingExecutor:
+    def __init__(self) -> None:
+        self.commands: list[list[str]] = []
+
     def run(self, command: list[str]) -> None:
+        self.commands.append(command)
         output = command[-1]
         if output.endswith(".mp4"):
             with open(output, "wb") as video:
@@ -50,3 +54,35 @@ async def test_export_requires_approval_before_reading_media() -> None:
 
     assert response.status_code == 409
     assert response.json()["detail"] == "Approve the plan before creating a video."
+
+
+@pytest.mark.anyio
+async def test_export_generates_and_uses_an_original_memory_song(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeLyria:
+        def generate(self, prompt: str):
+            from app.lyria_client import GeneratedSong
+
+            return GeneratedSong(audio=b"song-bytes", lyrics="a garden song", model="lyria-test")
+
+    executor = RecordingExecutor()
+    monkeypatch.setattr(main_module, "get_renderer", lambda: DeterministicVerticalRenderer(executor))
+    monkeypatch.setattr(main_module, "get_lyria_client", lambda: FakeLyria())
+
+    async with AsyncClient(transport=ASGITransport(app=main_module.app), base_url="http://test") as client:
+        response = await client.post(
+            "/renders/export",
+            files={"media": ("memory.mp4", b"source", "video/mp4")},
+            data={
+                "title": "Garden day",
+                "caption": "Together outside.",
+                "approved": "true",
+                "soundtrack_mode": "original_song",
+                "memory_details": ["Mum in the garden", "two grandchildren laughing"],
+                "requested_style": "warm acoustic pop",
+            },
+        )
+
+    assert response.status_code == 200
+    render_command = executor.commands[0]
+    assert any(path.endswith("memory-song.mp3") for path in render_command)
+    assert "1:a:0" in render_command

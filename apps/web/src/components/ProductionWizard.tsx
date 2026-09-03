@@ -37,6 +37,7 @@ type SpeechRecognitionWindow = Window & {
 };
 
 type MediaMode = "manual" | "auto";
+type SoundtrackMode = "original_song" | "instrumental" | "no_sound";
 
 type FindFilters = {
   dateFrom: string;
@@ -58,6 +59,7 @@ export function ProductionWizard() {
   const [memoryRequest, setMemoryRequest] = useState("");
   const [mediaFiles, setMediaFiles] = useState<File[]>([]);
   const [mediaMode, setMediaMode] = useState<MediaMode>("manual");
+  const [soundtrackMode, setSoundtrackMode] = useState<SoundtrackMode>("instrumental");
   const [findFilters, setFindFilters] = useState<FindFilters>({ dateFrom: "", dateTo: "", place: "", people: "" });
   const [findStatus, setFindStatus] = useState("");
   const [mediaReviews, setMediaReviews] = useState<MediaReview[]>([]);
@@ -298,6 +300,11 @@ export function ProductionWizard() {
       exportForm.append("title", storyboard.title);
       exportForm.append("caption", storyboard.caption);
       exportForm.append("approved", "true");
+      exportForm.append("soundtrack_mode", soundtrackMode);
+      if (soundtrackMode === "original_song") {
+        [memoryRequest, storyboard.title, storyboard.caption].forEach((detail) => exportForm.append("memory_details", detail));
+        exportForm.append("requested_style", storyboard.music_direction ?? "warm acoustic");
+      }
       selectedMedia.forEach((media) => exportForm.append("media_ids", media.media_id));
       const exportResponse = await fetch(`${apiBaseUrl}/renders/export`, { method: "POST", body: exportForm });
       if (!exportResponse.ok) {
@@ -547,6 +554,40 @@ export function ProductionWizard() {
               {storyboard.preference_explanation && <p>{storyboard.preference_explanation}</p>}
             </div>
           )}
+          <fieldset className="wizard__soundtrack">
+            <legend>Sound for your film</legend>
+            <label>
+              <input
+                checked={soundtrackMode === "original_song"}
+                name="soundtrack"
+                onChange={() => setSoundtrackMode("original_song")}
+                type="radio"
+                value="original_song"
+              />
+              Original AI song
+            </label>
+            <label>
+              <input
+                checked={soundtrackMode === "instrumental"}
+                name="soundtrack"
+                onChange={() => setSoundtrackMode("instrumental")}
+                type="radio"
+                value="instrumental"
+              />
+              Gentle instrumental
+            </label>
+            <label>
+              <input
+                checked={soundtrackMode === "no_sound"}
+                name="soundtrack"
+                onChange={() => setSoundtrackMode("no_sound")}
+                type="radio"
+                value="no_sound"
+              />
+              No music
+            </label>
+            {soundtrackMode === "original_song" && <p>We will create an original AI song from this memory. No artist imitation or voice cloning.</p>}
+          </fieldset>
         </section>
       )}
 

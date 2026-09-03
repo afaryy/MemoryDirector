@@ -18,6 +18,7 @@ class RenderRequest:
     title: str
     caption: str
     output_format: str = "vertical-mp4"
+    audio_path: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -68,14 +69,18 @@ class DeterministicVerticalRenderer:
         caption_path.write_text(f"{request.title}\n\n{request.caption}\n")
 
         if len(source_paths) == 1:
-            self._executor.run(
+            command = [
+                "ffmpeg",
+                "-y",
+                "-stream_loop",
+                "-1",
+                "-i",
+                str(source_paths[0]),
+            ]
+            if request.audio_path is not None:
+                command.extend(["-stream_loop", "-1", "-i", str(request.audio_path), "-map", "0:v:0", "-map", "1:a:0"])
+            command.extend(
                 [
-                    "ffmpeg",
-                    "-y",
-                    "-stream_loop",
-                    "-1",
-                    "-i",
-                    str(source_paths[0]),
                     "-t",
                     str(TARGET_VIDEO_SECONDS),
                     "-r",
@@ -92,9 +97,12 @@ class DeterministicVerticalRenderer:
                     "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black",
                     "-s",
                     "1080:1920",
-                    str(video_path),
                 ]
             )
+            if request.audio_path is not None:
+                command.extend(["-af", "afade=t=out:st=59:d=1", "-c:a", "aac"])
+            command.append(str(video_path))
+            self._executor.run(command)
         else:
             segment_seconds = max(3, TARGET_VIDEO_SECONDS // len(source_paths))
             command = ["ffmpeg", "-y"]
@@ -104,6 +112,9 @@ class DeterministicVerticalRenderer:
                 else:
                     command.extend(["-stream_loop", "-1"])
                 command.extend(["-i", str(source_path)])
+            audio_input_index = len(source_paths)
+            if request.audio_path is not None:
+                command.extend(["-stream_loop", "-1", "-i", str(request.audio_path)])
             filters = []
             for index in range(len(source_paths)):
                 filters.append(
@@ -118,6 +129,12 @@ class DeterministicVerticalRenderer:
                     ";".join(filters) + f";{inputs}concat=n={len(source_paths)}:v=1:a=0[outv]",
                     "-map",
                     "[outv]",
+                ]
+            )
+            if request.audio_path is not None:
+                command.extend(["-map", f"{audio_input_index}:a:0"])
+            command.extend(
+                [
                     "-t",
                     str(TARGET_VIDEO_SECONDS),
                     "-r",
@@ -130,10 +147,13 @@ class DeterministicVerticalRenderer:
                     "23",
                     "-pix_fmt",
                     "yuv420p",
-                    "-an",
-                    str(video_path),
                 ]
             )
+            if request.audio_path is not None:
+                command.extend(["-af", "afade=t=out:st=59:d=1", "-c:a", "aac"])
+            else:
+                command.append("-an")
+            command.append(str(video_path))
             self._executor.run(command)
         self._executor.run(
             [

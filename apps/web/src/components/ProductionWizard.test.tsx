@@ -198,6 +198,7 @@ describe("ProductionWizard", () => {
     fireEvent.click(screen.getByLabelText("I have permission to use these media."));
     fireEvent.click(screen.getByRole("button", { name: "Create a plan" }));
     expect(await screen.findByText("A Family Day by the Sea")).toBeVisible();
+    fireEvent.click(screen.getByLabelText("Original AI song"));
     fireEvent.click(screen.getByRole("button", { name: "Keep this item" }));
     expect(await screen.findByRole("button", { name: "Kept" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Approve plan" }));
@@ -216,6 +217,13 @@ describe("ProductionWizard", () => {
         expect.objectContaining({ method: "POST" }),
       );
     });
+    const exportCall = fetchMock.mock.calls.find(([url]) => url === "http://localhost:8000/renders/export");
+    expect(exportCall?.[1]?.body.get("soundtrack_mode")).toBe("original_song");
+    expect(exportCall?.[1]?.body.getAll("memory_details")).toEqual([
+      "Make a cheerful travel video.",
+      "A Family Day by the Sea",
+      "Small moments, held close.",
+    ]);
     expect(await screen.findByText("Your approved video request is ready.")).toBeVisible();
   });
 

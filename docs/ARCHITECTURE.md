@@ -26,7 +26,7 @@ flowchart LR
 | Media analysis | Consent-gated private GCS upload, schema-validated Gemini descriptions, quality signals, duplicate detection, privacy flags | Implemented locally; hosted verification pending |
 | ClickHouse adapter | Explainable preference recall and required consent/export decision via official `mcp-clickhouse` | Adapter and schema implemented; hosted runtime gate verification pending |
 | Render service | Deterministic approximately-one-minute 9:16 MP4, caption, and optional sound mix | Planned; automatic preview/export verification pending |
-| Original memory-song service | Approved-fact lyric/music brief and safe Lyria song generation with fallback | Planned in ST-38 |
+| Original memory-song service | Approved-fact music brief, safe Lyria 3 song generation, temporary render-only audio, and instrumental/no-sound fallback | Implemented locally and unit-tested; hosted Lyria verification pending |
 
 ## Production flow
 
@@ -34,7 +34,7 @@ flowchart LR
 2. The API rejects media analysis without explicit consent, validates image/video MIME and the 50 MiB limit, and stores the original in the private `${resource_name}-media` bucket.
 3. Vertex AI Gemini analyzes the private GCS URI and the API returns only schema-validated public metadata; a provider URI or credential is never returned.
 4. The production crew builds a constrained storyboard from the selected media. It may hold back a redundant or low-quality item but never deletes the original. Any low-confidence place is omitted until confirmed.
-5. The deterministic renderer receives only the constrained storyboard; the agent never encodes the video itself.
+5. When the user chooses an original AI song, the API derives its prompt from approved request facts only, rejects artist/song/voice imitation requests, and keeps generated audio only in the render's temporary working directory. The deterministic renderer receives the constrained storyboard and optional temporary audio; the agent never encodes the video itself.
 6. Immediately before rendering and export, the Consent Guardian calls the official ClickHouse MCP path to check consent, selected-media status, and soundtrack safety.
 7. A passing check permits a 9:16 approximately-one-minute MP4 for manual saving and sharing. A denied or unavailable required check blocks export.
 

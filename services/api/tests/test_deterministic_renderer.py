@@ -84,6 +84,51 @@ def test_renderer_can_sequence_multiple_media_sources(tmp_path: Path) -> None:
     assert command[command.index("-preset") + 1] == "veryfast"
 
 
+def test_renderer_mixes_optional_memory_song(tmp_path: Path) -> None:
+    executor = RecordingExecutor()
+    source = tmp_path / "source.mp4"
+    song = tmp_path / "song.mp3"
+    source.write_bytes(b"video")
+    song.write_bytes(b"audio")
+
+    DeterministicVerticalRenderer(executor).render(
+        request=RenderRequest(title="Weekend", caption="A bright trip.", audio_path=song),
+        source_path=source,
+        output_directory=tmp_path / "exports",
+    )
+
+    command = executor.commands[0]
+    audio_input_index = command.index(str(song))
+    assert command[audio_input_index - 3 : audio_input_index] == ["-stream_loop", "-1", "-i"]
+    assert command[command.index("-t") + 1] == "60"
+    assert command[command.index("-map", command.index("-map") + 1) + 1] == "1:a:0"
+    assert "afade=t=out:st=59:d=1" in command
+    assert "-shortest" not in command
+
+
+def test_renderer_uses_optional_memory_song_for_a_combined_film(tmp_path: Path) -> None:
+    executor = RecordingExecutor()
+    first = tmp_path / "first.jpg"
+    second = tmp_path / "second.mp4"
+    song = tmp_path / "song.mp3"
+    first.write_bytes(b"first")
+    second.write_bytes(b"second")
+    song.write_bytes(b"audio")
+
+    DeterministicVerticalRenderer(executor).render_many(
+        request=RenderRequest(title="Weekend", caption="Two moments.", audio_path=song),
+        source_paths=[first, second],
+        output_directory=tmp_path / "exports",
+    )
+
+    command = executor.commands[0]
+    assert command[command.index(str(song)) - 3 : command.index(str(song))] == ["-stream_loop", "-1", "-i"]
+    assert command[command.index("-map", command.index("-map") + 1) + 1] == "2:a:0"
+    assert command[command.index("-t") + 1] == "60"
+    assert "afade=t=out:st=59:d=1" in command
+    assert "-an" not in command
+
+
 def test_subprocess_executor_allows_sixty_second_export_to_finish(monkeypatch) -> None:
     calls = []
 
