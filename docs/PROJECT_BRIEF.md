@@ -9,11 +9,10 @@ Older adults often have many meaningful phone photos and videos but need help to
 Memory Director is a mobile-first web application that guides a user through:
 
 1. Describe a memory by voice or text.
-2. Select consented photos and videos from the phone.
-3. Receive a simple, explainable production plan from Gemini.
-4. Confirm uncertain places and choose a music direction.
-5. Approve the storyboard before any render is requested.
-6. Save the resulting video package and post it manually.
+2. Deliberately select 5–15 consented photos and videos from the device picker.
+3. Press **Make my film**.
+4. Receive an automatically edited, vertical preview of approximately one minute.
+5. Confirm **Save & share** after the consent/export gate passes, then choose a destination manually.
 
 ## Audience
 
@@ -26,17 +25,17 @@ The product does not only generate a one-off edit. It keeps an explainable creat
 
 ## MVP boundary
 
-The MVP focuses on a 45–60 second vertical travel or family video, large high-contrast captions, Mandarin or English requests, and manual sharing. It does not publish to social platforms, use commercial songs without rights, or make unconfirmed claims about people or locations.
+The MVP focuses on an approximately one-minute vertical travel, family, or everyday-life film, large high-contrast captions, Mandarin or English requests, and manual sharing. It does not publish to social platforms, browse an entire phone library, use commercial songs without rights, or make unconfirmed claims about people or locations. The signature original AI memory-song experience is planned work; until it is verified, generation falls back safely to instrumental or no sound.
 
 ## Current delivery status
 
-The repository currently includes the mobile production flow, browser voice fallback, consent enforcement, Gemini storyboard request boundary, ClickHouse preference-query adapter, and explicit render-approval API. Real asset upload, multimodal analysis, Cloud-hosted ClickHouse verification, and deterministic MP4 export remain in progress.
+The repository currently includes browser voice fallback, consent enforcement, Gemini storyboard request boundaries, a ClickHouse preference-query adapter, and export-path foundations. The simplified UI, visible automatic preview, original-song generation, Cloud-hosted ClickHouse consent/export verification, and deterministic MP4 delivery remain in progress.
 
 ## Success criteria for the demo
 
-- A voice/text request becomes an understandable production plan.
-- The user sees why media is selected or held back.
-- An uncertain location is confirmed before final copy uses it.
-- A ClickHouse MCP query visibly informs a preference recommendation.
-- No render starts without explicit approval.
-- The user receives a video, cover, and caption to save and share manually.
+- A voice/text request and deliberately selected media become an understandable preview.
+- The system explains selected or held-back media without deleting originals.
+- An uncertain location is omitted or confirmed before final copy uses it.
+- The official ClickHouse MCP path visibly checks the consent/export decision.
+- No render or export continues when that gate denies the request.
+- The user receives an MP4 to save and share manually.
