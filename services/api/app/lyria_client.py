@@ -31,12 +31,18 @@ class GoogleLyriaClient:
     def generate(self, prompt: str) -> GeneratedSong:
         try:
             interaction = self._client.interactions.create(model=self._model, input=prompt)
-            audio = getattr(interaction, "output_audio", None)
+            outputs = getattr(interaction, "outputs", None) or []
+            audio = next((output for output in outputs if getattr(output, "type", None) == "audio"), None)
+            lyrics = "\n".join(
+                output.text
+                for output in outputs
+                if getattr(output, "type", None) == "text" and getattr(output, "text", None)
+            )
             if audio is None or not getattr(audio, "data", None):
                 raise ValueError("Lyria did not return audio.")
             return GeneratedSong(
                 audio=base64.b64decode(audio.data),
-                lyrics=getattr(interaction, "output_text", "") or "",
+                lyrics=lyrics,
                 model=self._model,
             )
         except Exception as error:
