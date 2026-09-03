@@ -1,13 +1,13 @@
 # Memory Director
 
-Memory Director is a voice-led memory-film producer for older adults. It helps a user turn a consented travel or family album into a 45–60 second vertical video, cover image, title, and caption for manual sharing.
+Memory Director is a voice-led memory-film producer for older adults. It helps a user turn deliberately selected, consented photos and videos into an approximately one-minute vertical memory film for manual saving and sharing.
 
 ## Product safeguards
 
 - Google Cloud AI is the only AI provider used by the product.
 - The ClickHouse track requires a runtime query through the official `mcp-clickhouse` server.
 - The MVP never publishes to social networks on a user's behalf.
-- Media choices are reversible, place claims below 0.85 confidence require confirmation, and render/export requires explicit approval.
+- Media choices are reversible, uncertain facts require confirmation, and a consent/export gate must pass before the film is saved.
 
 ## Local development
 

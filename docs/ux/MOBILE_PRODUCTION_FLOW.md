@@ -1,140 +1,118 @@
-# Mobile Production Flow — Wireframes and Acceptance Criteria
+# Mobile Production Flow
 
-This is the source-of-truth low-fidelity mobile flow for Memory Director. It is designed for older adults: one primary decision per screen, large labels, and a persistent typed alternative when voice input is unavailable.
+This is the source-of-truth mobile flow for Memory Director. It is designed for older adults: one obvious request, deliberately chosen media, one generated preview, and one save decision. It is a responsive web flow; desktop supports family assistance and demonstration, while mobile is the primary production surface.
 
 ## Global interaction rules
 
-- Content column: 16px minimum side margin; no horizontal scrolling.
-- Primary controls: at least 52px high with a visible focus state.
-- Body text: at least 18px; concise sentences; no editing jargon.
-- Every AI action has a plain-language explanation and a clear retry/edit path.
-- Media is only selected or held back, never deleted.
-- The user must explicitly approve a final plan before rendering or exporting.
+- Content has at least 16px side margins and never requires horizontal scrolling.
+- Touch targets are at least 44 by 44 CSS pixels and have visible keyboard focus.
+- Text uses concise, everyday language; no timeline, trim, template, or rendering jargon is required to complete the journey.
+- Voice input populates the editable request field. Typing is always available when speech recognition is unavailable or incorrect.
+- The browser only receives media explicitly chosen by the person through its supported picker. It does not scan or search the wider phone library.
+- A source photo or video is never deleted. A selected card may be removed from the current film request.
+- The default result is an approximately-one-minute vertical 9:16 film. Duration is not shown beside the primary action and is not an editable timeline setting in the MVP.
 
-## Screen 1 — Request
+## Ready
 
 ```text
 ┌──────────────────────────────────────┐
 │ MEMORY DIRECTOR                      │
-│                                      │
 │ What would you like to remember?     │
-│ [ Speak your request               ] │
+│ [ Tell us about this memory       ]  │
+│                         [ mic ]      │
 │                                      │
-│ or type it here                       │
-│ [ Make a cheerful travel video...  ] │
+│ Photos and videos                    │
+│ [ Choose from this device ]          │
+│ [ beach.jpg × ] [ family.mov × ]     │
 │                                      │
-│                 [ Continue ]         │
+│              [ Make my film ]        │
 └──────────────────────────────────────┘
 ```
 
-**Acceptance:** voice transcript appears in the editable text field; a microphone failure shows a typing fallback; Continue remains disabled until the request is non-empty.
+**Acceptance**
 
-## Screen 2 — Select media and permission
+- A request plus at least one selected file enables **Make my film**.
+- The microphone is an optional input aid; it never replaces the editable text field.
+- The user can remove every selected card before generation. Removing it does not delete the device file.
+- The interface asks the user to confirm permission to use the chosen media before processing.
+
+## Preparing
 
 ```text
 ┌──────────────────────────────────────┐
-│ 1 / YOUR PHOTOS AND VIDEOS            │
-│ [ Choose photos and videos          ] │
-│ 12 items selected                     │
+│ Making your film…                    │
+│ We are choosing the best moments.    │
 │                                      │
-│ ☐ I have permission to use these      │
-│   media.                              │
-│                                      │
-│                 [ Create my plan ]   │
+│ [ progress indicator ]               │
 └──────────────────────────────────────┘
 ```
 
-**Acceptance:** supported photo/video files can be selected; changing selection clears an old plan; Create my plan is disabled until at least one file and permission confirmation are present.
+**Acceptance**
 
-## Screen 3 — Media shortlist
+- The user sees one compact progress state, not a sequence of planning, music, storyboard, and approval screens.
+- The system can select useful moments, hold back redundant material, trim video, crop media for portrait, order the story, add concise text, and prepare sound automatically.
+- The request and selected media remain available if generation fails.
+
+## Preview ready
 
 ```text
 ┌──────────────────────────────────────┐
-│ 2 / YOUR BEST MOMENTS                 │
-│ We chose 12 of 18 items.              │
+│ Your memory film                     │
 │                                      │
-│ [✓] A03  Harbour sunset  Best light   │
-│ [ ] A04  Similar to A03    Held back  │
-│ [✓] V02  Family wave      Keeps sound │
+│ [          9:16 preview           ]  │
 │                                      │
-│ [ Change selections ] [ Continue ]    │
+│ Garden memories                      │
+│ A calm afternoon together.           │
+│                                      │
+│              [ Save & share ]        │
 └──────────────────────────────────────┘
 ```
 
-**Acceptance:** every asset shows selected or held back with one reason; held-back assets can be restored; no action deletes a source file.
+**Acceptance**
 
-## Screen 4 — Confirm place
+- The preview contains the selected/automatically curated media in a vertical film.
+- A short explanation may name moments selected or held back, but it is not a blocking review workflow.
+- If sound was requested, the system follows the safe music direction. Otherwise it selects a gentle direction from the approved request and media.
+- Original AI memory-song controls appear only after ST-38 supplies them. Before then, the UI must clearly offer a safe instrumental or no-sound fallback rather than claim a song was generated.
+
+## Consent blocked
 
 ```text
 ┌──────────────────────────────────────┐
-│ 3 / ONE QUICK QUESTION                │
-│ I think this is the Eiffel Tower.     │
-│ Is that right?                        │
-│                                      │
-│ [ Yes, Eiffel Tower ]                 │
-│ [ No, choose another place ]          │
-│ [ Leave it out ]                      │
+│ We need your confirmation first.     │
+│ This film cannot be saved yet.        │
+│ [ Review selected media ]             │
+│ [ Try again ]                         │
 └──────────────────────────────────────┘
 ```
 
-**Acceptance:** any place below the confidence threshold gets this screen before it appears in title or caption; the user can decline to name it.
+**Acceptance**
 
-## Screen 5 — Music direction
+- Immediately before rendering and export, the consent/export gate checks the selected-media permission, current selection state, and soundtrack safety through the official ClickHouse MCP path.
+- When the gate denies or cannot obtain a required record, it prevents render/export and explains the next safe action in plain language.
+- A blocked state never discards the request or the user's selected media.
+
+## Saved
 
 ```text
 ┌──────────────────────────────────────┐
-│ 4 / MUSIC FEELING                     │
-│ Choose one. You can change it later.  │
+│ Your film is ready.                  │
+│ [ Save & share ]                     │
 │                                      │
-│ ○ Gentle festive instrumental          │
-│ ○ Warm traditional-inspired            │
-│ ○ Bright, calm pop-style instrumental  │
-│                                      │
-│                    [ Use this music ] │
+│ You choose where it goes next.       │
 └──────────────────────────────────────┘
 ```
 
-**Acceptance:** exactly three rights-safe/generated options are shown with simple names; recommendations can cite confirmed ClickHouse preferences; no commercial-song suggestion is offered without licence proof.
+**Acceptance**
 
-## Screen 6 — Storyboard review
-
-```text
-┌──────────────────────────────────────┐
-│ 5 / YOUR FILM PLAN                    │
-│ A Family Day by the Sea               │
-│ Small moments, held close.             │
-│                                      │
-│ 00–08  Opening photo + title           │
-│ 08–26  Harbour and family clips        │
-│ 26–55  Sunset and closing message      │
-│                                      │
-│ [ Change photos ] [ Change music ]    │
-│                 [ Approve this plan ] │
-└──────────────────────────────────────┘
-```
-
-**Acceptance:** title, caption, sequence, place wording, music choice, high-contrast subtitles, and privacy flags are visible; any change revokes approval until the updated plan is reviewed again.
-
-## Screen 7 — Export
-
-```text
-┌──────────────────────────────────────┐
-│ 6 / YOUR MEMORY FILM                  │
-│ Your video is ready.                  │
-│ [ Preview video ]                     │
-│ [ Save video to phone ]               │
-│ [ Save cover and caption ]            │
-│                                      │
-│ You choose where to share it.          │
-└──────────────────────────────────────┘
-```
-
-**Acceptance:** render controls remain disabled before approval; successful export includes an MP4, cover image, and copyable caption; no automatic post is made to a social platform.
+- A successful export returns a standard MP4.
+- **Save & share** uses the device-native share mechanism where the browser/platform supports it; otherwise it offers a normal download.
+- The application never directly posts to WeChat, TikTok, YouTube Shorts, Instagram, X, or another social platform.
 
 ## End-to-end acceptance scenario
 
-1. User speaks a request, confirms the transcript, selects 15 consented assets, and checks permission.
-2. The system presents an explainable selection and asks one uncertain-place question.
-3. User selects a music direction informed by a seeded preference, reviews the storyboard, and approves it.
-4. The render is accepted only after approval and creates a vertical MP4, cover, and caption.
-5. The user saves the package locally without granting a social-platform account permission.
+1. The user speaks or types a request, selects 1–15 consented photos and videos, and confirms permission.
+2. The user presses **Make my film** and sees a compact preparing state.
+3. The system automatically produces an approximately-one-minute portrait preview and retains the selected media if it needs retrying.
+4. The ClickHouse MCP consent/export gate permits the export only when the required records are valid.
+5. The user presses **Save & share** and receives an MP4 for a device-controlled destination.

@@ -10,7 +10,8 @@ flowchart LR
   G --> M[Gemini multimodal analysis]
   G --> CH[Official mcp-clickhouse tool]
   CH --> DB[(ClickHouse Cloud)]
-  API --> R[Approved render service]
+  API --> C[ClickHouse MCP consent guardian]
+  C --> R[Deterministic render service]
   R --> O[MP4, cover, caption]
   O --> S[Save to phone and manually share]
 ```
@@ -19,22 +20,23 @@ flowchart LR
 
 | Component | Responsibility | Status |
 | --- | --- | --- |
-| Next.js web app | Mobile controls, browser voice input, media selection, consent, plan review, render request | Implemented locally |
-| FastAPI | Validation, consent enforcement, private media upload/analysis, CORS, storyboard and render endpoints | Implemented locally |
+| Next.js web app | Mobile controls, browser voice input, selected-media removal, generation request, preview, save/share | Earlier flow implemented locally; simplified UI pending |
+| FastAPI | Validation, consent enforcement, private media upload/analysis, CORS, constrained storyboard and render endpoints | Implemented locally; consent/export gate wiring pending |
 | Gemini planner | Structured title and caption generation from a production request | Implemented behind `GEMINI_API_KEY`; live verification pending |
 | Media analysis | Consent-gated private GCS upload, schema-validated Gemini descriptions, quality signals, duplicate detection, privacy flags | Implemented locally; hosted verification pending |
-| ClickHouse adapter | Explainable recall of accepted/rejected creative preferences via `mcp-clickhouse` | Adapter and schema implemented; Cloud verification pending |
-| Render service | Deterministic vertical 45–60 second MP4, cover, caption | Planned |
+| ClickHouse adapter | Explainable preference recall and required consent/export decision via official `mcp-clickhouse` | Adapter and schema implemented; hosted runtime gate verification pending |
+| Render service | Deterministic approximately-one-minute 9:16 MP4, caption, and optional sound mix | Planned; automatic preview/export verification pending |
+| Original memory-song service | Approved-fact lyric/music brief and safe Lyria song generation with fallback | Planned in ST-38 |
 
 ## Production flow
 
-1. The browser collects a request, selected media, and explicit permission.
+1. The browser collects a request, deliberately selected media, and explicit permission.
 2. The API rejects media analysis without explicit consent, validates image/video MIME and the 50 MiB limit, and stores the original in the private `${resource_name}-media` bucket.
 3. Vertex AI Gemini analyzes the private GCS URI and the API returns only schema-validated public metadata; a provider URI or credential is never returned.
-4. The user selects or holds the asset. Both decisions preserve the original; a held asset is excluded from later curation.
-5. Gemini proposes a storyboard. Any low-confidence place requires a confirmation step before final copy.
-6. The user reviews and explicitly approves the plan.
-7. Only then can the render endpoint accept a render request and produce an MP4, cover, and caption for manual posting.
+4. The production crew builds a constrained storyboard from the selected media. It may hold back a redundant or low-quality item but never deletes the original. Any low-confidence place is omitted until confirmed.
+5. The deterministic renderer receives only the constrained storyboard; the agent never encodes the video itself.
+6. Immediately before rendering and export, the Consent Guardian calls the official ClickHouse MCP path to check consent, selected-media status, and soundtrack safety.
+7. A passing check permits a 9:16 approximately-one-minute MP4 for manual saving and sharing. A denied or unavailable required check blocks export.
 
 ## Data and privacy boundaries
 

@@ -21,25 +21,25 @@ human release decision: approved demo media and the final recording URL.
 
 ## Hosted UI integration gate
 
-The current `ProductionWizard` calls `/media/analyze`, `/storyboards`, media
-decision endpoints, `/renders`, and `/renders/export`. The API now calls the
-authenticated ClickHouse MCP runtime when `CLICKHOUSE_MCP_ENDPOINT` and the
-Secret Manager credential payload are configured. Keep the hosted evidence
-unchecked until the visible flow and recording prove the cloud wiring:
+The current implementation contains earlier production-flow foundations. Keep
+the following evidence unchecked until the simplified visible flow and final
+recording prove it:
 
-- [x] Wire media analysis and privacy-flag review into the Web flow.
-- [x] Wire the authenticated ClickHouse MCP preference query into the visible
-      recommendation step in the API/Web contract.
-- [x] Wire the approved export package into the Web flow.
-- [ ] Wire place confirmation into the visible recommendation step.
-- [ ] Verify the hosted ClickHouse endpoint, recommendation, and export in the
-      final recording.
+- [ ] Show the deliberate device-picker selection and removable media cards.
+- [ ] Make **Make my film** create a visible approximately-one-minute portrait preview.
+- [ ] Wire the authenticated ClickHouse MCP consent/export gate into the visible flow.
+- [ ] Wire a real visible MP4 export to **Save & share**.
+- [ ] Verify the hosted ClickHouse endpoint, preview, and export in the final recording.
+- [ ] If included, prove original AI memory-song generation, safety result, and fallback in the final recording.
 
 ## Human release gates
 
 - [ ] Complete 15–25 rows in [`MEDIA_RIGHTS_REGISTER.md`](../demo/MEDIA_RIGHTS_REGISTER.md).
 - [ ] Confirm every photo, video, voice, and music item is team-owned, synthetic,
       public-domain, or covered by recorded permission.
+- [ ] For every generated song, record model/version, prompt-safety result,
+      duration, and available provenance. Do not claim exclusivity or that it
+      is copyright-free.
 - [ ] Record the actual product flow with English subtitles using only approved
       fixtures: [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md).
 - [ ] Upload the final three-minute video to the approved public host.
@@ -52,7 +52,7 @@ unchecked until the visible flow and recording prove the cloud wiring:
 ## Final Devpost fields
 
 - **Project name:** Memory Director
-- **Tagline:** A voice-led producer for shareable family and travel memories.
+- **Tagline:** A voice-led producer that turns phone moments into a simple memory film.
 - **Built with:** Google Cloud, Vertex AI Gemini, Cloud Run, Cloud Storage,
   Terraform, ClickHouse Cloud, official `mcp-clickhouse`.
 - **Source code:** https://github.com/afaryy/MemoryDirector
