@@ -9,7 +9,7 @@ Older adults often have many meaningful phone photos and videos but need help to
 Memory Director is a mobile-first web application that guides a user through:
 
 1. Describe a memory by voice or text.
-2. Deliberately select 5–15 consented photos and videos from the device picker.
+2. Deliberately select 1–15 consented photos and videos from the device picker.
 3. Press **Make my film**.
 4. Receive an automatically edited, vertical preview of approximately one minute.
 5. Confirm **Save & share** after the consent/export gate passes, then choose a destination manually.

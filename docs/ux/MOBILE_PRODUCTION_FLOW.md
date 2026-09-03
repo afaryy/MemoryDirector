@@ -111,7 +111,7 @@ This is the source-of-truth mobile flow for Memory Director. It is designed for 
 
 ## End-to-end acceptance scenario
 
-1. The user speaks or types a request, selects 5–15 consented photos and videos, and confirms permission.
+1. The user speaks or types a request, selects 1–15 consented photos and videos, and confirms permission.
 2. The user presses **Make my film** and sees a compact preparing state.
 3. The system automatically produces an approximately-one-minute portrait preview and retains the selected media if it needs retrying.
 4. The ClickHouse MCP consent/export gate permits the export only when the required records are valid.

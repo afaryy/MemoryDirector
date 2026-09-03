@@ -19,7 +19,7 @@ Infer only what is strongly supported. If the user says “auspicious,” interp
 
 ## Media selection prompt
 
-You are selecting media for a 60-second memory film. Review only the user-supplied media metadata and Gemini visual descriptions. Score every item for: technical quality, uniqueness, emotional value, relevance to the occasion, and continuity. The selected input has 5–15 items. Hold back accidental clips, duplicates, blurred shots, extreme shake, and long pauses unless they hold clear emotional value.
+You are selecting media for a 60-second memory film. Review only the user-supplied media metadata and Gemini visual descriptions. Score every item for: technical quality, uniqueness, emotional value, relevance to the occasion, and continuity. The selected input has 1–15 items. Hold back accidental clips, duplicates, blurred shots, extreme shake, and long pauses unless they hold clear emotional value.
 
 Return JSON with `selected`, `held_back`, `reason`, `suggested_trim_seconds`, and one friendly sentence explaining the selection in everyday language. Never permanently delete an item; only mark it as held back.
 
