@@ -28,6 +28,7 @@ from app.lyria_client import GoogleLyriaClient
 from app.models import PlaceCandidate, ProductionBrief, ProductionProposal, Storyboard
 from app.preferences import preference_repository_from_environment
 from app.production import ProductionOrchestrator
+from app.soundtrack import SoundtrackConfigurationError, resolve_instrumental_track
 from app.render import (
     ApprovalRequired,
     DeterministicVerticalRenderer,
@@ -296,6 +297,14 @@ async def export_render(
                 ) from error
             audio_path = temporary_root / "memory-song.mp3"
             audio_path.write_bytes(song.audio)
+        elif soundtrack_mode == "instrumental":
+            try:
+                audio_path = resolve_instrumental_track()
+            except SoundtrackConfigurationError as error:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="Instrumental music is not configured; choose original song or no sound.",
+                ) from error
         output_directory = temporary_root / "exports"
         artifact = get_renderer().render_many(
             RenderRequest(title=title, caption=caption, audio_path=audio_path),
