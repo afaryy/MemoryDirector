@@ -13,6 +13,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.gemini_client import GeminiProductionPlanner, GoogleGenAiGateway
+from app.consent_guardian import ConsentDenied, consent_guardian_from_environment
 from app.media_analysis import (
     MediaAnalysis,
     MediaAnalysisError,
@@ -101,6 +102,10 @@ def get_renderer() -> DeterministicVerticalRenderer:
 
 def get_preference_repository():
     return preference_repository_from_environment()
+
+
+def get_consent_guardian():
+    return consent_guardian_from_environment()
 
 
 def get_media_storage() -> MediaStorage:
@@ -252,6 +257,14 @@ async def export_render(
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media asset was not analyzed.")
             if decision.status != "selected":
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Select the media asset before rendering.")
+        guardian = get_consent_guardian()
+        if guardian is None:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Consent evidence is unavailable; please try again later.")
+        try:
+            guardian.allow_export(media_ids=requested_media_ids, soundtrack_mode=soundtrack_mode, stage="render")
+        except ConsentDenied as error:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+        for requested_id in requested_media_ids:
             stored = storage.read(requested_id)
             if stored is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media asset is unavailable.")
@@ -311,6 +324,12 @@ async def export_render(
             source_paths,
             output_directory,
         )
+
+        if requested_media_ids:
+            try:
+                guardian.allow_export(media_ids=requested_media_ids, soundtrack_mode=soundtrack_mode, stage="export")
+            except ConsentDenied as error:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
 
         archive = io.BytesIO()
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:

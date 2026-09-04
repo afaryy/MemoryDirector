@@ -75,12 +75,21 @@ class RecordingExecutor:
                 cover.write(b"fake-cover")
 
 
+class RecordingGuardian:
+    def __init__(self) -> None:
+        self.stages: list[str] = []
+
+    def allow_export(self, *, media_ids, soundtrack_mode, stage) -> None:
+        self.stages.append(stage)
+
+
 @pytest.mark.anyio
 async def test_selected_analyzed_media_reaches_renderer_without_new_upload(monkeypatch: pytest.MonkeyPatch) -> None:
     storage = RenderStorage()
     monkeypatch.setattr(main_module, "get_media_storage", lambda: storage, raising=False)
     monkeypatch.setattr(main_module, "get_media_analyzer", lambda: RenderAnalyzer(), raising=False)
     monkeypatch.setattr(main_module, "get_renderer", lambda: DeterministicVerticalRenderer(RecordingExecutor()))
+    monkeypatch.setattr(main_module, "get_consent_guardian", lambda: RecordingGuardian(), raising=False)
 
     async with AsyncClient(transport=ASGITransport(app=main_module.app), base_url="http://test") as client:
         analyzed = await client.post(
@@ -138,6 +147,8 @@ async def test_two_selected_analyzed_media_are_combined_in_one_export(monkeypatc
     executor = RecordingExecutor()
     renderer = DeterministicVerticalRenderer(executor)
     monkeypatch.setattr(main_module, "get_renderer", lambda: renderer)
+    guardian = RecordingGuardian()
+    monkeypatch.setattr(main_module, "get_consent_guardian", lambda: guardian, raising=False)
 
     async with AsyncClient(transport=ASGITransport(app=main_module.app), base_url="http://test") as client:
         first = await client.post("/media/analyze", files={"media": ("first.jpg", b"first", "image/jpeg")}, data={"consent": "true"})
@@ -154,3 +165,4 @@ async def test_two_selected_analyzed_media_are_combined_in_one_export(monkeypatc
 
     assert exported.status_code == 200
     assert any("xfade=transition=fade:duration=1" in " ".join(command) for command in executor.commands)
+    assert guardian.stages == ["render", "export"]
