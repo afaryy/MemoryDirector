@@ -21,6 +21,10 @@ on:
         description: "Secret receiving the generated MCP runtime credentials JSON"
         required: true
         default: clickhouse-credentials
+      event_writer_secret_name:
+        description: "Secret Manager secret for the INSERT-only event writer credentials"
+        required: false
+        default: clickhouse-event-writer-credentials
       confirm:
         description: "Type CLICKHOUSE_SANDBOX to enable a sandbox operation"
         required: true
@@ -71,6 +75,7 @@ jobs:
           SECRET_PROJECT_ID: ${{ inputs.secret_project_id }}
           MIGRATION_SECRET_NAME: ${{ inputs.migration_secret_name }}
           RUNTIME_SECRET_NAME: ${{ inputs.runtime_secret_name }}
+          EVENT_WRITER_SECRET_NAME: ${{ inputs.event_writer_secret_name }}
         run: |
           set -euo pipefail
           migration_file="$(mktemp)"
@@ -86,8 +91,9 @@ jobs:
           ch_admin_password="$(jq -er '.CLICKHOUSE_PASSWORD' "$migration_file")"
           mcp_password="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
           mcp_token="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          writer_password="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
 
-          for secret_value in "$ch_host" "$ch_admin_password" "$mcp_password" "$mcp_token"; do
+          for secret_value in "$ch_host" "$ch_admin_password" "$mcp_password" "$mcp_token" "$writer_password"; do
             echo "::add-mask::$secret_value"
           done
 
@@ -98,6 +104,7 @@ jobs:
           CLICKHOUSE_ADMIN_PASSWORD="$ch_admin_password" \
           CLICKHOUSE_MCP_USER="memory_director_mcp" \
           CLICKHOUSE_MCP_PASSWORD="$mcp_password" \
+          CLICKHOUSE_EVENT_WRITER_PASSWORD="$writer_password" \
           python infra/clickhouse/bootstrap.py --mode bootstrap
 
           runtime_json="$(jq -n \
@@ -110,6 +117,11 @@ jobs:
             '{CLICKHOUSE_HOST:$host,CLICKHOUSE_PORT:$port,CLICKHOUSE_SECURE:"true",CLICKHOUSE_VERIFY:"true",CLICKHOUSE_DATABASE:$database,CLICKHOUSE_USER:$user,CLICKHOUSE_PASSWORD:$password,CLICKHOUSE_MCP_AUTH_TOKEN:$token}')"
 
           printf '%s' "$runtime_json" | gcloud secrets versions add "$RUNTIME_SECRET_NAME" \
+            --project "$SECRET_PROJECT_ID" \
+            --data-file=-
+
+          writer_json="$(jq -n --arg host "$ch_host" --arg port "$ch_port" --arg database "$ch_database" --arg user "memory_director_event_writer" --arg password "$writer_password" '{CLICKHOUSE_HOST:$host,CLICKHOUSE_PORT:$port,CLICKHOUSE_SECURE:"true",CLICKHOUSE_VERIFY:"true",CLICKHOUSE_DATABASE:$database,CLICKHOUSE_USER:$user,CLICKHOUSE_PASSWORD:$password}')"
+          printf '%s' "$writer_json" | gcloud secrets versions add "$EVENT_WRITER_SECRET_NAME" \
             --project "$SECRET_PROJECT_ID" \
             --data-file=-
 
