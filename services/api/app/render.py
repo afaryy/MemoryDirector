@@ -15,6 +15,10 @@ class ApprovalRequired(Exception):
     """Raised when a render is requested before the user approves its plan."""
 
 
+class RenderVerificationError(Exception):
+    """Raised when the encoded video does not satisfy the output contract."""
+
+
 @dataclass(frozen=True)
 class RenderRequest:
     title: str
@@ -57,6 +61,10 @@ class RenderExecutor(Protocol):
     def run(self, command: list[str]) -> None: ...
 
 
+class VideoDurationProbe(Protocol):
+    def duration_seconds_for(self, video_path: Path) -> float: ...
+
+
 class SubprocessRenderExecutor:
     """Run the pinned ffmpeg commands used by the deterministic renderer."""
 
@@ -65,6 +73,30 @@ class SubprocessRenderExecutor:
         # the smallest Cloud Run instance. Keep the request bounded, but allow
         # enough time for the user-approved export to complete.
         subprocess.run(command, check=True, capture_output=True, text=True, timeout=300)
+
+
+class SubprocessVideoDurationProbe:
+    def duration_seconds_for(self, video_path: Path) -> float:
+        result = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                str(video_path),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        try:
+            return float(result.stdout.strip())
+        except ValueError as error:
+            raise RenderVerificationError("The finished video duration could not be verified.") from error
 
 
 def create_render_request(storyboard: Storyboard, approved: bool) -> RenderRequest:
@@ -96,8 +128,9 @@ def allocate_timeline(source_paths: list[Path]) -> RenderTimeline:
 
 
 class DeterministicVerticalRenderer:
-    def __init__(self, executor: RenderExecutor) -> None:
+    def __init__(self, executor: RenderExecutor, *, duration_probe: VideoDurationProbe | None = None) -> None:
         self._executor = executor
+        self._duration_probe = duration_probe
 
     def render(self, request: RenderRequest, source_path: Path, output_directory: Path) -> RenderArtifact:
         return self.render_many(request, [source_path], output_directory)
@@ -210,6 +243,7 @@ class DeterministicVerticalRenderer:
                 command.append("-an")
             command.append(str(video_path))
             self._executor.run(command)
+        self._verify_duration(video_path)
         self._executor.run(
             [
                 "ffmpeg",
@@ -230,6 +264,13 @@ class DeterministicVerticalRenderer:
             cover_path=cover_path,
             caption_path=caption_path,
         )
+
+    def _verify_duration(self, video_path: Path) -> None:
+        if self._duration_probe is None:
+            return
+        duration_seconds = self._duration_probe.duration_seconds_for(video_path)
+        if not 59.5 <= duration_seconds <= 60.5:
+            raise RenderVerificationError("The finished video duration is outside the 60-second tolerance.")
 
 
 def _source_digest(source_path: Path) -> str:
