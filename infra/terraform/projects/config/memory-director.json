@@ -1,12 +1,13 @@
 {
-  "project_id": "staylong",
+  "project_id": "memory-director-505708",
+  "project_number": "192915586401",
   "resource_name": "memory-director-sandbox",
-  "state_bucket_name": "staylong-memory-director-tfstate-186136682416",
+  "state_bucket_name": "memory-director-tfstate-192915586401",
   "github_repository": "afaryy/MemoryDirector",
   "mcp_image": "ghcr.io/clickhouse/mcp-clickhouse@sha256:f4d9f1502a14a98fd17f3ecf8654bd102ba5b1a5bde86e54a9579ed8871ef8d7",
   "enable_mcp": true,
   "mcp_secret_project_id": "memory-director-505708",
-  "mcp_invoker_service_account_email": "github-terraform-sandbox@staylong.iam.gserviceaccount.com",
+  "mcp_invoker_service_account_email": "github-terraform-sandbox@memory-director-505708.iam.gserviceaccount.com",
   "public_edge": {
     "apex_domain": "memorydirector.com",
     "cloudflare_zone_id": "d963f645b3ea1a7b68611369f90cc276",

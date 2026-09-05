@@ -5,7 +5,7 @@ run "routes_api_prefix_to_api_neg_with_prefix_removed" {
   command = plan
 
   variables {
-    project_id         = "staylong"
+    project_id         = "example-project"
     region             = "australia-southeast1"
     name_prefix        = "memory-director-sandbox"
     apex_domain        = "memorydirector.com"

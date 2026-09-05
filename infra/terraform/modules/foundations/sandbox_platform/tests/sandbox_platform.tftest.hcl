@@ -34,7 +34,7 @@ run "plans_cross_project_mcp_secret_reference" {
   command = plan
 
   variables {
-    project_id            = "staylong"
+    project_id            = "example-project"
     region                = "australia-southeast1"
     resource_name         = "memory-director-sandbox"
     enable_mcp            = true
@@ -42,7 +42,7 @@ run "plans_cross_project_mcp_secret_reference" {
   }
 
   assert {
-    condition     = output.runtime_service_account_email == "memory-director-runtime@staylong.iam.gserviceaccount.com"
+    condition     = output.runtime_service_account_email == "memory-director-runtime@example-project.iam.gserviceaccount.com"
     error_message = "Cross-project MCP secrets must still use the platform runtime identity."
   }
 }
