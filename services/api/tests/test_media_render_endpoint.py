@@ -83,6 +83,14 @@ class RecordingGuardian:
         self.stages.append(stage)
 
 
+class RecordingPublisher:
+    def __init__(self) -> None:
+        self.events = []
+
+    def publish(self, event) -> None:
+        self.events.append(event)
+
+
 @pytest.mark.anyio
 async def test_selected_analyzed_media_reaches_renderer_without_new_upload(monkeypatch: pytest.MonkeyPatch) -> None:
     storage = RenderStorage()
@@ -90,6 +98,7 @@ async def test_selected_analyzed_media_reaches_renderer_without_new_upload(monke
     monkeypatch.setattr(main_module, "get_media_analyzer", lambda: RenderAnalyzer(), raising=False)
     monkeypatch.setattr(main_module, "get_renderer", lambda: DeterministicVerticalRenderer(RecordingExecutor()))
     monkeypatch.setattr(main_module, "get_consent_guardian", lambda: RecordingGuardian(), raising=False)
+    monkeypatch.setattr(main_module, "get_consent_event_publisher", lambda: RecordingPublisher(), raising=False)
 
     async with AsyncClient(transport=ASGITransport(app=main_module.app), base_url="http://test") as client:
         analyzed = await client.post(
@@ -149,6 +158,7 @@ async def test_two_selected_analyzed_media_are_combined_in_one_export(monkeypatc
     monkeypatch.setattr(main_module, "get_renderer", lambda: renderer)
     guardian = RecordingGuardian()
     monkeypatch.setattr(main_module, "get_consent_guardian", lambda: guardian, raising=False)
+    monkeypatch.setattr(main_module, "get_consent_event_publisher", lambda: RecordingPublisher(), raising=False)
 
     async with AsyncClient(transport=ASGITransport(app=main_module.app), base_url="http://test") as client:
         first = await client.post("/media/analyze", files={"media": ("first.jpg", b"first", "image/jpeg")}, data={"consent": "true"})

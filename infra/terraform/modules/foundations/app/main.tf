@@ -20,7 +20,7 @@ module "api" {
     GOOGLE_CLOUD_PROJECT  = var.project_id
     GOOGLE_CLOUD_LOCATION = var.region
     MEDIA_BUCKET          = "${var.name_prefix}-media"
-  }, var.mcp_endpoint == null ? {} : { CLICKHOUSE_MCP_ENDPOINT = var.mcp_endpoint })
+  }, var.mcp_endpoint == null ? {} : { CLICKHOUSE_MCP_ENDPOINT = var.mcp_endpoint }, var.consent_event_writer_endpoint == null ? {} : { CONSENT_EVENT_WRITER_ENDPOINT = var.consent_event_writer_endpoint })
   secret_environment_variables = var.mcp_endpoint == null ? {} : {
     CLICKHOUSE_CREDENTIALS_JSON = {
       secret  = var.mcp_secret_project_id == null || var.mcp_secret_project_id == var.project_id ? "clickhouse-credentials" : "projects/${var.mcp_secret_project_id}/secrets/clickhouse-credentials"

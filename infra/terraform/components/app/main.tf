@@ -53,6 +53,12 @@ variable "mcp_endpoint" {
   default     = null
 }
 
+variable "consent_event_writer_endpoint" {
+  type        = string
+  description = "Private consent-event writer endpoint resolved from the platform component."
+  default     = null
+}
+
 locals {
   common             = jsondecode(file(coalesce(var.common_config, "${path.module}/../../projects/config/common-environment.json")))
   environment        = jsondecode(file(var.environment_config))
@@ -67,17 +73,18 @@ locals {
 provider "google" { project = local.project.project_id }
 
 module "app" {
-  source                = "../../modules/foundations/app"
-  project_id            = local.project.project_id
-  region                = local.region
-  name_prefix           = local.name_prefix
-  api_image             = var.api_image
-  web_image             = var.web_image
-  service               = var.service
-  api_base_url          = var.api_base_url
-  public_ingress        = var.public_ingress
-  mcp_endpoint          = local.mcp_endpoint
-  mcp_secret_project_id = local.mcp_secret_project
+  source                        = "../../modules/foundations/app"
+  project_id                    = local.project.project_id
+  region                        = local.region
+  name_prefix                   = local.name_prefix
+  api_image                     = var.api_image
+  web_image                     = var.web_image
+  service                       = var.service
+  api_base_url                  = var.api_base_url
+  public_ingress                = var.public_ingress
+  mcp_endpoint                  = local.mcp_endpoint
+  mcp_secret_project_id         = local.mcp_secret_project
+  consent_event_writer_endpoint = var.consent_event_writer_endpoint
 }
 
 output "configuration_summary" {

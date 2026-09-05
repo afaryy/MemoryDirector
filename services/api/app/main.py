@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from app.gemini_client import GeminiProductionPlanner, GoogleGenAiGateway
 from app.consent_guardian import ConsentDenied, consent_guardian_from_environment
+from app.consent_events import ConsentEvent, consent_event_publisher_from_environment
 from app.media_analysis import (
     MediaAnalysis,
     MediaAnalysisError,
@@ -106,6 +107,10 @@ def get_preference_repository():
 
 def get_consent_guardian():
     return consent_guardian_from_environment()
+
+
+def get_consent_event_publisher():
+    return consent_event_publisher_from_environment()
 
 
 def get_media_storage() -> MediaStorage:
@@ -209,7 +214,13 @@ def decide_media(media_id: str, payload: MediaDecisionPayload) -> MediaDecisionS
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media asset was not analyzed.")
     state = _media_decisions.set(media_id, payload.status, payload.reason)
     try:
-        return storage.save_decision(state)
+        saved = storage.save_decision(state)
+        if saved.status == "selected":
+            publisher = get_consent_event_publisher()
+            if publisher is None:
+                raise RuntimeError("consent event writer is not configured")
+            publisher.publish(ConsentEvent(session_id=media_id, media_id=media_id, event_type="media_selected"))
+        return saved
     except Exception as error:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Media decision is temporarily unavailable.") from error
 
