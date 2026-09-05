@@ -1,0 +1,41 @@
+name: Deploy consent event writer
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type DEPLOY_CONSENT_WRITER to deploy the private sandbox writer"
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    if: inputs.confirm == 'DEPLOY_CONSENT_WRITER'
+    runs-on: ubuntu-latest
+    environment: sandbox
+    steps:
+      - uses: actions/checkout@v4
+      - id: config
+        run: |
+          echo "project_id=$(jq -r .project_id infra/terraform/projects/config/memory-director.json)" >> "$GITHUB_OUTPUT"
+          echo "resource_name=$(jq -r .resource_name infra/terraform/projects/config/memory-director.json)" >> "$GITHUB_OUTPUT"
+          echo "state_bucket=$(jq -r .state_bucket_name infra/terraform/projects/config/memory-director.json)" >> "$GITHUB_OUTPUT"
+          echo "region=$(jq -r .default_region infra/terraform/projects/config/common-environment.json)" >> "$GITHUB_OUTPUT"
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker "${{ steps.config.outputs.region }}-docker.pkg.dev" --quiet
+      - uses: docker/build-push-action@v6
+        with:
+          context: services/consent-writer
+          push: true
+          tags: ${{ steps.config.outputs.region }}-docker.pkg.dev/${{ steps.config.outputs.project_id }}/${{ steps.config.outputs.resource_name }}/consent-writer:${{ github.sha }}
+      - uses: hashicorp/setup-terraform@v3
+      - run: |
+          terraform -chdir=infra/terraform/components/platform init -backend-config="bucket=${{ steps.config.outputs.state_bucket }}" -backend-config="prefix=memory-director/sandbox/platform"
+          terraform -chdir=infra/terraform/components/platform apply -auto-approve -var="project_config=$GITHUB_WORKSPACE/infra/terraform/projects/config/memory-director.json" -var="environment_config=$GITHUB_WORKSPACE/infra/terraform/projects/config/sandbox.json" -var="enable_consent_event_writer=true" -var="consent_event_writer_image=${{ steps.config.outputs.region }}-docker.pkg.dev/${{ steps.config.outputs.project_id }}/${{ steps.config.outputs.resource_name }}/consent-writer:${{ github.sha }}"
