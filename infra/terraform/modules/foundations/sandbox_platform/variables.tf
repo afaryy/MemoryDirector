@@ -12,6 +12,16 @@ variable "enable_mcp" {
   default = false
 }
 
+variable "enable_consent_event_writer" {
+  type    = bool
+  default = false
+}
+
+variable "consent_event_writer_image" {
+  type    = string
+  default = null
+}
+
 variable "mcp_secret_project_id" {
   type    = string
   default = null

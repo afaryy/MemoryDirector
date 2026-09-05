@@ -9,10 +9,22 @@ locals {
     "secretmanager.googleapis.com", "storage.googleapis.com",
   ])
   runtime_secret_ids   = toset(["clickhouse-credentials", "gemini-runtime-config"])
+  writer_secret_ids    = toset(["clickhouse-event-writer-credentials"])
   migration_secret_ids = toset(["clickhouse-migration-credentials"])
-  secret_ids           = setunion(local.runtime_secret_ids, local.migration_secret_ids)
+  secret_ids           = setunion(local.runtime_secret_ids, local.writer_secret_ids, local.migration_secret_ids)
   mcp_secret_project   = coalesce(var.mcp_secret_project_id, var.project_id)
   mcp_secret_ref       = local.mcp_secret_project == var.project_id ? "clickhouse-credentials" : "projects/${local.mcp_secret_project}/secrets/clickhouse-credentials"
+}
+
+module "consent_event_writer" {
+  count                             = var.enable_consent_event_writer ? 1 : 0
+  source                            = "../consent_event_writer"
+  project_id                        = var.project_id
+  region                            = var.region
+  resource_name                     = var.resource_name
+  image                             = var.consent_event_writer_image
+  api_runtime_service_account_email = module.runtime.email
+  writer_secret                     = module.secrets["clickhouse-event-writer-credentials"].name
 }
 
 resource "google_project_service" "platform" {
