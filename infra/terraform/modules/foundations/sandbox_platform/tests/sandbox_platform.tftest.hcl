@@ -20,8 +20,8 @@ run "creates_only_destroyable_sandbox_platform_resources" {
   }
 
   assert {
-    condition     = toset(output.secret_ids) == toset(["clickhouse-credentials", "clickhouse-migration-credentials", "gemini-runtime-config"])
-    error_message = "The platform must create only the runtime and migration secret containers, never secret values."
+    condition     = toset(output.secret_ids) == toset(["clickhouse-credentials", "clickhouse-event-writer-credentials", "clickhouse-migration-credentials", "gemini-runtime-config"])
+    error_message = "The platform must create only runtime, migration, and event-writer secret containers, never secret values."
   }
 
   assert {
