@@ -13,6 +13,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.gemini_client import GeminiProductionPlanner, GoogleGenAiGateway
+from app.consent_guardian import ConsentDenied, consent_guardian_from_environment
+from app.consent_events import ConsentEvent, consent_event_publisher_from_environment
 from app.media_analysis import (
     MediaAnalysis,
     MediaAnalysisError,
@@ -28,11 +30,13 @@ from app.lyria_client import GoogleLyriaClient
 from app.models import PlaceCandidate, ProductionBrief, ProductionProposal, Storyboard
 from app.preferences import preference_repository_from_environment
 from app.production import ProductionOrchestrator
+from app.soundtrack import SoundtrackConfigurationError, resolve_instrumental_track
 from app.render import (
     ApprovalRequired,
     DeterministicVerticalRenderer,
     RenderRequest,
     SubprocessRenderExecutor,
+    SubprocessVideoDurationProbe,
     create_render_request,
 )
 
@@ -94,11 +98,19 @@ def get_production_planner() -> GeminiProductionPlanner:
 
 
 def get_renderer() -> DeterministicVerticalRenderer:
-    return DeterministicVerticalRenderer(SubprocessRenderExecutor())
+    return DeterministicVerticalRenderer(SubprocessRenderExecutor(), duration_probe=SubprocessVideoDurationProbe())
 
 
 def get_preference_repository():
     return preference_repository_from_environment()
+
+
+def get_consent_guardian():
+    return consent_guardian_from_environment()
+
+
+def get_consent_event_publisher():
+    return consent_event_publisher_from_environment()
 
 
 def get_media_storage() -> MediaStorage:
@@ -202,7 +214,13 @@ def decide_media(media_id: str, payload: MediaDecisionPayload) -> MediaDecisionS
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media asset was not analyzed.")
     state = _media_decisions.set(media_id, payload.status, payload.reason)
     try:
-        return storage.save_decision(state)
+        saved = storage.save_decision(state)
+        if saved.status == "selected":
+            publisher = get_consent_event_publisher()
+            if publisher is None:
+                raise RuntimeError("consent event writer is not configured")
+            publisher.publish(ConsentEvent(session_id=media_id, media_id=media_id, event_type="media_selected"))
+        return saved
     except Exception as error:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Media decision is temporarily unavailable.") from error
 
@@ -250,6 +268,22 @@ async def export_render(
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media asset was not analyzed.")
             if decision.status != "selected":
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Select the media asset before rendering.")
+        guardian = get_consent_guardian()
+        if guardian is None:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Consent evidence is unavailable; please try again later.")
+        try:
+            guardian.allow_export(media_ids=requested_media_ids, soundtrack_mode=soundtrack_mode, stage="render")
+        except ConsentDenied as error:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+        publisher = get_consent_event_publisher()
+        if publisher is None:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Consent event recording is unavailable.")
+        try:
+            for requested_id in requested_media_ids:
+                publisher.publish(ConsentEvent(session_id=requested_id, media_id=requested_id, event_type="render_started"))
+        except Exception as error:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Consent event recording is unavailable.") from error
+        for requested_id in requested_media_ids:
             stored = storage.read(requested_id)
             if stored is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media asset is unavailable.")
@@ -295,12 +329,31 @@ async def export_render(
                 ) from error
             audio_path = temporary_root / "memory-song.mp3"
             audio_path.write_bytes(song.audio)
+        elif soundtrack_mode == "instrumental":
+            try:
+                audio_path = resolve_instrumental_track()
+            except SoundtrackConfigurationError as error:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="Instrumental music is not configured; choose original song or no sound.",
+                ) from error
         output_directory = temporary_root / "exports"
         artifact = get_renderer().render_many(
             RenderRequest(title=title, caption=caption, audio_path=audio_path),
             source_paths,
             output_directory,
         )
+
+        if requested_media_ids:
+            try:
+                guardian.allow_export(media_ids=requested_media_ids, soundtrack_mode=soundtrack_mode, stage="export")
+            except ConsentDenied as error:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+            try:
+                for requested_id in requested_media_ids:
+                    publisher.publish(ConsentEvent(session_id=requested_id, media_id=requested_id, event_type="export_completed"))
+            except Exception as error:
+                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Consent event recording is unavailable.") from error
 
         archive = io.BytesIO()
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:

@@ -32,3 +32,9 @@ variable "mcp_secret_project_id" {
   description = "Project containing clickhouse-credentials, when it differs from the app project."
   default     = null
 }
+
+variable "consent_event_writer_endpoint" {
+  type        = string
+  description = "Private Cloud Run endpoint for anonymous consent event recording."
+  default     = null
+}

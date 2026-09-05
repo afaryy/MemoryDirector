@@ -106,6 +106,26 @@ ALTER USER {user} DEFAULT ROLE {role};
 """.strip()
 
 
+def render_writer_identity_sql(
+    *, password: str, database: str, role: str, user: str
+) -> str:
+    """Render idempotent INSERT-only SQL for the consent event writer."""
+
+    database = _identifier(database, "database")
+    role = _identifier(role, "role")
+    user = _identifier(user, "user")
+    password_literal = _literal(password)
+
+    return f"""
+CREATE ROLE IF NOT EXISTS {role};
+GRANT INSERT ON {database}.production_events TO {role};
+CREATE USER IF NOT EXISTS {user} IDENTIFIED WITH sha256_password BY {password_literal};
+ALTER USER {user} IDENTIFIED WITH sha256_password BY {password_literal};
+GRANT {role} TO {user};
+ALTER USER {user} DEFAULT ROLE {role};
+""".strip()
+
+
 def build_runtime_credentials(
     *,
     host: str,
@@ -134,6 +154,20 @@ def build_runtime_credentials(
         "CLICKHOUSE_PASSWORD": password,
         "CLICKHOUSE_MCP_AUTH_TOKEN": mcp_auth_token,
     }
+
+
+def build_writer_credentials(*, host: str, port: int, database: str, user: str, password: str) -> dict[str, str]:
+    """Build the separate runtime payload used only by the event writer."""
+
+    runtime = build_runtime_credentials(
+        host=host,
+        port=port,
+        database=database,
+        user=user,
+        password=password,
+        mcp_auth_token="writer-not-an-mcp-token",
+    )
+    return {key: value for key, value in runtime.items() if key != "CLICKHOUSE_MCP_AUTH_TOKEN"}
 
 
 def apply_sql_files(client: ClickHouseClient, paths: Sequence[Path]) -> int:
@@ -205,6 +239,15 @@ def run(mode: str, schema_dir: Path) -> dict[str, object]:
             user=os.environ.get("CLICKHOUSE_MCP_USER", "memory_director_mcp"),
         )
         for statement in split_sql_statements(identity_sql):
+            client.command(statement)
+            applied += 1
+        writer_sql = render_writer_identity_sql(
+            password=_required_env("CLICKHOUSE_EVENT_WRITER_PASSWORD"),
+            database=database,
+            role=os.environ.get("CLICKHOUSE_EVENT_WRITER_ROLE", "memory_director_event_writer_role"),
+            user=os.environ.get("CLICKHOUSE_EVENT_WRITER_USER", "memory_director_event_writer"),
+        )
+        for statement in split_sql_statements(writer_sql):
             client.command(statement)
             applied += 1
         return {"mode": mode, "statements_applied": applied}

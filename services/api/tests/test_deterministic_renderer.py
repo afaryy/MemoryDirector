@@ -62,7 +62,7 @@ def test_renderer_is_repeatable_for_same_media_and_unique_for_different_media(tm
     assert different_media.render_id != first.render_id
 
 
-def test_renderer_can_sequence_multiple_media_sources(tmp_path: Path) -> None:
+def test_renderer_sequences_media_with_crop_to_fill_crossfades_and_an_exact_duration(tmp_path: Path) -> None:
     executor = RecordingExecutor()
     first_source = tmp_path / "first.jpg"
     second_source = tmp_path / "second.mp4"
@@ -78,8 +78,10 @@ def test_renderer_can_sequence_multiple_media_sources(tmp_path: Path) -> None:
     assert artifact.video_path.name.endswith(".mp4")
     command = executor.commands[0]
     assert command.count("-i") == 2
-    assert "concat=n=2:v=1:a=0" in " ".join(command)
-    assert "trim=duration=30" in " ".join(command)
+    filter_graph = command[command.index("-filter_complex") + 1]
+    assert "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1" in filter_graph
+    assert "xfade=transition=fade:duration=1:offset=30" in filter_graph
+    assert "trim=duration=31" in filter_graph
     assert command[command.index("-t") + 1] == "60"
     assert command[command.index("-preset") + 1] == "veryfast"
 

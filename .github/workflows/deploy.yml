@@ -123,6 +123,17 @@ jobs:
             --format='value(status.url)')"
           test -n "$mcp_uri"
           echo "uri=$mcp_uri" >> "$GITHUB_OUTPUT"
+      - name: Resolve private consent event writer endpoint
+        id: consent_writer
+        shell: bash
+        run: |
+          set -euo pipefail
+          writer_uri="$(gcloud run services describe "${{ steps.config.outputs.resource_name }}-consent-events" \
+            --project "${{ steps.config.outputs.project_id }}" \
+            --region "${{ steps.config.outputs.region }}" \
+            --format='value(status.url)')"
+          test -n "$writer_uri"
+          echo "uri=$writer_uri" >> "$GITHUB_OUTPUT"
       - run: gcloud auth configure-docker "${{ steps.config.outputs.region }}-docker.pkg.dev" --quiet
       - uses: docker/setup-buildx-action@v3
 
@@ -151,6 +162,7 @@ jobs:
             -var="api_image=${{ steps.config.outputs.registry }}/api:${{ steps.config.outputs.sha }}" \
             -var="web_image=unused" \
             -var="mcp_endpoint=${{ steps.mcp.outputs.uri }}" \
+            -var="consent_event_writer_endpoint=${{ steps.consent_writer.outputs.uri }}" \
             -var="public_ingress=${{ steps.ingress.outputs.public_ingress }}"
 
       - name: Resolve deployed API URL

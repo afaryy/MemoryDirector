@@ -5,3 +5,4 @@ output "runtime_service_account_email" { value = "memory-director-runtime@${var.
 output "mcp_uri" {
   value = try(module.mcp[0].uri, null)
 }
+output "consent_event_writer_uri" { value = try(module.consent_event_writer[0].uri, null) }

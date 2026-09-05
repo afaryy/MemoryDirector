@@ -18,3 +18,4 @@ infra/terraform/bootstrap/state/backend.gcs.tf
 dist/
 coverage/
 *.tsbuildinfo
+__private/
