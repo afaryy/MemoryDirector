@@ -24,6 +24,7 @@ jobs:
           echo "resource_name=$(jq -r .resource_name infra/terraform/projects/config/memory-director.json)" >> "$GITHUB_OUTPUT"
           echo "state_bucket=$(jq -r .state_bucket_name infra/terraform/projects/config/memory-director.json)" >> "$GITHUB_OUTPUT"
           echo "region=$(jq -r .default_region infra/terraform/projects/config/common-environment.json)" >> "$GITHUB_OUTPUT"
+          echo "enable_mcp=$(jq -r '.enable_mcp // false' infra/terraform/projects/config/memory-director.json)" >> "$GITHUB_OUTPUT"
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
@@ -38,4 +39,4 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
       - run: |
           terraform -chdir=infra/terraform/components/platform init -backend-config="bucket=${{ steps.config.outputs.state_bucket }}" -backend-config="prefix=memory-director/sandbox/platform"
-          terraform -chdir=infra/terraform/components/platform apply -auto-approve -var="project_config=$GITHUB_WORKSPACE/infra/terraform/projects/config/memory-director.json" -var="environment_config=$GITHUB_WORKSPACE/infra/terraform/projects/config/sandbox.json" -var="enable_consent_event_writer=true" -var="consent_event_writer_image=${{ steps.config.outputs.region }}-docker.pkg.dev/${{ steps.config.outputs.project_id }}/${{ steps.config.outputs.resource_name }}/consent-writer:${{ github.sha }}"
+          terraform -chdir=infra/terraform/components/platform apply -auto-approve -var="project_config=$GITHUB_WORKSPACE/infra/terraform/projects/config/memory-director.json" -var="environment_config=$GITHUB_WORKSPACE/infra/terraform/projects/config/sandbox.json" -var="enable_mcp=${{ steps.config.outputs.enable_mcp }}" -var="enable_consent_event_writer=true" -var="consent_event_writer_image=${{ steps.config.outputs.region }}-docker.pkg.dev/${{ steps.config.outputs.project_id }}/${{ steps.config.outputs.resource_name }}/consent-writer:${{ github.sha }}"
