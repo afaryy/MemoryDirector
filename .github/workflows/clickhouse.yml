@@ -9,10 +9,6 @@ on:
         type: choice
         options: [bootstrap, verify, smoke]
         default: bootstrap
-      secret_project_id:
-        description: "GCP project containing the ClickHouse secrets"
-        required: true
-        default: memory-director-505708
       migration_secret_name:
         description: "Secret containing the temporary migration/admin connection JSON"
         required: true
@@ -41,6 +37,14 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+
+      - id: config
+        name: Read non-sensitive secret locations
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "mcp_secret_project_id=$(jq -r .mcp_secret_project_id infra/terraform/projects/config/memory-director.json)" >> "$GITHUB_OUTPUT"
+          echo "writer_secret_project_id=$(jq -r .project_id infra/terraform/projects/config/memory-director.json)" >> "$GITHUB_OUTPUT"
 
       - name: Require explicit confirmation
         run: test "${{ inputs.confirm }}" = "CLICKHOUSE_SANDBOX"
@@ -72,7 +76,8 @@ jobs:
         if: inputs.operation == 'bootstrap'
         shell: bash
         env:
-          SECRET_PROJECT_ID: ${{ inputs.secret_project_id }}
+          SECRET_PROJECT_ID: ${{ steps.config.outputs.mcp_secret_project_id }}
+          EVENT_WRITER_SECRET_PROJECT_ID: ${{ steps.config.outputs.writer_secret_project_id }}
           MIGRATION_SECRET_NAME: ${{ inputs.migration_secret_name }}
           RUNTIME_SECRET_NAME: ${{ inputs.runtime_secret_name }}
           EVENT_WRITER_SECRET_NAME: ${{ inputs.event_writer_secret_name }}
@@ -122,14 +127,14 @@ jobs:
 
           writer_json="$(jq -n --arg host "$ch_host" --arg port "$ch_port" --arg database "$ch_database" --arg user "memory_director_event_writer" --arg password "$writer_password" '{CLICKHOUSE_HOST:$host,CLICKHOUSE_PORT:$port,CLICKHOUSE_SECURE:"true",CLICKHOUSE_VERIFY:"true",CLICKHOUSE_DATABASE:$database,CLICKHOUSE_USER:$user,CLICKHOUSE_PASSWORD:$password}')"
           printf '%s' "$writer_json" | gcloud secrets versions add "$EVENT_WRITER_SECRET_NAME" \
-            --project "$SECRET_PROJECT_ID" \
+            --project "$EVENT_WRITER_SECRET_PROJECT_ID" \
             --data-file=-
 
       - name: Verify runtime read-only query
         if: inputs.operation == 'verify'
         shell: bash
         env:
-          SECRET_PROJECT_ID: ${{ inputs.secret_project_id }}
+          SECRET_PROJECT_ID: ${{ steps.config.outputs.mcp_secret_project_id }}
           RUNTIME_SECRET_NAME: ${{ inputs.runtime_secret_name }}
         run: |
           set -euo pipefail
@@ -156,7 +161,7 @@ jobs:
         if: inputs.operation == 'smoke'
         shell: bash
         env:
-          SECRET_PROJECT_ID: ${{ inputs.secret_project_id }}
+          SECRET_PROJECT_ID: ${{ steps.config.outputs.mcp_secret_project_id }}
           RUNTIME_SECRET_NAME: ${{ inputs.runtime_secret_name }}
           MCP_ENDPOINT: ${{ inputs.mcp_endpoint }}
           IDENTITY_TOKEN: ${{ steps.mcp-identity.outputs.id_token }}

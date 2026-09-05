@@ -44,7 +44,7 @@ module "platform" {
   region                            = local.region
   resource_name                     = local.project.resource_name
   mcp_image                         = try(local.project.mcp_image, "ghcr.io/clickhouse/mcp-clickhouse@sha256:f4d9f1502a14a98fd17f3ecf8654bd102ba5b1a5bde86e54a9579ed8871ef8d7")
-  enable_mcp                        = var.enable_mcp
+  enable_mcp                        = try(local.project.enable_mcp, var.enable_mcp)
   enable_consent_event_writer       = var.enable_consent_event_writer
   consent_event_writer_image        = coalesce(var.consent_event_writer_image, try(local.project.consent_event_writer_image, null))
   mcp_secret_project_id             = local.mcp_secret_project
