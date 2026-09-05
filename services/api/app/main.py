@@ -275,6 +275,14 @@ async def export_render(
             guardian.allow_export(media_ids=requested_media_ids, soundtrack_mode=soundtrack_mode, stage="render")
         except ConsentDenied as error:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+        publisher = get_consent_event_publisher()
+        if publisher is None:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Consent event recording is unavailable.")
+        try:
+            for requested_id in requested_media_ids:
+                publisher.publish(ConsentEvent(session_id=requested_id, media_id=requested_id, event_type="render_started"))
+        except Exception as error:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Consent event recording is unavailable.") from error
         for requested_id in requested_media_ids:
             stored = storage.read(requested_id)
             if stored is None:
@@ -341,6 +349,11 @@ async def export_render(
                 guardian.allow_export(media_ids=requested_media_ids, soundtrack_mode=soundtrack_mode, stage="export")
             except ConsentDenied as error:
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+            try:
+                for requested_id in requested_media_ids:
+                    publisher.publish(ConsentEvent(session_id=requested_id, media_id=requested_id, event_type="export_completed"))
+            except Exception as error:
+                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Consent event recording is unavailable.") from error
 
         archive = io.BytesIO()
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
