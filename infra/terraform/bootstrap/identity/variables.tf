@@ -9,6 +9,7 @@ variable "project_roles" {
     "roles/compute.networkAdmin",
     "roles/iam.serviceAccountAdmin",
     "roles/iam.serviceAccountUser",
+    "roles/iam.roleAdmin",
     "roles/resourcemanager.projectIamAdmin",
     "roles/run.admin",
     "roles/secretmanager.admin",

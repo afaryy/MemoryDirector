@@ -11,6 +11,7 @@ terraform {
 
 locals {
   required_services = toset([
+    "cloudresourcemanager.googleapis.com",
     "iam.googleapis.com",
     "iamcredentials.googleapis.com",
     "sts.googleapis.com",
