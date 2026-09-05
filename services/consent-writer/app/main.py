@@ -5,6 +5,7 @@ from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.events import ConsentEvent, EventType
+from app.repository import repository_from_credentials
 
 
 class EventRepository(Protocol):
@@ -17,9 +18,10 @@ class UnavailableEventRepository:
 
 
 def get_repository() -> EventRepository:
-    if not os.environ.get("CLICKHOUSE_EVENT_WRITER_CREDENTIALS_JSON"):
+    credentials_json = os.environ.get("CLICKHOUSE_EVENT_WRITER_CREDENTIALS_JSON")
+    if not credentials_json:
         return UnavailableEventRepository()
-    raise RuntimeError("ClickHouse event writer repository is not configured")
+    return repository_from_credentials(credentials_json)
 
 
 class EventPayload(BaseModel):

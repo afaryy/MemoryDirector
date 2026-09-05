@@ -14,4 +14,3 @@ def test_allocate_timeline_is_exactly_sixty_seconds_after_transitions(source_cou
     assert all(segment.duration_seconds >= 3 for segment in timeline.segments)
     assert timeline.rendered_duration_seconds == TARGET_VIDEO_SECONDS
     assert sum(segment.duration_seconds for segment in timeline.segments) - timeline.transition_total_seconds == TARGET_VIDEO_SECONDS
-

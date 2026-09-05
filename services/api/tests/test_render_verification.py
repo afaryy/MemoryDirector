@@ -27,4 +27,3 @@ def test_renderer_rejects_a_completed_video_outside_the_sixty_second_tolerance(t
 
     with pytest.raises(RenderVerificationError, match="duration"):
         renderer.render(RenderRequest(title="A day", caption="Together."), source, tmp_path / "exports")
-

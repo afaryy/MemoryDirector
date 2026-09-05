@@ -17,6 +17,16 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv run pytest -v
 
+  consent-writer:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/consent-writer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv run pytest -v
+
   web:
     runs-on: ubuntu-latest
     defaults:

@@ -21,4 +21,3 @@ def test_resolve_instrumental_track_requires_an_existing_absolute_audio_asset(mo
     monkeypatch.setenv("INSTRUMENTAL_AUDIO_PATH", str(track))
 
     assert resolve_instrumental_track() == track
-

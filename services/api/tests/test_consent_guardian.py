@@ -31,4 +31,3 @@ def test_guardian_denies_missing_selected_media_evidence() -> None:
 
     with pytest.raises(ConsentDenied, match="consent evidence"):
         guardian.allow_export(media_ids=["media-a", "media-b"], soundtrack_mode="original_song", stage="export")
-
