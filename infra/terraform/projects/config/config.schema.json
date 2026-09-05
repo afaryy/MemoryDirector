@@ -6,6 +6,7 @@
   "additionalProperties": false,
   "properties": {
     "project_id": { "type": "string", "minLength": 1 },
+    "project_number": { "type": "string", "pattern": "^[0-9]+$" },
     "resource_name": { "type": "string", "pattern": "^[a-z][a-z0-9-]{2,62}$" },
     "environment": { "type": "string", "enum": ["sandbox"] },
     "default_region": { "type": "string", "minLength": 1 },

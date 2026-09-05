@@ -1,6 +1,6 @@
 project_config     = "../../projects/config/memory-director.json"
 environment_config = "../../projects/config/sandbox.json"
-api_image          = "australia-southeast1-docker.pkg.dev/staylong/memory-director-sandbox/api:replace-with-immutable-sha"
-web_image          = "australia-southeast1-docker.pkg.dev/staylong/memory-director-sandbox/web:replace-with-immutable-sha"
+api_image          = "australia-southeast1-docker.pkg.dev/memory-director-505708/memory-director-sandbox/api:replace-with-immutable-sha"
+web_image          = "australia-southeast1-docker.pkg.dev/memory-director-505708/memory-director-sandbox/web:replace-with-immutable-sha"
 service            = "all"
 api_base_url       = null
