@@ -196,6 +196,12 @@ async def test_decision_is_idempotent_and_never_deletes_source(monkeypatch: pyte
     storage = FakeStorage()
     patch_dependencies(monkeypatch, storage, FakeAnalyzer())
 
+    class EventPublisher:
+        def publish(self, event) -> None:
+            return None
+
+    monkeypatch.setattr(main_module, "get_consent_event_publisher", lambda: EventPublisher())
+
     async with AsyncClient(transport=ASGITransport(app=main_module.app), base_url="http://test") as client:
         analyzed = await client.post(
             "/media/analyze",
