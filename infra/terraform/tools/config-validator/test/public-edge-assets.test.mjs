@@ -49,3 +49,10 @@ test("deployment serializes with lockdown and preserves the existing ingress mod
   assert.doesNotMatch(deploy, /2>\/dev\/null \|\| true/);
   assert.match(deploy, /-var="public_ingress=\$\{\{ steps\.ingress\.outputs\.public_ingress \}\}"/);
 });
+
+test("automatic deployment is disabled until the approved GCP target is explicitly enabled", () => {
+  const deploy = readFileSync(new URL(".github/workflows/deploy.yml", repositoryRoot), "utf8");
+
+  assert.match(deploy, /vars\.GCP_PROJECT_ID == 'memory-director-505708'/);
+  assert.match(deploy, /vars\.AUTO_DEPLOY_ENABLED == 'true'/);
+});

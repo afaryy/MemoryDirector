@@ -25,7 +25,12 @@ env:
 
 jobs:
   deploy:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: >-
+      vars.GCP_PROJECT_ID == 'memory-director-505708' &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        (vars.AUTO_DEPLOY_ENABLED == 'true' && github.event.workflow_run.conclusion == 'success')
+      )
     runs-on: ubuntu-latest
     environment: sandbox
     permissions:
