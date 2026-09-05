@@ -1,5 +1,25 @@
 mock_provider "google" {}
 
+run "enables_cloud_resource_manager_for_project_level_resources" {
+  command = plan
+
+  variables {
+    project_id          = "memory-director-test"
+    github_owner        = "afaryy"
+    github_repo         = "MemoryDirector"
+    github_repositories = ["afaryy/MemoryDirector"]
+    allowed_ref         = "refs/heads/main"
+    environment         = "sandbox"
+    service_account_id  = "github-terraform-sandbox"
+    project_roles       = []
+  }
+
+  assert {
+    condition     = contains(keys(google_project_service.identity), "cloudresourcemanager.googleapis.com")
+    error_message = "Bootstrap identity must enable Cloud Resource Manager before managing project IAM and services."
+  }
+}
+
 run "restricts_github_federation_to_the_sandbox_repository_and_main" {
   command = plan
 
@@ -52,7 +72,12 @@ run "restricts_github_federation_to_the_sandbox_repository_and_main" {
   }
 
   assert {
-    condition     = toset(output.enabled_services) == toset(["iam.googleapis.com", "iamcredentials.googleapis.com", "sts.googleapis.com"])
-    error_message = "WIF bootstrap must enable only the IAM and STS APIs it requires."
+    condition = toset(output.enabled_services) == toset([
+      "cloudresourcemanager.googleapis.com",
+      "iam.googleapis.com",
+      "iamcredentials.googleapis.com",
+      "sts.googleapis.com",
+    ])
+    error_message = "WIF bootstrap must enable only the Cloud Resource Manager, IAM, and STS APIs it requires."
   }
 }
