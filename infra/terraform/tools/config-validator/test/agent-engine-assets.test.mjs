@@ -11,6 +11,7 @@ test("Agent Engine deployment is manual, WIF-authenticated, and smoke-gated", ()
   );
 
   assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /options: \[deploy, activate_existing, rollback\]/);
   assert.match(workflow, /DEPLOY_AGENT_SANDBOX/);
   assert.match(workflow, /environment: sandbox/);
   assert.match(workflow, /google-github-actions\/auth@v2/);
@@ -36,6 +37,27 @@ test("Agent Engine deployment is manual, WIF-authenticated, and smoke-gated", ()
   );
   assert.doesNotMatch(workflow, /python scripts\/(?:deploy|smoke)_agent_engine\.py/);
   assert.doesNotMatch(workflow, /secrets versions access/);
+});
+
+test("existing Agent Engine activation builds current API code safely", () => {
+  const workflow = readFileSync(
+    new URL(".github/workflows/deploy-agent-engine.yml", repositoryRoot),
+    "utf8",
+  );
+
+  assert.match(workflow, /if: inputs\.operation != 'rollback'/);
+  assert.match(workflow, /if \[ "\$\{\{ inputs\.operation \}\}" != "rollback" \]; then/);
+  assert.match(workflow, /if \[ "\$\{\{ inputs\.operation \}\}" = "deploy" \]; then[\s\S]*python -m scripts\.deploy_agent_engine/);
+  assert.match(workflow, /SELECTED_RESOURCE: \$\{\{ inputs\.rollback_resource \}\}/);
+  assert.match(workflow, /resource="\$SELECTED_RESOURCE"/);
+  assert.doesNotMatch(workflow, /resource="\$\{\{ inputs\.rollback_resource \}\}"/);
+
+  const operations = readFileSync(
+    new URL("docs/operations/AGENT_ENGINE.md", repositoryRoot),
+    "utf8",
+  );
+  assert.match(operations, /does not provision or update the selected Agent Engine/);
+  assert.match(operations, /Use `deploy`,[\s\S]*whenever planner code or configuration has changed/);
 });
 
 test("normal app deployments preserve the currently active Agent Engine resource", () => {

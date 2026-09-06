@@ -2,6 +2,7 @@ import json
 import os
 
 from google.adk.agents import Agent
+from google.genai import types
 
 from app.agent_planner import AgentPlanningRequest, AgentProductionPlan
 from app.clickhouse_preferences import PreferenceLookup
@@ -32,4 +33,8 @@ def build_memory_film_agent(preference_tool: PreferenceLookup) -> Agent:
         instruction=MEMORY_FILM_INSTRUCTION,
         input_schema=AgentPlanningRequest,
         tools=[preference_tool.lookup_approved_music_preference],
+        generate_content_config=types.GenerateContentConfig(
+            temperature=0,
+            candidate_count=1,
+        ),
     )

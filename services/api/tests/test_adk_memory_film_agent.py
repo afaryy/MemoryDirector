@@ -28,6 +28,14 @@ def test_memory_film_agent_exposes_only_preference_tool() -> None:
     assert "gs://" in agent.instruction
 
 
+def test_memory_film_agent_uses_deterministic_single_candidate_generation() -> None:
+    agent = build_memory_film_agent(FakePreferenceTool())
+
+    assert agent.generate_content_config is not None
+    assert agent.generate_content_config.temperature == 0
+    assert agent.generate_content_config.candidate_count == 1
+
+
 def test_agent_engine_preference_tool_describes_its_read_only_boundary() -> None:
     description = inspect.getdoc(
         LazyClickHousePreferenceTool.lookup_approved_music_preference

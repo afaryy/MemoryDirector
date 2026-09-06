@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: "Deploy a new agent or roll back the API to a verified earlier resource"
+        description: "Deploy a new agent, activate current code with an existing agent, or roll back"
         required: true
         type: choice
-        options: [deploy, rollback]
+        options: [deploy, activate_existing, rollback]
         default: deploy
       rollback_resource:
-        description: "Full reasoningEngines resource name; required only for rollback"
+        description: "Existing reasoningEngines resource; required for activate_existing or rollback"
         required: false
       confirm:
         description: "Type DEPLOY_AGENT_SANDBOX"
@@ -144,14 +144,14 @@ jobs:
         run: uv sync --frozen
 
       - name: Configure Artifact Registry authentication
-        if: inputs.operation == 'deploy'
+        if: inputs.operation != 'rollback'
         run: gcloud auth configure-docker "${{ steps.config.outputs.region }}-docker.pkg.dev" --quiet
 
       - uses: docker/setup-buildx-action@v3
-        if: inputs.operation == 'deploy'
+        if: inputs.operation != 'rollback'
 
       - name: Build the Agent Engine-aware API image
-        if: inputs.operation == 'deploy'
+        if: inputs.operation != 'rollback'
         uses: docker/build-push-action@v6
         with:
           context: services/api
@@ -159,10 +159,10 @@ jobs:
           tags: ${{ steps.config.outputs.registry }}/api:${{ github.sha }}
 
       - id: api_image
-        name: Select API image without changing rollback code
+        name: Select current or rollback API image
         shell: bash
         run: |
-          if [ "${{ inputs.operation }}" = "deploy" ]; then
+          if [ "${{ inputs.operation }}" != "rollback" ]; then
             echo "value=${{ steps.config.outputs.registry }}/api:${{ github.sha }}" >> "$GITHUB_OUTPUT"
           else
             echo "value=${{ steps.live.outputs.api_image }}" >> "$GITHUB_OUTPUT"
@@ -179,12 +179,13 @@ jobs:
           AGENT_ENGINE_SERVICE_ACCOUNT: ${{ steps.config.outputs.agent_service_account }}
           CLICKHOUSE_MCP_ENDPOINT: ${{ steps.live.outputs.mcp_uri }}
           CLICKHOUSE_CREDENTIALS_SECRET: projects/${{ steps.config.outputs.project_id }}/secrets/clickhouse-credentials/versions/latest
+          SELECTED_RESOURCE: ${{ inputs.rollback_resource }}
         run: |
           set -euo pipefail
           if [ "${{ inputs.operation }}" = "deploy" ]; then
             resource="$(cd services/api && uv run python -m scripts.deploy_agent_engine | tail -n 1)"
           else
-            resource="${{ inputs.rollback_resource }}"
+            resource="$SELECTED_RESOURCE"
             test -n "$resource"
           fi
           [[ "$resource" =~ ^projects/(memory-director-505708|192915586401)/locations/[a-z0-9-]+/reasoningEngines/[0-9]+$ ]]
