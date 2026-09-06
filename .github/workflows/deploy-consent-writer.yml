@@ -11,6 +11,10 @@ permissions:
   contents: read
   id-token: write
 
+concurrency:
+  group: memory-director-sandbox-platform
+  cancel-in-progress: false
+
 jobs:
   deploy:
     if: inputs.confirm == 'DEPLOY_CONSENT_WRITER'
