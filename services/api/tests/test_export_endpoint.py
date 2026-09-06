@@ -44,6 +44,24 @@ async def test_export_returns_mp4_cover_and_caption_bundle(monkeypatch: pytest.M
 
 
 @pytest.mark.anyio
+async def test_direct_upload_prefers_recognized_mime_type_over_misleading_filename(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executor = RecordingExecutor()
+    monkeypatch.setattr(main_module, "get_renderer", lambda: DeterministicVerticalRenderer(executor))
+
+    async with AsyncClient(transport=ASGITransport(app=main_module.app), base_url="http://test") as client:
+        response = await client.post(
+            "/renders/export",
+            files={"media": ("misleading.jpg", b"synthetic-heic", "Image/HEIC")},
+            data={"title": "Phone photo", "caption": "Together.", "approved": "true"},
+        )
+
+    assert response.status_code == 200
+    assert any(argument.endswith("source-0.heic") for argument in executor.commands[0])
+
+
+@pytest.mark.anyio
 async def test_export_requires_approval_before_reading_media() -> None:
     async with AsyncClient(transport=ASGITransport(app=main_module.app), base_url="http://test") as client:
         response = await client.post(

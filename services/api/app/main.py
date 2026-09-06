@@ -86,7 +86,32 @@ class MemorySongBriefPayload(BaseModel):
 
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+MEDIA_SUFFIX_BY_CONTENT_TYPE = {
+    "image/heic": ".heic",
+    "image/heic-sequence": ".heic",
+    "image/heif": ".heif",
+    "image/heif-sequence": ".heif",
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "video/mp4": ".mp4",
+    "video/quicktime": ".mov",
+    "video/webm": ".webm",
+    "video/x-m4v": ".m4v",
+}
 _media_decisions = MediaDecisionRegistry()
+
+
+def normalize_media_content_type(content_type: str | None) -> str:
+    return (content_type or "").partition(";")[0].strip().lower()
+
+
+def media_suffix_for_content_type(content_type: str) -> str:
+    normalized = normalize_media_content_type(content_type)
+    mapped = MEDIA_SUFFIX_BY_CONTENT_TYPE.get(normalized)
+    if mapped is not None:
+        return mapped
+    return ".mp4" if normalized.startswith("video/") else ".jpg"
 
 
 def get_production_planner() -> GeminiProductionPlanner:
@@ -179,9 +204,8 @@ async def analyze_media(
 ) -> MediaAnalysisResponse:
     if consent != "true":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Explicit media consent is required.")
-    if not media.content_type or not (
-        media.content_type.startswith("video/") or media.content_type.startswith("image/")
-    ):
+    normalized_content_type = normalize_media_content_type(media.content_type)
+    if not (normalized_content_type.startswith("video/") or normalized_content_type.startswith("image/")):
         raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Upload a photo or video file.")
 
     contents = await media.read(MAX_UPLOAD_BYTES + 1)
@@ -191,7 +215,7 @@ async def analyze_media(
     media_id = media_id_for_bytes(contents)
     try:
         storage = get_media_storage()
-        stored_media = storage.put(media_id, media.content_type, contents)
+        stored_media = storage.put(media_id, normalized_content_type, contents)
         analysis = get_media_analyzer().analyze(stored_media)
         if analysis.media_id != media_id:
             raise MediaAnalysisError("media ID mismatch")
@@ -291,12 +315,13 @@ async def export_render(
             if stored is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media asset is unavailable.")
             stored_media, contents = stored
-            selected_sources.append((contents, ".mp4" if stored_media.content_type.startswith("video/") else ".jpg"))
+            selected_sources.append((contents, media_suffix_for_content_type(stored_media.content_type)))
         source_contents = selected_sources
     else:
         if media is None:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Upload media or provide selected media_ids.")
-        if not media.content_type or not (media.content_type.startswith("video/") or media.content_type.startswith("image/")):
+        normalized_content_type = normalize_media_content_type(media.content_type)
+        if not (normalized_content_type.startswith("video/") or normalized_content_type.startswith("image/")):
             raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Upload a video or image file.")
 
         contents = await media.read(MAX_UPLOAD_BYTES + 1)
@@ -304,8 +329,11 @@ async def export_render(
             raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail="Media upload is limited to 50 MB.")
 
         suffix = Path(media.filename or "upload.mp4").suffix.lower()
-        if suffix not in {".mp4", ".mov", ".m4v", ".webm", ".jpg", ".jpeg", ".png"}:
-            suffix = ".mp4"
+        canonical_suffix = MEDIA_SUFFIX_BY_CONTENT_TYPE.get(normalized_content_type)
+        if canonical_suffix is not None:
+            suffix = canonical_suffix
+        elif suffix not in {".mp4", ".mov", ".m4v", ".webm", ".jpg", ".jpeg", ".png", ".heic", ".heif"}:
+            suffix = media_suffix_for_content_type(media.content_type)
         source_contents = [(contents, suffix)]
 
     with tempfile.TemporaryDirectory(prefix="memory-director-") as temporary_directory:
