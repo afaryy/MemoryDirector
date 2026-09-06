@@ -40,7 +40,7 @@ def test_renderer_builds_a_deterministic_vertical_export_package(tmp_path: Path)
     assert executor.commands[0][:5] == ["ffmpeg", "-y", "-stream_loop", "-1", "-i"]
     assert "1080:1920" in executor.commands[0]
     assert executor.commands[0][executor.commands[0].index("-t") + 1] == "60"
-    assert executor.commands[0][executor.commands[0].index("-preset") + 1] == "veryfast"
+    assert executor.commands[0][executor.commands[0].index("-preset") + 1] == "ultrafast"
     assert "-frames:v" in executor.commands[1]
 
 
@@ -98,7 +98,7 @@ def test_renderer_sequences_media_with_fade_through_black_and_an_exact_duration(
     assert command[command.index("-filter_complex_threads") + 1] == "1"
     assert command.index("-filter_complex_threads") < command.index("-filter_complex")
     assert command[command.index("-t") + 1] == "60"
-    assert command[command.index("-preset") + 1] == "veryfast"
+    assert command[command.index("-preset") + 1] == "ultrafast"
 
 
 def test_renderer_mixes_optional_memory_song(tmp_path: Path) -> None:
