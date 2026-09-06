@@ -307,6 +307,12 @@ def _source_digest(source_path: Path) -> str:
 def _ffmpeg_diagnostic_codes(stderr: str | None) -> str:
     normalized = (stderr or "").lower()
     patterns = (
+        ("parsed_scale_", "scale-stage"),
+        ("parsed_crop_", "crop-stage"),
+        ("parsed_fps_", "frame-rate-stage"),
+        ("parsed_format_", "pixel-format-stage"),
+        ("parsed_xfade_", "crossfade-stage"),
+        ("auto_scale_", "automatic-scale-stage"),
         ("timebase", "input-timebase-mismatch"),
         ("failed to configure output pad", "filter-output-configuration"),
         ("error reinitializing filters", "filter-reinitialization"),
