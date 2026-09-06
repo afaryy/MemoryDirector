@@ -20,3 +20,4 @@ coverage/
 *.tsbuildinfo
 __private/
 .superdesign/tmp/
+.gstack/
