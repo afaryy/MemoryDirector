@@ -52,3 +52,10 @@ class ProductionProposal(BaseModel):
     music_directions: list[MusicDirection]
     storyboard: Storyboard
     privacy_checks: list[str]
+    selected_segments: list["ProductionSegment"] = Field(default_factory=list)
+
+
+class ProductionSegment(BaseModel):
+    media_id: str
+    trim_start_seconds: float = Field(ge=0)
+    trim_end_seconds: float = Field(gt=0)
