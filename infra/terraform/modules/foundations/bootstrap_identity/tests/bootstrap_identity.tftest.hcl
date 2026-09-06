@@ -18,6 +18,11 @@ run "enables_cloud_resource_manager_for_project_level_resources" {
     condition     = contains(keys(google_project_service.identity), "cloudresourcemanager.googleapis.com")
     error_message = "Bootstrap identity must enable Cloud Resource Manager before managing project IAM and services."
   }
+
+  assert {
+    condition     = contains(keys(google_project_service.identity), "compute.googleapis.com")
+    error_message = "Bootstrap identity must enable Compute Engine before public-edge manages load-balancer resources."
+  }
 }
 
 run "restricts_github_federation_to_the_sandbox_repository_and_main" {
@@ -74,10 +79,11 @@ run "restricts_github_federation_to_the_sandbox_repository_and_main" {
   assert {
     condition = toset(output.enabled_services) == toset([
       "cloudresourcemanager.googleapis.com",
+      "compute.googleapis.com",
       "iam.googleapis.com",
       "iamcredentials.googleapis.com",
       "sts.googleapis.com",
     ])
-    error_message = "WIF bootstrap must enable only the Cloud Resource Manager, IAM, and STS APIs it requires."
+    error_message = "WIF bootstrap must enable only the Cloud Resource Manager, Compute Engine, IAM, and STS APIs it requires."
   }
 }

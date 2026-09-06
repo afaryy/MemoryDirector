@@ -28,6 +28,9 @@ Provision deliberately leaves direct Cloud Run ingress unchanged. Copy the
 reported address and certificate resource into deployment evidence. Google
 managed certificates remain in provisioning state until the DNS-only A and
 CNAME records are visible; wait for certificate activation before testing.
+If the registered zone already contains the intended apex A or `www` CNAME,
+the workflow imports that single matching record into the isolated Terraform
+state before applying. Multiple matching records fail closed for manual review.
 
 Run these checks after it becomes active:
 

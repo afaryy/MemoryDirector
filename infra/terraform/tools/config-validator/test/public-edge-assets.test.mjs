@@ -11,6 +11,11 @@ test("public-domain workflow requires guarded operations and runtime-only Cloudf
   assert.match(workflow, /DESTROY_PUBLIC_EDGE/);
   assert.match(workflow, /CLOUDFLARE_API_TOKEN/);
   assert.match(workflow, /environment: sandbox/);
+  assert.match(workflow, /Import existing Cloudflare DNS records/);
+  assert.match(workflow, /api\.cloudflare\.com\/client\/v4\/zones\/\$zone_id\/dns_records/);
+  assert.match(workflow, /terraform[^\n]*import[^\n]*"\$address" "\$zone_id\/\$record_id"/);
+  assert.match(workflow, /import_record "module\.public_edge\.cloudflare_dns_record\.apex" "\$domain" "A"/);
+  assert.match(workflow, /import_record "module\.public_edge\.cloudflare_dns_record\.www" "www\.\$domain" "CNAME"/);
 });
 
 test("public-edge operations documentation covers rollout and rollback", () => {
