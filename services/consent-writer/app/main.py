@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import Protocol
 
@@ -6,6 +7,9 @@ from pydantic import BaseModel, Field
 
 from app.events import ConsentEvent, EventType
 from app.repository import repository_from_credentials
+
+
+logger = logging.getLogger(__name__)
 
 
 class EventRepository(Protocol):
@@ -38,6 +42,7 @@ app = FastAPI(title="Memory Director consent event writer")
 def record_event(payload: EventPayload) -> dict[str, str]:
     try:
         get_repository().record(ConsentEvent(**payload.model_dump()))
-    except (RuntimeError, ValueError) as error:
+    except Exception as error:
+        logger.warning("Consent event recording failed: %s", type(error).__name__)
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Consent event recording is unavailable.") from error
     return {"status": "recorded"}
