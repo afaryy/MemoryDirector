@@ -12,21 +12,37 @@ module "runtime" {
 }
 
 module "service" {
-  source                  = "../../base/cloud_run_service"
-  project_id              = var.project_id
-  name                    = "${var.resource_name}-consent-events"
-  region                  = var.region
-  image                   = var.image
-  service_account_email   = module.runtime.email
-  container_port          = 8000
-  memory                  = "512Mi"
-  timeout                 = "60s"
-  ingress                 = "INGRESS_TRAFFIC_INTERNAL_ONLY"
+  source                = "../../base/cloud_run_service"
+  project_id            = var.project_id
+  name                  = "${var.resource_name}-consent-events"
+  region                = var.region
+  image                 = var.image
+  service_account_email = module.runtime.email
+  container_port        = 8000
+  memory                = "512Mi"
+  timeout               = "60s"
+  # Cloud Run-to-Cloud Run calls use the service URL unless a VPC path is
+  # configured. Keep that route reachable, while IAM below restricts invocation
+  # to the API runtime identity (there is deliberately no allUsers binding).
+  ingress                 = "INGRESS_TRAFFIC_ALL"
   allow_public_invocation = false
-  invoker_members         = ["serviceAccount:${var.api_runtime_service_account_email}"]
+  invoker_members         = []
   secret_environment_variables = {
     CLICKHOUSE_EVENT_WRITER_CREDENTIALS_JSON = { secret = var.writer_secret, version = "latest" }
   }
+}
+
+# This dedicated service owns its complete invoker policy. An authoritative
+# binding removes any drifted allUsers or unexpected member when Terraform is
+# applied, instead of merely adding the runtime identity alongside it.
+resource "google_cloud_run_v2_service_iam_binding" "invoker" {
+  project  = var.project_id
+  location = var.region
+  name     = module.service.name
+  role     = "roles/run.invoker"
+  members  = ["serviceAccount:${var.api_runtime_service_account_email}"]
+
+  depends_on = [module.service]
 }
 
 resource "google_secret_manager_secret_iam_member" "writer_secret" {

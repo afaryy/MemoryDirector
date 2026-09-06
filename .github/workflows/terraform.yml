@@ -104,6 +104,9 @@ jobs:
       - run: terraform -chdir=infra/terraform/modules/foundations/sandbox_platform init -backend=false
       - run: terraform -chdir=infra/terraform/modules/foundations/sandbox_platform validate
       - run: terraform -chdir=infra/terraform/modules/foundations/sandbox_platform test
+      - run: terraform -chdir=infra/terraform/modules/foundations/consent_event_writer init -backend=false
+      - run: terraform -chdir=infra/terraform/modules/foundations/consent_event_writer validate
+      - run: terraform -chdir=infra/terraform/modules/foundations/consent_event_writer test
       - run: terraform -chdir=infra/terraform/modules/foundations/app init -backend=false
       - run: terraform -chdir=infra/terraform/modules/foundations/app validate
       - run: terraform -chdir=infra/terraform/modules/foundations/app test
@@ -120,6 +123,9 @@ jobs:
     needs: [config-schema, security, terraform-validate]
     runs-on: ubuntu-latest
     environment: sandbox
+    concurrency:
+      group: memory-director-sandbox-${{ inputs.component }}
+      cancel-in-progress: false
     permissions:
       contents: read
       id-token: write
@@ -138,14 +144,27 @@ jobs:
           test -f "$project_config_file"
           test -f "$environment_config_file"
           state_bucket="$(jq -r '.state_bucket_name // empty' "$project_config_file")"
+          project_id="$(jq -r '.project_id // empty' "$project_config_file")"
+          resource_name="$(jq -r '.resource_name // empty' "$project_config_file")"
+          region="$(jq -r '.region // empty' "$project_config_file")"
+          if [ -z "$region" ]; then
+            region="$(jq -r '.default_region // empty' infra/terraform/projects/config/common-environment.json)"
+          fi
           test -n "$state_bucket"
+          test -n "$project_id"
+          test -n "$resource_name"
+          test -n "$region"
           echo "project_config_file=$project_config_file" >> "$GITHUB_OUTPUT"
           echo "environment_config_file=$environment_config_file" >> "$GITHUB_OUTPUT"
           echo "state_bucket=$state_bucket" >> "$GITHUB_OUTPUT"
+          echo "project_id=$project_id" >> "$GITHUB_OUTPUT"
+          echo "resource_name=$resource_name" >> "$GITHUB_OUTPUT"
+          echo "region=$region" >> "$GITHUB_OUTPUT"
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
       - name: Verify MCP runtime secret before enabling Cloud Run
         if: inputs.component == 'platform' && inputs.enable_mcp == true && (inputs.operation == 'plan' || inputs.operation == 'apply')
         env:
@@ -164,6 +183,27 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
       - name: Initialize selected daily component
         run: terraform -chdir=infra/terraform/components/${{ inputs.component }} init -backend-config="bucket=${{ steps.config.outputs.state_bucket }}" -backend-config="prefix=memory-director/sandbox/${{ inputs.component }}${{ inputs.component == 'app' && format('-{0}', inputs.service) || '' }}"
+      - id: writer
+        name: Preserve the deployed consent-writer configuration
+        if: inputs.component == 'platform' && inputs.operation != 'validate'
+        shell: bash
+        run: |
+          set -euo pipefail
+          writer_image="$(gcloud run services list \
+            --project "${{ steps.config.outputs.project_id }}" \
+            --region "${{ steps.config.outputs.region }}" \
+            --filter="metadata.name=${{ steps.config.outputs.resource_name }}-consent-events" \
+            --format='value(spec.template.spec.containers[0].image)' \
+            --limit=1)"
+          if [ -n "$writer_image" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "image=$writer_image" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Migrate consent-writer invoker state without deleting its grant
+        if: inputs.component == 'platform' && inputs.operation == 'apply' && steps.writer.outputs.enabled == 'true'
+        run: infra/terraform/tools/migrate-consent-writer-invoker-state.sh infra/terraform/components/platform
       - name: Run selected operation
         run: |
           if [ "${{ inputs.component }}" = "app" ]; then
@@ -172,7 +212,10 @@ jobs:
             fi
             image_args="-var=api_image=${{ inputs.api_image }} -var=web_image=${{ inputs.web_image }} -var=service=${{ inputs.service }} -var=api_base_url=${{ inputs.api_base_url }} -var=mcp_endpoint=${{ inputs.mcp_endpoint }}"
           else
-            image_args="-var=enable_mcp=${{ inputs.enable_mcp }}"
+            image_args="-var=enable_mcp=${{ inputs.enable_mcp }} -var=enable_consent_event_writer=${{ steps.writer.outputs.enabled || 'false' }}"
+            if [ "${{ steps.writer.outputs.enabled }}" = "true" ]; then
+              image_args="$image_args -var=consent_event_writer_image=${{ steps.writer.outputs.image }}"
+            fi
           fi
           case "${{ inputs.operation }}" in
             validate) terraform -chdir=infra/terraform/components/${{ inputs.component }} validate ;;
