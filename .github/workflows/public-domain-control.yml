@@ -59,6 +59,7 @@ jobs:
           project_id="$(jq -r '.project_id // empty' "$project_config_file")"
           resource_name="$(jq -r '.resource_name // empty' "$project_config_file")"
           domain="$(jq -r '.public_edge.apex_domain // empty' "$project_config_file")"
+          zone_id="$(jq -r '.public_edge.cloudflare_zone_id // empty' "$project_config_file")"
           region="$(jq -r '.region // empty' "$project_config_file")"
           if [ -z "$region" ]; then
             region="$(jq -r '.default_region' infra/terraform/projects/config/common-environment.json)"
@@ -67,6 +68,7 @@ jobs:
           test -n "$project_id"
           test -n "$resource_name"
           test -n "$domain"
+          test -n "$zone_id"
           {
             echo "project_config_file=$project_config_file"
             echo "environment_config_file=$environment_config_file"
@@ -74,6 +76,7 @@ jobs:
             echo "project_id=$project_id"
             echo "resource_name=$resource_name"
             echo "domain=$domain"
+            echo "zone_id=$zone_id"
             echo "region=$region"
           } >> "$GITHUB_OUTPUT"
       - uses: google-github-actions/auth@v2
@@ -89,6 +92,50 @@ jobs:
           terraform -chdir=infra/terraform/components/public-edge init \
             -backend-config="bucket=${{ steps.config.outputs.state_bucket }}" \
             -backend-config="prefix=memory-director/sandbox/public-edge"
+      - name: Import existing Cloudflare DNS records
+        if: inputs.operation != 'destroy'
+        shell: bash
+        run: |
+          set -euo pipefail
+          zone_id="${{ steps.config.outputs.zone_id }}"
+          domain="${{ steps.config.outputs.domain }}"
+          args=(
+            -var="project_config=${{ steps.config.outputs.project_config_file }}"
+            -var="environment_config=${{ steps.config.outputs.environment_config_file }}"
+            -var="operation_mode=${{ inputs.operation == 'lockdown' && 'lockdown' || 'provision' }}"
+          )
+
+          import_record() {
+            local address="$1"
+            local fqdn="$2"
+            local record_type="$3"
+            local response count record_id
+
+            if terraform -chdir=infra/terraform/components/public-edge state show "$address" >/dev/null 2>&1; then
+              return
+            fi
+
+            response="$(curl --fail-with-body --silent --show-error --get \
+              "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records" \
+              --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              --data-urlencode "name=$fqdn" \
+              --data-urlencode "type=$record_type")"
+            test "$(jq -r '.success' <<<"$response")" = "true"
+            count="$(jq '.result | length' <<<"$response")"
+            if [ "$count" = "0" ]; then
+              return
+            fi
+            if [ "$count" != "1" ]; then
+              echo "Expected at most one $record_type record for $fqdn; found $count." >&2
+              exit 1
+            fi
+            record_id="$(jq -r '.result[0].id' <<<"$response")"
+            test -n "$record_id"
+            terraform -chdir=infra/terraform/components/public-edge import "${args[@]}" "$address" "$zone_id/$record_id"
+          }
+
+          import_record "module.public_edge.cloudflare_dns_record.apex" "$domain" "A"
+          import_record "module.public_edge.cloudflare_dns_record.www" "www.$domain" "CNAME"
       - name: Apply or destroy public-edge resources
         shell: bash
         run: |
