@@ -175,7 +175,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${{ inputs.operation }}" = "deploy" ]; then
-            resource="$(cd services/api && uv run python scripts/deploy_agent_engine.py | tail -n 1)"
+            resource="$(cd services/api && uv run python -m scripts.deploy_agent_engine | tail -n 1)"
           else
             resource="${{ inputs.rollback_resource }}"
             test -n "$resource"
@@ -187,7 +187,7 @@ jobs:
         working-directory: services/api
         env:
           MEMORY_FILM_PLANNER_RESOURCE: ${{ steps.agent.outputs.resource }}
-        run: uv run python scripts/smoke_agent_engine.py --evidence-file agent-engine-smoke.json
+        run: uv run python -m scripts.smoke_agent_engine --evidence-file agent-engine-smoke.json
 
       - name: Switch API only after smoke succeeds
         shell: bash

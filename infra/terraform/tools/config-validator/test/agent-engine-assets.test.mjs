@@ -14,10 +14,13 @@ test("Agent Engine deployment is manual, WIF-authenticated, and smoke-gated", ()
   assert.match(workflow, /DEPLOY_AGENT_SANDBOX/);
   assert.match(workflow, /environment: sandbox/);
   assert.match(workflow, /google-github-actions\/auth@v2/);
-  assert.match(workflow, /smoke_agent_engine\.py/);
+  assert.match(workflow, /scripts\.smoke_agent_engine/);
   assert.match(workflow, /MEMORY_FILM_PLANNER_RESOURCE/);
   assert.match(workflow, /192915586401/);
   assert.match(workflow, /terraform[^\n]*apply/);
+  assert.match(workflow, /python -m scripts\.deploy_agent_engine/);
+  assert.match(workflow, /python -m scripts\.smoke_agent_engine/);
+  assert.doesNotMatch(workflow, /python scripts\/(?:deploy|smoke)_agent_engine\.py/);
   assert.doesNotMatch(workflow, /secrets versions access/);
 });
 
