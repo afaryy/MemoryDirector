@@ -39,4 +39,5 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
       - run: |
           terraform -chdir=infra/terraform/components/platform init -backend-config="bucket=${{ steps.config.outputs.state_bucket }}" -backend-config="prefix=memory-director/sandbox/platform"
+          infra/terraform/tools/migrate-consent-writer-invoker-state.sh infra/terraform/components/platform
           terraform -chdir=infra/terraform/components/platform apply -auto-approve -var="project_config=$GITHUB_WORKSPACE/infra/terraform/projects/config/memory-director.json" -var="environment_config=$GITHUB_WORKSPACE/infra/terraform/projects/config/sandbox.json" -var="enable_mcp=${{ steps.config.outputs.enable_mcp }}" -var="enable_consent_event_writer=true" -var="consent_event_writer_image=${{ steps.config.outputs.region }}-docker.pkg.dev/${{ steps.config.outputs.project_id }}/${{ steps.config.outputs.resource_name }}/consent-writer:${{ github.sha }}"

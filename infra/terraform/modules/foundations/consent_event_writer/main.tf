@@ -41,6 +41,8 @@ resource "google_cloud_run_v2_service_iam_binding" "invoker" {
   name     = module.service.name
   role     = "roles/run.invoker"
   members  = ["serviceAccount:${var.api_runtime_service_account_email}"]
+
+  depends_on = [module.service]
 }
 
 resource "google_secret_manager_secret_iam_member" "writer_secret" {

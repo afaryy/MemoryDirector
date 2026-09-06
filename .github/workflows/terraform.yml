@@ -167,6 +167,9 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
       - name: Initialize selected daily component
         run: terraform -chdir=infra/terraform/components/${{ inputs.component }} init -backend-config="bucket=${{ steps.config.outputs.state_bucket }}" -backend-config="prefix=memory-director/sandbox/${{ inputs.component }}${{ inputs.component == 'app' && format('-{0}', inputs.service) || '' }}"
+      - name: Migrate consent-writer invoker state without deleting its grant
+        if: inputs.component == 'platform' && inputs.operation == 'apply'
+        run: infra/terraform/tools/migrate-consent-writer-invoker-state.sh infra/terraform/components/platform
       - name: Run selected operation
         run: |
           if [ "${{ inputs.component }}" = "app" ]; then
