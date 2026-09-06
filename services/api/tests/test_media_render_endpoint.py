@@ -6,7 +6,7 @@ from httpx import ASGITransport, AsyncClient
 
 import app.main as main_module
 from app.media_analysis import MediaAnalysis, StoredMedia
-from app.render import DeterministicVerticalRenderer
+from app.render import DeterministicVerticalRenderer, RenderExecutionError, RenderVerificationError
 
 
 class RenderStorage:
@@ -91,6 +91,14 @@ class RecordingPublisher:
         self.events.append(event)
 
 
+class FailingRenderer:
+    def __init__(self, error: Exception) -> None:
+        self.error = error
+
+    def render_many(self, request, source_paths, output_directory):
+        raise self.error
+
+
 @pytest.mark.anyio
 async def test_selected_analyzed_media_reaches_renderer_without_new_upload(monkeypatch: pytest.MonkeyPatch) -> None:
     storage = RenderStorage()
@@ -121,6 +129,41 @@ async def test_selected_analyzed_media_reaches_renderer_without_new_upload(monke
     with zipfile.ZipFile(io.BytesIO(exported.content)) as bundle:
         assert any(name.endswith(".mp4") for name in bundle.namelist())
         assert any(name.endswith(".jpg") for name in bundle.namelist())
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "render_error",
+    [RenderExecutionError("Video rendering failed."), RenderVerificationError("Video duration could not be verified.")],
+)
+async def test_render_failure_returns_a_generic_retryable_response(
+    monkeypatch: pytest.MonkeyPatch, render_error: Exception
+) -> None:
+    storage = RenderStorage()
+    monkeypatch.setattr(main_module, "get_media_storage", lambda: storage, raising=False)
+    monkeypatch.setattr(main_module, "get_media_analyzer", lambda: RenderAnalyzer(), raising=False)
+    monkeypatch.setattr(main_module, "get_renderer", lambda: FailingRenderer(render_error))
+    monkeypatch.setattr(main_module, "get_consent_guardian", lambda: RecordingGuardian(), raising=False)
+    monkeypatch.setattr(main_module, "get_consent_event_publisher", lambda: RecordingPublisher(), raising=False)
+
+    async with AsyncClient(transport=ASGITransport(app=main_module.app), base_url="http://test") as client:
+        analyzed = await client.post(
+            "/media/analyze",
+            files={"media": ("memory.jpg", b"render-me", "image/jpeg")},
+            data={"consent": "true"},
+        )
+        media_id = analyzed.json()["media_id"]
+        await client.post(
+            f"/media/{media_id}/decision",
+            json={"status": "selected", "reason": "best frame"},
+        )
+        exported = await client.post(
+            "/renders/export",
+            data={"title": "A memory", "caption": "Together.", "approved": "true", "media_id": media_id},
+        )
+
+    assert exported.status_code == 503
+    assert exported.json() == {"detail": "Video rendering is temporarily unavailable; please try again."}
 
 
 @pytest.mark.anyio

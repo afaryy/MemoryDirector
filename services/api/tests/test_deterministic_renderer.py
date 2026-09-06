@@ -1,7 +1,17 @@
 from pathlib import Path
+import subprocess
+
+import pytest
 
 from app.models import Storyboard
-from app.render import DeterministicVerticalRenderer, RenderRequest, SubprocessRenderExecutor, create_render_request
+from app.render import (
+    DeterministicVerticalRenderer,
+    RenderRequest,
+    RenderVerificationError,
+    SubprocessRenderExecutor,
+    SubprocessVideoDurationProbe,
+    create_render_request,
+)
 
 
 class RecordingExecutor:
@@ -143,3 +153,61 @@ def test_subprocess_executor_allows_sixty_second_export_to_finish(monkeypatch) -
     SubprocessRenderExecutor().run(["ffmpeg", "-version"])
 
     assert calls[0][1]["timeout"] == 300
+
+
+def test_subprocess_executor_logs_only_sanitized_ffmpeg_error_lines(monkeypatch, caplog) -> None:
+    source_path = "/tmp/memory-director-sensitive/source-0.jpg"
+    metadata_sentinel = "family-error-secret"
+
+    def fake_run(command, **kwargs):
+        raise subprocess.CalledProcessError(
+            234,
+            command,
+            stderr=(
+                f"Input #0 from {source_path}\n"
+                "[Parsed_xfade_0] First input link main timebase does not match\n"
+                f"metadata error: {metadata_sentinel}\n"
+                f"Error while processing {source_path}\n"
+            ),
+        )
+
+    monkeypatch.setattr("app.render.subprocess.run", fake_run)
+
+    with pytest.raises(RuntimeError, match="Video rendering failed"):
+        SubprocessRenderExecutor().run(["ffmpeg", "-i", source_path])
+
+    assert "input-timebase-mismatch" in caplog.text
+    assert source_path not in caplog.text
+    assert metadata_sentinel not in caplog.text
+
+
+def test_subprocess_executor_translates_timeout_without_command_leakage(monkeypatch, caplog) -> None:
+    source_path = "/tmp/memory-director-sensitive/source-0.jpg"
+
+    def fake_run(command, **kwargs):
+        raise subprocess.TimeoutExpired(command, 300)
+
+    monkeypatch.setattr("app.render.subprocess.run", fake_run)
+
+    with pytest.raises(RuntimeError, match="Video rendering failed") as captured:
+        SubprocessRenderExecutor().run(["ffmpeg", "-i", source_path])
+
+    assert source_path not in str(captured.value)
+    assert "timeout" in caplog.text
+    assert source_path not in caplog.text
+
+
+def test_duration_probe_translates_subprocess_failure_without_path_leakage(monkeypatch, caplog) -> None:
+    video_path = Path("/tmp/memory-director-sensitive/output.mp4")
+
+    def fake_run(command, **kwargs):
+        raise subprocess.CalledProcessError(1, command, stderr=f"probe failed for {video_path}")
+
+    monkeypatch.setattr("app.render.subprocess.run", fake_run)
+
+    with pytest.raises(RenderVerificationError, match="could not be verified") as captured:
+        SubprocessVideoDurationProbe().duration_seconds_for(video_path)
+
+    assert str(video_path) not in str(captured.value)
+    assert "duration-probe-failed" in caplog.text
+    assert str(video_path) not in caplog.text
