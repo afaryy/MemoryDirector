@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Blob as NodeBlob } from "node:buffer";
 import { strToU8, zipSync } from "fflate";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -9,6 +9,25 @@ function selectOnePhoto() {
   fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
     target: { files: [new File(["photo"], "garden.jpg", { type: "image/jpeg" })] },
   });
+}
+
+function selectPhotos(count: number) {
+  fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
+    target: {
+      files: Array.from(
+        { length: count },
+        (_, index) => new File([`photo-${index}`], `garden-${index}.jpg`, { type: "image/jpeg" }),
+      ),
+    },
+  });
+}
+
+function completeReadyStateWithPhotos(count: number) {
+  fireEvent.change(screen.getByLabelText("Your memory request"), {
+    target: { value: "Make a gentle film from our garden afternoon." },
+  });
+  selectPhotos(count);
+  fireEvent.click(screen.getByLabelText("I have permission to use these media."));
 }
 
 function completeReadyState() {
@@ -133,6 +152,184 @@ describe("ProductionWizard", () => {
     expect(JSON.parse(selectionCall?.[1]?.body as string)).toEqual({ status: "selected", reason: "Chosen for this film" });
   });
 
+  it("starts no more than two media analyses at once", async () => {
+    const fetchMock = vi.fn(() => new Promise<Response>(() => undefined));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ProductionWizard />);
+
+    completeReadyStateWithPhotos(4);
+    fireEvent.click(screen.getByRole("button", { name: "Make my film" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(fetchMock.mock.calls.every(([url]) => url === "http://localhost:8000/media/analyze")).toBe(true);
+  });
+
+  it("keeps the choices visible and disabled with progress in the preview area", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
+    render(<ProductionWizard />);
+
+    completeReadyState();
+    fireEvent.click(screen.getByRole("button", { name: "Make my film" }));
+
+    expect(screen.getByRole("textbox", { name: "Your memory request", exact: true })).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Your memory request", exact: true })).toBeDisabled();
+    expect(screen.getByText("garden.jpg")).toBeVisible();
+    expect(screen.getByRole("radio", { name: /Original AI song/ })).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent("Making your film…");
+    expect(screen.getAllByText("Making your film…")).toHaveLength(1);
+  });
+
+  it("retries one transient media-analysis failure and continues", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 500 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ media_id: "sha256:garden" }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ media_id: "sha256:garden", status: "selected" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ title: "Garden afternoon", caption: "Together.", music_direction: "gentle acoustic" }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ output_format: "vertical-mp4" }), { status: 201 }))
+      .mockResolvedValueOnce({ ok: true, blob: async () => exportZip() });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn(() => "blob:memory-director-preview"),
+      revokeObjectURL: vi.fn(),
+    });
+    render(<ProductionWizard />);
+
+    completeReadyState();
+    fireEvent.click(screen.getByRole("button", { name: "Make my film" }));
+
+    expect(await screen.findByRole("button", { name: "Save & share" })).toBeEnabled();
+    const analysisCalls = fetchMock.mock.calls.filter(([url]) => url === "http://localhost:8000/media/analyze");
+    expect(analysisCalls).toHaveLength(2);
+  });
+
+  it("does not retry a media-analysis validation failure", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(null, { status: 415 }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ProductionWizard />);
+
+    completeReadyState();
+    fireEvent.click(screen.getByRole("button", { name: "Make my film" }));
+
+    expect(await screen.findByRole("button", { name: "Try again" })).toBeEnabled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels the failed generation before a retry starts new analysis workers", async () => {
+    let analysisCalls = 0;
+    let activeAnalyses = 0;
+    let maximumActiveAnalyses = 0;
+    const fetchMock = vi.fn((url: string, options?: RequestInit) => {
+      if (url !== "http://localhost:8000/media/analyze") {
+        throw new Error(`Unexpected request: ${url}`);
+      }
+      analysisCalls += 1;
+      activeAnalyses += 1;
+      maximumActiveAnalyses = Math.max(maximumActiveAnalyses, activeAnalyses);
+      if (analysisCalls === 1) {
+        activeAnalyses -= 1;
+        return Promise.resolve(new Response(null, { status: 415 }));
+      }
+      return new Promise<Response>((_resolve, reject) => {
+        options?.signal?.addEventListener(
+          "abort",
+          () => {
+            activeAnalyses -= 1;
+            reject(new DOMException("Aborted", "AbortError"));
+          },
+          { once: true },
+        );
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ProductionWizard />);
+
+    completeReadyStateWithPhotos(4);
+    fireEvent.click(screen.getByRole("button", { name: "Make my film" }));
+
+    const retry = await screen.findByRole("button", { name: "Try again" });
+    await waitFor(() => expect(activeAnalyses).toBe(0));
+    expect(analysisCalls).toBe(2);
+
+    fireEvent.click(retry);
+    await waitFor(() => expect(analysisCalls).toBe(4));
+    expect(maximumActiveAnalyses).toBe(2);
+  });
+
+  it("cancels active media analysis when the creator leaves the page", async () => {
+    let analysisCalls = 0;
+    let activeAnalyses = 0;
+    const fetchMock = vi.fn((_url: string, options?: RequestInit) => {
+      analysisCalls += 1;
+      activeAnalyses += 1;
+      return new Promise<Response>((_resolve, reject) => {
+        options?.signal?.addEventListener(
+          "abort",
+          () => {
+            activeAnalyses -= 1;
+            reject(new DOMException("Aborted", "AbortError"));
+          },
+          { once: true },
+        );
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const view = render(<ProductionWizard />);
+
+    completeReadyStateWithPhotos(4);
+    fireEvent.click(screen.getByRole("button", { name: "Make my film" }));
+    await waitFor(() => expect(activeAnalyses).toBe(2));
+
+    view.unmount();
+    await waitFor(() => expect(activeAnalyses).toBe(0));
+    expect(analysisCalls).toBe(2);
+  });
+
+  it("cancels active generation when a delayed voice result changes the request", async () => {
+    const recognition = {
+      lang: "",
+      onend: null as (() => void) | null,
+      onerror: null as (() => void) | null,
+      onresult: null as ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null,
+      start: vi.fn(),
+    };
+    vi.stubGlobal("SpeechRecognition", vi.fn(() => recognition));
+    let activeAnalyses = 0;
+    const fetchMock = vi.fn((_url: string, options?: RequestInit) => {
+      activeAnalyses += 1;
+      return new Promise<Response>((_resolve, reject) => {
+        options?.signal?.addEventListener(
+          "abort",
+          () => {
+            activeAnalyses -= 1;
+            reject(new DOMException("Aborted", "AbortError"));
+          },
+          { once: true },
+        );
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ProductionWizard />);
+
+    completeReadyStateWithPhotos(4);
+    fireEvent.click(screen.getByRole("button", { name: "Voice input" }));
+    fireEvent.click(screen.getByRole("button", { name: "Make my film" }));
+    await waitFor(() => expect(activeAnalyses).toBe(2));
+
+    act(() => recognition.onresult?.({ results: [[{ transcript: "Use the birthday moments instead." }]] }));
+
+    await waitFor(() => expect(activeAnalyses).toBe(0));
+    expect(screen.getByRole("textbox", { name: "Your memory request", exact: true })).toHaveValue(
+      "Use the birthday moments instead.",
+    );
+    expect(screen.getByRole("button", { name: "Make my film" })).toBeEnabled();
+  });
+
   it("keeps the request and selected media when generation fails and offers Try again", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce({ ok: false }));
     render(<ProductionWizard />);
@@ -200,8 +397,8 @@ describe("ProductionWizard", () => {
     completeReadyState();
     fireEvent.click(screen.getByRole("button", { name: "Make my film" }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Instrumental music is not configured; choose original song or no sound.",
+    await waitFor(() =>
+      expect(screen.getByText("Instrumental music is not configured; choose original song or no sound.")).toBeVisible(),
     );
     expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled();
   });
@@ -213,7 +410,9 @@ describe("ProductionWizard", () => {
     completeReadyState();
     fireEvent.click(screen.getByRole("button", { name: "Make my film" }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent("We could not make your film. Please try again.");
+    await waitFor(() =>
+      expect(screen.getByText("We could not make your film. Please try again.")).toBeVisible(),
+    );
     expect(screen.queryByText("Failed to fetch")).not.toBeInTheDocument();
   });
 
@@ -258,7 +457,9 @@ describe("ProductionWizard", () => {
     completeReadyState();
     fireEvent.click(screen.getByRole("button", { name: "Make my film" }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent("We could not make your film. Please try again.");
+    await waitFor(() =>
+      expect(screen.getByText("We could not make your film. Please try again.")).toBeVisible(),
+    );
     expect(screen.queryByText("upstream gateway failure")).not.toBeInTheDocument();
   });
 
