@@ -60,7 +60,7 @@ class RenderTimeline:
 
     @property
     def rendered_duration_seconds(self) -> int:
-        return sum(segment.duration_seconds for segment in self.segments) - self.transition_total_seconds
+        return sum(segment.duration_seconds for segment in self.segments)
 
 
 class RenderExecutor(Protocol):
@@ -132,8 +132,7 @@ def allocate_timeline(source_paths: list[Path]) -> RenderTimeline:
     if len(source_paths) > 15:
         raise ValueError("A film can include at most 15 media sources")
 
-    transition_total = TRANSITION_SECONDS * max(0, len(source_paths) - 1)
-    segment_total = TARGET_VIDEO_SECONDS + transition_total
+    segment_total = TARGET_VIDEO_SECONDS
     base_duration, remainder = divmod(segment_total, len(source_paths))
     segments = tuple(
         TimelineSegment(
@@ -215,23 +214,21 @@ class DeterministicVerticalRenderer:
                 command.extend(["-stream_loop", "-1", "-i", str(request.audio_path)])
             filters = []
             for index, segment in enumerate(timeline.segments):
+                fade_duration = timeline.transition_seconds / 2
+                fade_out_start = segment.duration_seconds - fade_duration
                 filters.append(
                     f"[{index}:v]scale=1080:1920:force_original_aspect_ratio=increase,"
                     f"crop=1080:1920,setsar=1,"
                     f"fps=30,format=yuv420p,settb=AVTB,"
-                    f"trim=duration={segment.duration_seconds},setpts=PTS-STARTPTS[v{index}]"
+                    f"trim=duration={segment.duration_seconds},setpts=PTS-STARTPTS,"
+                    f"fade=t=in:st=0:d={fade_duration:g},"
+                    f"fade=t=out:st={fade_out_start:g}:d={fade_duration:g}[v{index}]"
                 )
-            current_label = "v0"
-            cumulative_offset = 0
-            for index, segment in enumerate(timeline.segments[1:], start=1):
-                previous_duration = timeline.segments[index - 1].duration_seconds
-                cumulative_offset += previous_duration - timeline.transition_seconds
-                next_label = f"xfade{index - 1}"
-                filters.append(
-                    f"[{current_label}][v{index}]xfade=transition=fade:duration={timeline.transition_seconds}:"
-                    f"offset={cumulative_offset}[{next_label}]"
-                )
-                current_label = next_label
+            filters.append(
+                "".join(f"[v{index}]" for index in range(len(timeline.segments)))
+                + f"concat=n={len(timeline.segments)}:v=1:a=0[concat]"
+            )
+            current_label = "concat"
             command.extend(
                 [
                     "-filter_complex_threads",
