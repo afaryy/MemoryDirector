@@ -109,10 +109,15 @@ h2, h3, h4, p { margin-top: 0; }
 @keyframes gentle-pulse { 50% { transform: scale(.92); opacity: .72; } }
 @media (prefers-reduced-motion: reduce) { .wizard__preview-callout.is-preparing .wizard__preview-copy > span { animation: none; } }
 .wizard__preview { max-width: 34rem; margin-inline: auto; text-align: left; }
-.wizard__preview video { display: block; width: min(100%, 20rem); max-height: min(52vh, 34rem); margin: .9rem auto; border-radius: 18px; background: var(--ink); aspect-ratio: 9 / 16; }
+.wizard__preview video { display: block; width: min(100%, 20rem); height: auto; max-height: none; margin: .9rem auto; border-radius: 18px; background: #111; aspect-ratio: 9 / 16; object-fit: cover; }
 .wizard__preview > p { color: var(--muted); }
-.wizard__preview .button--primary { margin-top: 1rem; }
-.wizard__saved { color: var(--moss) !important; font-weight: 700; }
+.wizard__preview-actions { display: grid; margin-top: 1rem; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+.wizard__preview-actions .button { min-height: 3.5rem; }
+.button--secondary { display: flex; padding: .75rem 1.25rem; align-items: center; justify-content: center; gap: .5rem; border: 2px solid var(--moss); border-radius: 16px; background: white; color: var(--moss); font-size: 1.05rem; }
+.button--secondary:hover { background: var(--paper); }
+.button--secondary svg, .wizard__preview-actions .button--primary svg { width: 1.125rem; height: 1.125rem; }
+.wizard__share-help { margin: .85rem 0 0; font-size: .875rem; line-height: 1.45; }
+.wizard__saved { margin: .75rem 0 0; color: var(--moss) !important; font-weight: 700; }
 .wizard__status { min-height: 1.25rem; margin: .75rem 0 0; color: var(--terracotta-dark); font-size: .875rem; }
 
 @media (max-width: 44rem) {
@@ -125,6 +130,7 @@ h2, h3, h4, p { margin-top: 0; }
   .wizard__soundtrack label { min-height: 4.5rem; }
   .wizard__preview-callout { display: block; padding: 1.25rem; }
   .wizard__preview-badge { display: inline-flex; margin-top: 1rem; }
+  .wizard__preview-actions { grid-template-columns: 1fr; }
   .wizard__selected-files li { align-items: flex-start; flex-direction: column; }
   .button--remove { width: 100%; justify-content: center; }
 }

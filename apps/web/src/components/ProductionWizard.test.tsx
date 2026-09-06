@@ -39,7 +39,33 @@ function completeReadyState() {
 }
 
 function exportZip() {
-  return new NodeBlob([zipSync({ "garden.mp4": strToU8("fixture-mp4") })], { type: "application/zip" });
+  return new NodeBlob(
+    [zipSync({ "garden.mp4": strToU8("fixture-mp4"), "garden.jpg": strToU8("fixture-cover") })],
+    { type: "application/zip" },
+  );
+}
+
+function renderSuccessfulProduction() {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ media_id: "sha256:garden" }) })
+    .mockResolvedValueOnce({ ok: true })
+    .mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ title: "Garden afternoon", caption: "A warm moment together.", music_direction: "gentle acoustic" }),
+    })
+    .mockResolvedValueOnce({ ok: true })
+    .mockResolvedValueOnce({ ok: true, blob: async () => exportZip() });
+  const createObjectURL = vi.fn((file: File) =>
+    file.type === "video/mp4" ? "blob:memory-director-video" : "blob:memory-director-cover",
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  const revokeObjectURL = vi.fn();
+  vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
+  const view = render(<ProductionWizard />);
+  completeReadyState();
+  fireEvent.click(screen.getByRole("button", { name: "Make my film" }));
+  return { createObjectURL, fetchMock, revokeObjectURL, view };
 }
 
 describe("ProductionWizard", () => {
@@ -139,7 +165,8 @@ describe("ProductionWizard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Make my film" }));
     expect(screen.getByRole("status")).toHaveTextContent("Making your film…");
 
-    expect(await screen.findByRole("button", { name: "Save & share" })).toBeEnabled();
+    expect(await screen.findByRole("button", { name: "Save video" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Share video" })).toBeEnabled();
     expect(screen.getByLabelText("Your memory film preview")).toBeVisible();
     expect(screen.getByText("Garden afternoon")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Approve plan" })).not.toBeInTheDocument();
@@ -203,7 +230,7 @@ describe("ProductionWizard", () => {
     completeReadyState();
     fireEvent.click(screen.getByRole("button", { name: "Make my film" }));
 
-    expect(await screen.findByRole("button", { name: "Save & share" })).toBeEnabled();
+    expect(await screen.findByRole("button", { name: "Save video" })).toBeEnabled();
     const analysisCalls = fetchMock.mock.calls.filter(([url]) => url === "http://localhost:8000/media/analyze");
     expect(analysisCalls).toHaveLength(2);
   });
@@ -218,6 +245,72 @@ describe("ProductionWizard", () => {
 
     expect(await screen.findByRole("button", { name: "Try again" })).toBeEnabled();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the generated cover while the finished film is not playing", async () => {
+    const load = vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => undefined);
+    const { createObjectURL } = renderSuccessfulProduction();
+
+    const video = await screen.findByLabelText("Your memory film preview");
+
+    expect(video).toHaveAttribute("poster", "blob:memory-director-cover");
+    expect(createObjectURL).toHaveBeenCalledTimes(2);
+    expect(createObjectURL.mock.calls.map(([file]) => file.type)).toEqual(["video/mp4", "image/jpeg"]);
+    fireEvent.ended(video);
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it("downloads the finished film without opening the share sheet", async () => {
+    const share = vi.fn();
+    let downloadedHref = "";
+    let downloadedName = "";
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function () {
+      downloadedHref = this.href;
+      downloadedName = this.download;
+    });
+    vi.stubGlobal("navigator", { share, canShare: vi.fn(() => true) });
+    renderSuccessfulProduction();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Save video" }));
+
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(downloadedHref).toBe("blob:memory-director-video");
+    expect(downloadedName).toMatch(/\.mp4$/);
+    expect(share).not.toHaveBeenCalled();
+    expect(screen.getByText("Video saved to this device.")).toBeVisible();
+  });
+
+  it("opens the native file share sheet for WhatsApp, WeChat, or another installed app", async () => {
+    const share = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { share, canShare: vi.fn(() => true) });
+    renderSuccessfulProduction();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Share video" }));
+
+    await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+    expect(share.mock.calls[0][0].files[0]).toBeInstanceOf(File);
+    expect(share.mock.calls[0][0].files[0].type).toBe("video/mp4");
+    expect(screen.getByText("Choose WhatsApp, WeChat, or another app from your phone's share menu.")).toBeVisible();
+  });
+
+  it("explains how to share when native file sharing is unavailable", async () => {
+    vi.stubGlobal("navigator", {});
+    renderSuccessfulProduction();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Share video" }));
+
+    expect(screen.getByText("Save the video first, then send it from WhatsApp or WeChat.")).toBeVisible();
+  });
+
+  it("releases the video and cover object URLs when the completed preview leaves the page", async () => {
+    const { revokeObjectURL, view } = renderSuccessfulProduction();
+    await screen.findByLabelText("Your memory film preview");
+
+    view.unmount();
+
+    expect(revokeObjectURL).toHaveBeenCalledTimes(2);
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:memory-director-video");
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:memory-director-cover");
   });
 
   it("cancels the failed generation before a retry starts new analysis workers", async () => {
