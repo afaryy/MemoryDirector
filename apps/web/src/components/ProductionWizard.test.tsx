@@ -32,6 +32,7 @@ describe("ProductionWizard", () => {
   it("enables Make my film only after a request, selected media, and permission", () => {
     render(<ProductionWizard />);
 
+    expect(screen.getByRole("textbox", { name: "Your memory request", exact: true })).toBeVisible();
     expect(screen.getByRole("button", { name: "Make my film" })).toBeDisabled();
     completeReadyState();
     expect(screen.getByRole("button", { name: "Make my film" })).toBeEnabled();
@@ -120,6 +121,18 @@ describe("ProductionWizard", () => {
     expect(await screen.findByRole("button", { name: "Try again" })).toBeEnabled();
     expect(screen.getByDisplayValue("Make a gentle film from our garden afternoon.")).toBeVisible();
     expect(screen.getByText("garden.jpg")).toBeVisible();
+  });
+
+  it("disables Try again when permission is revoked after a failure", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce({ ok: false }));
+    render(<ProductionWizard />);
+
+    completeReadyState();
+    fireEvent.click(screen.getByRole("button", { name: "Make my film" }));
+    expect(await screen.findByRole("button", { name: "Try again" })).toBeEnabled();
+
+    fireEvent.click(screen.getByLabelText("I have permission to use these media."));
+    expect(screen.getByRole("button", { name: "Try again" })).toBeDisabled();
   });
 
   it("shows the API guidance when the selected soundtrack is unavailable", async () => {
