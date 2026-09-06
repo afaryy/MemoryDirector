@@ -285,7 +285,7 @@ export function ProductionWizard() {
             <span>I have permission to use these media.</span>
           </label>
           {productionState === "error" ? (
-            <button className="button button--primary" onClick={makeFilm} type="button">Try again</button>
+            <button className="button button--primary" disabled={!canMakeFilm} onClick={makeFilm} type="button">Try again</button>
           ) : (
             <button className="button button--primary" disabled={!canMakeFilm} onClick={makeFilm} type="button">Make my film</button>
           )}
