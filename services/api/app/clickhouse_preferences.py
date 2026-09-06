@@ -45,6 +45,7 @@ class LazyClickHousePreferenceTool:
     def lookup_approved_music_preference(
         self, user_id: str, occasion: str
     ) -> dict[str, str | int] | None:
+        """Read the user's approved music preference through a read-only lookup."""
         try:
             response = secretmanager.SecretManagerServiceClient().access_secret_version(
                 name=self._credentials_secret_version_name

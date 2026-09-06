@@ -13,7 +13,7 @@ from app.agent_planner import AgentPlanningRequest, AgentProductionPlan, Planner
 from app.adk_memory_film_agent import build_memory_film_agent
 from app.clickhouse_preferences import LazyClickHousePreferenceTool
 import app.clickhouse_preferences as clickhouse_preferences_module
-from scripts import deploy_agent_engine
+from scripts import deploy_agent_engine, smoke_agent_engine
 
 
 def valid_plan_payload() -> dict[str, object]:
@@ -282,6 +282,51 @@ def test_deployment_preference_tool_carries_only_runtime_secret_reference(
     assert b"identity-token-must-not-be-serialized" not in serialized_agent
 
 
+def test_deploy_uses_dedicated_identity_and_reproducible_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    create_calls: list[dict[str, object]] = []
+
+    class FakeCreatedAgent:
+        class api_resource:
+            name = "projects/demo-project/locations/us-central1/reasoningEngines/123"
+
+    class FakeDeployingAgentEngines:
+        def create(self, **kwargs):
+            create_calls.append(kwargs)
+            return FakeCreatedAgent()
+
+    class FakeDeployClient:
+        agent_engines = FakeDeployingAgentEngines()
+
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "demo-project")
+    monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+    monkeypatch.setenv("AGENT_ENGINE_STAGING_BUCKET", "gs://demo-agent-staging")
+    monkeypatch.setenv(
+        "AGENT_ENGINE_SERVICE_ACCOUNT",
+        "memory-director-agent@demo-project.iam.gserviceaccount.com",
+    )
+    monkeypatch.setattr(deploy_agent_engine.vertexai, "Client", lambda **_: FakeDeployClient())
+    monkeypatch.setattr(deploy_agent_engine.agent_engines, "AdkApp", lambda **kwargs: kwargs)
+
+    assert deploy_agent_engine.deploy().endswith("/reasoningEngines/123")
+    assert len(create_calls) == 1
+    assert create_calls[0]["config"] == {
+        "display_name": "Memory Director Film Planner",
+        "description": "Creates safe reviewable 60-second memory-film plans.",
+        "requirements": [
+            "google-adk==1.35.2",
+            "google-cloud-aiplatform[adk,agent_engines]==1.148.1",
+            "google-cloud-secret-manager==2.30.0",
+        ],
+        "staging_bucket": "gs://demo-agent-staging",
+        "service_account": "memory-director-agent@demo-project.iam.gserviceaccount.com",
+        "extra_packages": ["app"],
+        "min_instances": 0,
+        "env_vars": {"GOOGLE_GENAI_USE_VERTEXAI": "true"},
+    }
+
+
 def test_lazy_preference_tool_returns_none_when_secret_manager_is_unavailable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -299,3 +344,47 @@ def test_lazy_preference_tool_returns_none_when_secret_manager_is_unavailable(
     )
 
     assert tool.lookup_approved_music_preference("user-1", "A sunny afternoon") is None
+
+
+def test_smoke_requires_preference_tool_invocation_and_exact_plan() -> None:
+    events = [
+        {
+            "content": {
+                "parts": [
+                    {
+                        "function_call": {
+                            "name": "lookup_approved_music_preference",
+                            "args": {"user_id": "smoke-user", "occasion": "family lunch"},
+                        }
+                    }
+                ]
+            }
+        },
+        {"content": {"parts": [{"text": json.dumps(valid_plan_payload())}]}},
+    ]
+
+    evidence = smoke_agent_engine.validate_smoke_events(
+        events,
+        resource_name="projects/demo-project/locations/us-central1/reasoningEngines/123",
+        request=planning_request(),
+    )
+
+    assert evidence == {
+        "agent_engine_resource": "projects/demo-project/locations/us-central1/reasoningEngines/123",
+        "agent_engine_runtime": True,
+        "preference_tool_invoked": True,
+        "selected_duration_seconds": 60,
+        "selected_media_ids": ["clip-1"],
+        "music_direction": "warm acoustic instrumental",
+    }
+
+
+def test_smoke_rejects_plan_without_preference_tool_invocation() -> None:
+    events = [{"content": {"parts": [{"text": json.dumps(valid_plan_payload())}]}}]
+
+    with pytest.raises(RuntimeError, match="preference tool"):
+        smoke_agent_engine.validate_smoke_events(
+            events,
+            resource_name="projects/demo-project/locations/us-central1/reasoningEngines/123",
+            request=planning_request(),
+        )

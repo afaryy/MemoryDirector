@@ -59,6 +59,12 @@ variable "consent_event_writer_endpoint" {
   default     = null
 }
 
+variable "agent_engine_resource" {
+  type        = string
+  description = "Smoke-tested Agent Engine resource to inject into the API."
+  default     = null
+}
+
 locals {
   common             = jsondecode(file(coalesce(var.common_config, "${path.module}/../../projects/config/common-environment.json")))
   environment        = jsondecode(file(var.environment_config))
@@ -85,6 +91,7 @@ module "app" {
   mcp_endpoint                  = local.mcp_endpoint
   mcp_secret_project_id         = local.mcp_secret_project
   consent_event_writer_endpoint = var.consent_event_writer_endpoint
+  agent_engine_resource         = var.agent_engine_resource
 }
 
 output "configuration_summary" {

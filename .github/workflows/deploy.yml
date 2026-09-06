@@ -158,6 +158,22 @@ jobs:
             --format='value(status.url)')"
           test -n "$writer_uri"
           echo "uri=$writer_uri" >> "$GITHUB_OUTPUT"
+      - name: Preserve active Agent Engine resource
+        id: agent_engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_json="$(gcloud run services list \
+            --project "${{ steps.config.outputs.project_id }}" \
+            --region "${{ steps.config.outputs.region }}" \
+            --filter="metadata.name=${{ steps.config.outputs.resource_name }}-api" \
+            --format=json)"
+          test "$(jq 'length' <<< "$api_json")" -le 1
+          resource="$(jq -r '[.[0].spec.template.spec.containers[0].env[]? | select(.name == "MEMORY_FILM_PLANNER_RESOURCE") | .value][0] // empty' <<< "$api_json")"
+          if [ -n "$resource" ]; then
+            [[ "$resource" =~ ^projects/(memory-director-505708|192915586401)/locations/[a-z0-9-]+/reasoningEngines/[0-9]+$ ]]
+          fi
+          echo "resource=$resource" >> "$GITHUB_OUTPUT"
       - run: gcloud auth configure-docker "${{ steps.config.outputs.region }}-docker.pkg.dev" --quiet
       - uses: docker/setup-buildx-action@v3
 
@@ -179,15 +195,20 @@ jobs:
           terraform -chdir=infra/terraform/components/app init \
             -backend-config="bucket=${{ steps.config.outputs.state_bucket }}" \
             -backend-config="prefix=$STATE_PREFIX/app-api"
-          terraform -chdir=infra/terraform/components/app apply -auto-approve \
-            -var="project_config=${{ steps.config.outputs.project_config_file }}" \
-            -var="environment_config=${{ steps.config.outputs.environment_config_file }}" \
-            -var="service=api" \
-            -var="api_image=${{ steps.config.outputs.registry }}/api:${{ steps.config.outputs.sha }}" \
-            -var="web_image=unused" \
-            -var="mcp_endpoint=${{ steps.mcp.outputs.uri }}" \
-            -var="consent_event_writer_endpoint=${{ steps.consent_writer.outputs.uri }}" \
+          arguments=(
+            -var="project_config=${{ steps.config.outputs.project_config_file }}"
+            -var="environment_config=${{ steps.config.outputs.environment_config_file }}"
+            -var="service=api"
+            -var="api_image=${{ steps.config.outputs.registry }}/api:${{ steps.config.outputs.sha }}"
+            -var="web_image=unused"
+            -var="mcp_endpoint=${{ steps.mcp.outputs.uri }}"
+            -var="consent_event_writer_endpoint=${{ steps.consent_writer.outputs.uri }}"
             -var="public_ingress=${{ steps.ingress.outputs.public_ingress }}"
+          )
+          if [ -n "${{ steps.agent_engine.outputs.resource }}" ]; then
+            arguments+=(-var="agent_engine_resource=${{ steps.agent_engine.outputs.resource }}")
+          fi
+          terraform -chdir=infra/terraform/components/app apply -auto-approve "${arguments[@]}"
 
       - name: Resolve deployed API URL
         if: steps.config.outputs.component == 'web' || steps.config.outputs.component == 'all'

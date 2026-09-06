@@ -34,6 +34,7 @@ def deploy() -> str:
     project = os.environ["GOOGLE_CLOUD_PROJECT"]
     location = os.environ["GOOGLE_CLOUD_LOCATION"]
     staging_bucket = os.environ["AGENT_ENGINE_STAGING_BUCKET"]
+    service_account = os.environ["AGENT_ENGINE_SERVICE_ACCOUNT"]
     client = vertexai.Client(project=project, location=location)
     preference_tool = preference_tool_from_environment() or UnconfiguredPreferenceTool()
     adk_app = agent_engines.AdkApp(
@@ -46,10 +47,15 @@ def deploy() -> str:
             "display_name": "Memory Director Film Planner",
             "description": "Creates safe reviewable 60-second memory-film plans.",
             "requirements": [
-                "google-adk",
-                "google-cloud-aiplatform[adk,agent_engines]",
+                "google-adk==1.35.2",
+                "google-cloud-aiplatform[adk,agent_engines]==1.148.1",
+                "google-cloud-secret-manager==2.30.0",
             ],
             "staging_bucket": staging_bucket,
+            "service_account": service_account,
+            "extra_packages": ["app"],
+            "min_instances": 0,
+            "env_vars": {"GOOGLE_GENAI_USE_VERTEXAI": "true"},
         },
     )
     resource_name = remote_app.api_resource.name

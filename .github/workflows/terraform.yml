@@ -165,6 +165,23 @@ jobs:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
       - uses: google-github-actions/setup-gcloud@v2
+      - id: agent_engine
+        name: Preserve the smoke-tested Agent Engine resource
+        if: inputs.component == 'app' && inputs.operation != 'validate'
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_json="$(gcloud run services list \
+            --project "${{ steps.config.outputs.project_id }}" \
+            --region "${{ steps.config.outputs.region }}" \
+            --filter="metadata.name=${{ steps.config.outputs.resource_name }}-api" \
+            --format=json)"
+          test "$(jq 'length' <<< "$api_json")" -le 1
+          resource="$(jq -r '[.[0].spec.template.spec.containers[0].env[]? | select(.name == "MEMORY_FILM_PLANNER_RESOURCE") | .value][0] // empty' <<< "$api_json")"
+          if [ -n "$resource" ]; then
+            [[ "$resource" =~ ^projects/(memory-director-505708|192915586401)/locations/[a-z0-9-]+/reasoningEngines/[0-9]+$ ]]
+          fi
+          echo "resource=$resource" >> "$GITHUB_OUTPUT"
       - name: Verify MCP runtime secret before enabling Cloud Run
         if: inputs.component == 'platform' && inputs.enable_mcp == true && (inputs.operation == 'plan' || inputs.operation == 'apply')
         env:
@@ -211,6 +228,9 @@ jobs:
               test -n "${{ inputs.api_image }}" && test -n "${{ inputs.web_image }}"
             fi
             image_args="-var=api_image=${{ inputs.api_image }} -var=web_image=${{ inputs.web_image }} -var=service=${{ inputs.service }} -var=api_base_url=${{ inputs.api_base_url }} -var=mcp_endpoint=${{ inputs.mcp_endpoint }}"
+            if [ -n "${{ steps.agent_engine.outputs.resource }}" ]; then
+              image_args="$image_args -var=agent_engine_resource=${{ steps.agent_engine.outputs.resource }}"
+            fi
           else
             image_args="-var=enable_mcp=${{ inputs.enable_mcp }} -var=enable_consent_event_writer=${{ steps.writer.outputs.enabled || 'false' }}"
             if [ "${{ steps.writer.outputs.enabled }}" = "true" ]; then

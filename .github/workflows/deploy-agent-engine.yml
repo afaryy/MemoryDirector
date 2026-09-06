@@ -1,0 +1,231 @@
+name: Deploy Agent Engine
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "Deploy a new agent or roll back the API to a verified earlier resource"
+        required: true
+        type: choice
+        options: [deploy, rollback]
+        default: deploy
+      rollback_resource:
+        description: "Full reasoningEngines resource name; required only for rollback"
+        required: false
+      confirm:
+        description: "Type DEPLOY_AGENT_SANDBOX"
+        required: true
+
+concurrency:
+  group: deploy-sandbox
+  cancel-in-progress: false
+
+env:
+  PROJECT_CONFIG: infra/terraform/projects/config/memory-director.json
+  ENVIRONMENT_CONFIG: infra/terraform/projects/config/sandbox.json
+  STATE_PREFIX: memory-director/sandbox
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: sandbox
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: config
+        name: Validate target and read non-sensitive configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ github.ref }}" = "refs/heads/main"
+          test "${{ inputs.confirm }}" = "DEPLOY_AGENT_SANDBOX"
+          project_id="$(jq -er '.project_id' "$PROJECT_CONFIG")"
+          test "$project_id" = "memory-director-505708"
+          test "$project_id" = "${{ vars.GCP_PROJECT_ID }}"
+          resource_name="$(jq -er '.resource_name' "$PROJECT_CONFIG")"
+          state_bucket="$(jq -er '.state_bucket_name' "$PROJECT_CONFIG")"
+          agent_enabled="$(jq -er '.agent_engine.enabled' "$PROJECT_CONFIG")"
+          test "$agent_enabled" = "true"
+          agent_service_account="$(jq -er '.agent_engine.runtime_service_account_email' "$PROJECT_CONFIG")"
+          agent_staging_bucket="$(jq -er '.agent_engine.staging_bucket_name' "$PROJECT_CONFIG")"
+          region="$(jq -r '.region // empty' "$PROJECT_CONFIG")"
+          if [ -z "$region" ]; then
+            region="$(jq -er '.default_region' infra/terraform/projects/config/common-environment.json)"
+          fi
+          {
+            echo "project_id=$project_id"
+            echo "resource_name=$resource_name"
+            echo "state_bucket=$state_bucket"
+            echo "region=$region"
+            echo "registry=$region-docker.pkg.dev/$project_id/$resource_name"
+            echo "agent_service_account=$agent_service_account"
+            echo "agent_staging_bucket=$agent_staging_bucket"
+            echo "project_config_file=$GITHUB_WORKSPACE/$PROJECT_CONFIG"
+            echo "environment_config_file=$GITHUB_WORKSPACE/$ENVIRONMENT_CONFIG"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+      - uses: hashicorp/setup-terraform@v3
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.9.26"
+
+      - id: live
+        name: Resolve existing services without exposing configuration secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          project_id="${{ steps.config.outputs.project_id }}"
+          region="${{ steps.config.outputs.region }}"
+          prefix="${{ steps.config.outputs.resource_name }}"
+          api_json="$(gcloud run services describe "$prefix-api" --project "$project_id" --region "$region" --format=json)"
+          api_image="$(jq -er '.spec.template.spec.containers[0].image' <<< "$api_json")"
+          ingress="$(jq -er '.metadata.annotations["run.googleapis.com/ingress"]' <<< "$api_json")"
+          case "$ingress" in
+            all) public_ingress=true ;;
+            internal-and-cloud-load-balancing) public_ingress=false ;;
+            *) echo "Unsupported API ingress: $ingress" >&2; exit 1 ;;
+          esac
+          previous_resource="$(jq -r '[.spec.template.spec.containers[0].env[]? | select(.name == "MEMORY_FILM_PLANNER_RESOURCE") | .value][0] // empty' <<< "$api_json")"
+          mcp_uri="$(gcloud run services describe "$prefix-mcp" --project "$project_id" --region "$region" --format='value(status.url)')"
+          test -n "$mcp_uri"
+          writer_json="$(gcloud run services list --project "$project_id" --region "$region" --filter="metadata.name=$prefix-consent-events" --format=json)"
+          test "$(jq 'length' <<< "$writer_json")" -le 1
+          writer_image="$(jq -r '.[0].spec.template.spec.containers[0].image // empty' <<< "$writer_json")"
+          writer_uri="$(jq -r '.[0].status.url // empty' <<< "$writer_json")"
+          {
+            echo "api_image=$api_image"
+            echo "public_ingress=$public_ingress"
+            echo "previous_resource=$previous_resource"
+            echo "mcp_uri=$mcp_uri"
+            echo "writer_image=$writer_image"
+            echo "writer_uri=$writer_uri"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Provision dedicated Agent Engine identity and staging foundation
+        if: inputs.operation == 'deploy'
+        shell: bash
+        run: |
+          set -euo pipefail
+          terraform -chdir=infra/terraform/components/platform init \
+            -backend-config="bucket=${{ steps.config.outputs.state_bucket }}" \
+            -backend-config="prefix=$STATE_PREFIX/platform"
+          infra/terraform/tools/migrate-consent-writer-invoker-state.sh infra/terraform/components/platform
+          arguments=(
+            -var="project_config=${{ steps.config.outputs.project_config_file }}"
+            -var="environment_config=${{ steps.config.outputs.environment_config_file }}"
+            -var="enable_mcp=true"
+          )
+          if [ -n "${{ steps.live.outputs.writer_image }}" ]; then
+            arguments+=(
+              -var="enable_consent_event_writer=true"
+              -var="consent_event_writer_image=${{ steps.live.outputs.writer_image }}"
+            )
+          fi
+          terraform -chdir=infra/terraform/components/platform plan -out=agent-platform.tfplan "${arguments[@]}"
+          terraform -chdir=infra/terraform/components/platform apply -auto-approve agent-platform.tfplan
+
+      - name: Install locked Agent Engine runtime
+        working-directory: services/api
+        run: uv sync --frozen
+
+      - name: Configure Artifact Registry authentication
+        if: inputs.operation == 'deploy'
+        run: gcloud auth configure-docker "${{ steps.config.outputs.region }}-docker.pkg.dev" --quiet
+
+      - uses: docker/setup-buildx-action@v3
+        if: inputs.operation == 'deploy'
+
+      - name: Build the Agent Engine-aware API image
+        if: inputs.operation == 'deploy'
+        uses: docker/build-push-action@v6
+        with:
+          context: services/api
+          push: true
+          tags: ${{ steps.config.outputs.registry }}/api:${{ github.sha }}
+
+      - id: api_image
+        name: Select API image without changing rollback code
+        shell: bash
+        run: |
+          if [ "${{ inputs.operation }}" = "deploy" ]; then
+            echo "value=${{ steps.config.outputs.registry }}/api:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${{ steps.live.outputs.api_image }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - id: agent
+        name: Deploy or select Agent Engine resource
+        shell: bash
+        env:
+          GOOGLE_CLOUD_PROJECT: ${{ steps.config.outputs.project_id }}
+          GOOGLE_CLOUD_LOCATION: ${{ steps.config.outputs.region }}
+          AGENT_ENGINE_STAGING_BUCKET: gs://${{ steps.config.outputs.agent_staging_bucket }}
+          AGENT_ENGINE_SERVICE_ACCOUNT: ${{ steps.config.outputs.agent_service_account }}
+          CLICKHOUSE_MCP_ENDPOINT: ${{ steps.live.outputs.mcp_uri }}
+          CLICKHOUSE_CREDENTIALS_SECRET: projects/${{ steps.config.outputs.project_id }}/secrets/clickhouse-credentials/versions/latest
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.operation }}" = "deploy" ]; then
+            resource="$(cd services/api && uv run python scripts/deploy_agent_engine.py | tail -n 1)"
+          else
+            resource="${{ inputs.rollback_resource }}"
+            test -n "$resource"
+          fi
+          [[ "$resource" =~ ^projects/(memory-director-505708|192915586401)/locations/[a-z0-9-]+/reasoningEngines/[0-9]+$ ]]
+          echo "resource=$resource" >> "$GITHUB_OUTPUT"
+
+      - name: Prove Agent Engine plan and ClickHouse preference-tool invocation
+        working-directory: services/api
+        env:
+          MEMORY_FILM_PLANNER_RESOURCE: ${{ steps.agent.outputs.resource }}
+        run: uv run python scripts/smoke_agent_engine.py --evidence-file agent-engine-smoke.json
+
+      - name: Switch API only after smoke succeeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          terraform -chdir=infra/terraform/components/app init \
+            -backend-config="bucket=${{ steps.config.outputs.state_bucket }}" \
+            -backend-config="prefix=$STATE_PREFIX/app-api"
+          arguments=(
+            -var="project_config=${{ steps.config.outputs.project_config_file }}"
+            -var="environment_config=${{ steps.config.outputs.environment_config_file }}"
+            -var="service=api"
+            -var="api_image=${{ steps.api_image.outputs.value }}"
+            -var="web_image=unused"
+            -var="mcp_endpoint=${{ steps.live.outputs.mcp_uri }}"
+            -var="public_ingress=${{ steps.live.outputs.public_ingress }}"
+            -var="agent_engine_resource=${{ steps.agent.outputs.resource }}"
+          )
+          if [ -n "${{ steps.live.outputs.writer_uri }}" ]; then
+            arguments+=(-var="consent_event_writer_endpoint=${{ steps.live.outputs.writer_uri }}")
+          fi
+          terraform -chdir=infra/terraform/components/app plan -out=agent-api.tfplan "${arguments[@]}"
+          terraform -chdir=infra/terraform/components/app apply -auto-approve agent-api.tfplan
+
+      - name: Publish sanitized evidence and rollback pointer
+        shell: bash
+        run: |
+          {
+            echo "## Agent Engine deployment"
+            echo "- Active resource: \`${{ steps.agent.outputs.resource }}\`"
+            echo "- Previous resource: \`${{ steps.live.outputs.previous_resource || 'not configured' }}\`"
+            echo "- Structured 60-second plan: verified"
+            echo "- Approved ClickHouse preference tool: invoked"
+            echo "- API switch: completed after smoke"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent-engine-smoke-${{ github.run_id }}
+          path: services/api/agent-engine-smoke.json
+          if-no-files-found: error

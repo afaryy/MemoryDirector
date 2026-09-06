@@ -6,7 +6,7 @@
 flowchart LR
   U[Older adult] --> W[Mobile-first web app]
   W --> API[FastAPI production API]
-  API --> G[Gemini production planner]
+  API --> G[ADK planner on Vertex AI Agent Engine]
   G --> M[Gemini multimodal analysis]
   G --> CH[Official mcp-clickhouse tool]
   CH --> DB[(ClickHouse Cloud)]
@@ -23,6 +23,7 @@ flowchart LR
 | Next.js web app | Mobile controls, browser voice input, selected-media removal, generation request, preview, save/share | Earlier flow implemented locally; simplified UI pending |
 | FastAPI | Validation, consent enforcement, private media upload/analysis, CORS, constrained storyboard and render endpoints | Implemented locally; consent/export gate wiring pending |
 | Gemini planner | Structured title and caption generation from a production request | Implemented behind `GEMINI_API_KEY`; live verification pending |
+| ADK Agent Engine planner | Typed, exactly 60-second media selection and music direction using one constrained preference tool | Implemented and deployment-ready; hosted workflow smoke pending |
 | Media analysis | Consent-gated private GCS upload, schema-validated Gemini descriptions, quality signals, duplicate detection, privacy flags | Implemented locally; hosted verification pending |
 | ClickHouse adapter | Explainable preference recall and required consent/export decision via official `mcp-clickhouse` | Adapter and schema implemented; hosted runtime gate verification pending |
 | Render service | Deterministic approximately-one-minute 9:16 MP4, caption, and optional sound mix | Synthetic API export verified; visible Web preview/export verification pending |
@@ -33,7 +34,7 @@ flowchart LR
 1. The browser collects a request, deliberately selected media, and explicit permission.
 2. The API rejects media analysis without explicit consent, validates image/video MIME and the 50 MiB limit, and stores the original in the private `${resource_name}-media` bucket.
 3. Vertex AI Gemini analyzes the private GCS URI and the API returns only schema-validated public metadata; a provider URI or credential is never returned.
-4. The production crew builds a constrained storyboard from the selected media. It may hold back a redundant or low-quality item but never deletes the original. Any low-confidence place is omitted until confirmed.
+4. The API sends only consented media metadata to the bounded ADK planner on Vertex AI Agent Engine. The planner calls the approved ClickHouse preference tool once and returns a typed, exactly 60-second plan. The API rejects unknown media IDs, private URIs, invalid durations and unsafe music directions. It may hold back a redundant or low-quality item but never deletes the original. Any low-confidence place is omitted until confirmed.
 5. When the user chooses an original AI song, the API derives its prompt from approved request facts only, rejects artist/song/voice imitation requests, and keeps generated audio only in the render's temporary working directory. The deterministic renderer receives the constrained storyboard and optional temporary audio; the agent never encodes the video itself.
 6. Immediately before rendering and export, the Consent Guardian calls the official ClickHouse MCP path to check consent, selected-media status, and soundtrack safety.
 7. A passing check permits a 9:16 approximately-one-minute MP4 for manual saving and sharing. A denied or unavailable required check blocks export.
@@ -49,7 +50,7 @@ flowchart LR
 
 ## Deployment target
 
-The intended deployment is a Next.js web client plus FastAPI/render services on Cloud Run, Google Cloud AI for Gemini and media analysis, ClickHouse Cloud through the official MCP server, and Google Secret Manager for credentials. The app component receives `MEDIA_BUCKET`, `GOOGLE_CLOUD_PROJECT`, and `GOOGLE_CLOUD_LOCATION` as non-secret Terraform-managed settings; bootstrap remains outside daily app/platform workflows.
+The intended deployment is a Next.js web client plus FastAPI/render services on Cloud Run, an ADK planner on Vertex AI Agent Engine using Gemini, Google Cloud AI media analysis, ClickHouse Cloud through the official MCP server, and Google Secret Manager for credentials. The app component receives `MEDIA_BUCKET`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, and the smoke-tested `MEMORY_FILM_PLANNER_RESOURCE` as non-secret Terraform-managed settings; bootstrap remains outside daily app/platform workflows. Agent Engine uses its own least-privilege no-key service account and private staging bucket. See [Agent Engine operations](operations/AGENT_ENGINE.md) for deployment, evidence, and rollback gates.
 
 ## Public edge
 

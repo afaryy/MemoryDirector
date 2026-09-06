@@ -1,5 +1,8 @@
+import inspect
+
 from app.adk_memory_film_agent import build_memory_film_agent
-from app.agent_planner import AgentPlanningRequest, AgentProductionPlan
+from app.clickhouse_preferences import LazyClickHousePreferenceTool
+from app.agent_planner import AgentPlanningRequest
 
 
 class FakePreferenceTool:
@@ -17,6 +20,19 @@ def test_memory_film_agent_exposes_only_preference_tool() -> None:
         "lookup_approved_music_preference"
     ]
     assert agent.input_schema is AgentPlanningRequest
-    assert agent.output_schema is AgentProductionPlan
+    assert agent.output_schema is None
+    assert '"selected_segments"' in agent.instruction
+    assert '"held_back_media_ids"' in agent.instruction
+    assert "Always call the approved music preference lookup once" in agent.instruction
     assert "exactly 60 seconds" in agent.instruction
     assert "gs://" in agent.instruction
+
+
+def test_agent_engine_preference_tool_describes_its_read_only_boundary() -> None:
+    description = inspect.getdoc(
+        LazyClickHousePreferenceTool.lookup_approved_music_preference
+    )
+
+    assert description is not None
+    assert "read-only" in description
+    assert "music preference" in description

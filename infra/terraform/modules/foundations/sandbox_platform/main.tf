@@ -14,6 +14,10 @@ locals {
   secret_ids           = setunion(local.runtime_secret_ids, local.writer_secret_ids, local.migration_secret_ids)
   mcp_secret_project   = coalesce(var.mcp_secret_project_id, var.project_id)
   mcp_secret_ref       = local.mcp_secret_project == var.project_id ? "clickhouse-credentials" : "projects/${local.mcp_secret_project}/secrets/clickhouse-credentials"
+  agent_runtime_email  = "memory-director-agent@${var.project_id}.iam.gserviceaccount.com"
+  agent_runtime_project_roles = toset([
+    "roles/aiplatform.user",
+  ])
 }
 
 module "consent_event_writer" {
@@ -53,12 +57,31 @@ module "media_bucket" {
   depends_on    = [google_project_service.platform]
 }
 
+module "agent_staging_bucket" {
+  source        = "../../base/private_media_bucket"
+  project_id    = var.project_id
+  bucket_name   = "${var.project_id}-agent-staging"
+  location      = var.region
+  force_destroy = true
+  labels        = { environment = "sandbox", managed_by = "terraform", project = "memory-director" }
+  depends_on    = [google_project_service.platform]
+}
+
 module "runtime" {
   source       = "../../base/service_account"
   project_id   = var.project_id
   account_id   = "memory-director-runtime"
   display_name = "Memory Director sandbox runtime"
   description  = "Cloud Run runtime identity; no user-managed key."
+  depends_on   = [google_project_service.platform]
+}
+
+module "agent_runtime" {
+  source       = "../../base/service_account"
+  project_id   = var.project_id
+  account_id   = "memory-director-agent"
+  display_name = "Memory Director Agent Engine runtime"
+  description  = "Dedicated Agent Engine identity with no user-managed key."
   depends_on   = [google_project_service.platform]
 }
 
@@ -74,6 +97,19 @@ resource "google_project_iam_member" "runtime_vertex" {
   project = var.project_id
   role    = "roles/aiplatform.user"
   member  = "serviceAccount:${module.runtime.email}"
+}
+
+resource "google_project_iam_member" "agent_runtime" {
+  for_each = local.agent_runtime_project_roles
+  project  = var.project_id
+  role     = each.value
+  member   = "serviceAccount:${module.agent_runtime.email}"
+}
+
+resource "google_service_account_iam_member" "agent_platform_token_creator" {
+  service_account_id = module.agent_runtime.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:service-${var.project_number}@gcp-sa-aiplatform.iam.gserviceaccount.com"
 }
 
 resource "google_project_iam_custom_role" "runtime_media" {
@@ -105,6 +141,12 @@ resource "google_secret_manager_secret_iam_member" "runtime_secrets" {
   member    = "serviceAccount:${module.runtime.email}"
 }
 
+resource "google_secret_manager_secret_iam_member" "agent_clickhouse_credentials" {
+  secret_id = module.secrets["clickhouse-credentials"].name
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${module.agent_runtime.email}"
+}
+
 resource "google_secret_manager_secret_iam_member" "mcp_cross_project" {
   for_each = !var.enable_mcp || local.mcp_secret_project == var.project_id ? toset([]) : toset(["clickhouse-credentials"])
 
@@ -125,7 +167,10 @@ module "mcp" {
   container_port          = 8000
   allow_public_invocation = false
   invoker_members = concat(
-    ["serviceAccount:${module.runtime.email}"],
+    [
+      "serviceAccount:${module.runtime.email}",
+      "serviceAccount:${local.agent_runtime_email}",
+    ],
     var.mcp_invoker_service_account_email == null ? [] : ["serviceAccount:${var.mcp_invoker_service_account_email}"],
   )
 
@@ -152,6 +197,7 @@ module "mcp" {
 
   depends_on = [
     module.secrets,
+    google_secret_manager_secret_iam_member.agent_clickhouse_credentials,
     google_secret_manager_secret_iam_member.runtime_secrets,
     google_secret_manager_secret_iam_member.mcp_cross_project,
   ]
