@@ -51,6 +51,8 @@ jobs:
           test "$agent_enabled" = "true"
           agent_location="$(jq -er '.agent_engine.location' "$PROJECT_CONFIG")"
           test "$agent_location" = "australia-southeast2"
+          model_location="$(jq -er '.agent_engine.model_location' "$PROJECT_CONFIG")"
+          test "$model_location" = "australia-southeast1"
           agent_service_account="$(jq -er '.agent_engine.runtime_service_account_email' "$PROJECT_CONFIG")"
           agent_staging_bucket="$(jq -er '.agent_engine.staging_bucket_name' "$PROJECT_CONFIG")"
           region="$(jq -r '.region // empty' "$PROJECT_CONFIG")"
@@ -64,6 +66,7 @@ jobs:
             echo "region=$region"
             echo "registry=$region-docker.pkg.dev/$project_id/$resource_name"
             echo "agent_location=$agent_location"
+            echo "model_location=$model_location"
             echo "agent_service_account=$agent_service_account"
             echo "agent_staging_bucket=$agent_staging_bucket"
             echo "project_config_file=$GITHUB_WORKSPACE/$PROJECT_CONFIG"
@@ -171,6 +174,7 @@ jobs:
         env:
           GOOGLE_CLOUD_PROJECT: ${{ steps.config.outputs.project_id }}
           GOOGLE_CLOUD_LOCATION: ${{ steps.config.outputs.agent_location }}
+          AGENT_ENGINE_MODEL_LOCATION: ${{ steps.config.outputs.model_location }}
           AGENT_ENGINE_STAGING_BUCKET: gs://${{ steps.config.outputs.agent_staging_bucket }}
           AGENT_ENGINE_SERVICE_ACCOUNT: ${{ steps.config.outputs.agent_service_account }}
           CLICKHOUSE_MCP_ENDPOINT: ${{ steps.live.outputs.mcp_uri }}

@@ -383,6 +383,7 @@ def test_deploy_uses_dedicated_identity_and_reproducible_runtime(
 
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "demo-project")
     monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+    monkeypatch.setenv("AGENT_ENGINE_MODEL_LOCATION", "australia-southeast1")
     monkeypatch.setenv("AGENT_ENGINE_STAGING_BUCKET", "gs://demo-agent-staging")
     monkeypatch.setenv(
         "AGENT_ENGINE_SERVICE_ACCOUNT",
@@ -407,7 +408,10 @@ def test_deploy_uses_dedicated_identity_and_reproducible_runtime(
         "service_account": "memory-director-agent@demo-project.iam.gserviceaccount.com",
         "extra_packages": ["app"],
         "min_instances": 0,
-        "env_vars": {"GOOGLE_GENAI_USE_VERTEXAI": "true"},
+        "env_vars": {
+            "GOOGLE_CLOUD_LOCATION": "australia-southeast1",
+            "GOOGLE_GENAI_USE_VERTEXAI": "true",
+        },
     }
 
 
@@ -472,3 +476,63 @@ def test_smoke_rejects_plan_without_preference_tool_invocation() -> None:
             resource_name="projects/demo-project/locations/us-central1/reasoningEngines/123",
             request=planning_request(),
         )
+
+
+def test_smoke_reports_remote_status_before_missing_tool_without_echoing_message() -> None:
+    events = [
+        {
+            "error": {
+                "code": 400,
+                "status": "FAILED_PRECONDITION",
+                "message": "sensitive remote detail must not be echoed",
+            }
+        }
+    ]
+
+    with pytest.raises(
+        RuntimeError,
+        match=r"Agent Engine runtime error: FAILED_PRECONDITION \(400\)",
+    ) as raised:
+        smoke_agent_engine.validate_smoke_events(
+            events,
+            resource_name="projects/demo-project/locations/us-central1/reasoningEngines/123",
+            request=planning_request(),
+        )
+
+    assert "sensitive remote detail" not in str(raised.value)
+
+
+def test_smoke_replaces_unknown_remote_status_with_fixed_code() -> None:
+    events = [{"error": {"code": 499, "status": "PRIVATE_TOKEN_ABC"}}]
+
+    with pytest.raises(RuntimeError, match=r"REMOTE_ERROR \(499\)") as raised:
+        smoke_agent_engine.validate_smoke_events(
+            events,
+            resource_name="projects/demo-project/locations/us-central1/reasoningEngines/123",
+            request=planning_request(),
+        )
+
+    assert "PRIVATE_TOKEN_ABC" not in str(raised.value)
+
+
+def test_smoke_hides_raw_sdk_exception_message(monkeypatch: pytest.MonkeyPatch) -> None:
+    secret_message = "SDK failure containing a private endpoint and token"
+    engines = RecordingAgentEngines(error=RuntimeError(secret_message))
+    monkeypatch.setattr(
+        smoke_agent_engine.vertexai,
+        "Client",
+        lambda **_: RecordingAgentEngineClient(engines),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Agent Engine request failed before smoke evidence",
+    ) as raised:
+        asyncio.run(
+            smoke_agent_engine.run_smoke(
+                "projects/demo-project/locations/us-central1/reasoningEngines/123"
+            )
+        )
+
+    assert secret_message not in str(raised.value)
+    assert raised.value.__cause__ is None

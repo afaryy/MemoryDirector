@@ -33,6 +33,7 @@ def preference_tool_from_environment() -> LazyClickHousePreferenceTool | None:
 def deploy() -> str:
     project = os.environ["GOOGLE_CLOUD_PROJECT"]
     location = os.environ["GOOGLE_CLOUD_LOCATION"]
+    model_location = os.environ["AGENT_ENGINE_MODEL_LOCATION"]
     staging_bucket = os.environ["AGENT_ENGINE_STAGING_BUCKET"]
     service_account = os.environ["AGENT_ENGINE_SERVICE_ACCOUNT"]
     client = vertexai.Client(project=project, location=location)
@@ -57,7 +58,10 @@ def deploy() -> str:
             "service_account": service_account,
             "extra_packages": ["app"],
             "min_instances": 0,
-            "env_vars": {"GOOGLE_GENAI_USE_VERTEXAI": "true"},
+            "env_vars": {
+                "GOOGLE_CLOUD_LOCATION": model_location,
+                "GOOGLE_GENAI_USE_VERTEXAI": "true",
+            },
         },
     )
     resource_name = remote_app.api_resource.name

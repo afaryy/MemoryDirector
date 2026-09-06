@@ -9,10 +9,12 @@ browser.
 
 - Google Gemini is the only model provider.
 - Agent Engine runs in `australia-southeast2` (Melbourne), an officially
-  supported Agent Runtime location. The existing Cloud Run application and
-  media services remain in `australia-southeast1` (Sydney). The bounded planning
-  request and result cross this regional boundary, as does the fixed read-only
-  preference lookup between Agent Engine and the Sydney ClickHouse MCP service.
+  supported Agent Runtime location. Its Gemini 2.5 Flash calls are explicitly
+  routed to `australia-southeast1` (Sydney), where that model is supported. The
+  existing Cloud Run application and media services also remain in Sydney. The
+  bounded planning request and result cross this regional boundary, as does the
+  fixed read-only preference lookup between Agent Engine and the Sydney
+  ClickHouse MCP service.
   Deployment packages also move from the private Sydney staging bucket into
   Google-managed Agent Engine build infrastructure. Private user media bytes
   are never sent to Agent Engine or the MCP service.
@@ -40,8 +42,9 @@ browser.
   `output_schema` and tools is not reliable for Gemini 2.5. Export remains
   behind the separate approval and Consent Guardian gate.
 
-Reference: [ADK structured input and output](https://adk.dev/agents/llm-agents/#structure-data-input-and-output)
-and [supported Agent Runtime locations](https://docs.cloud.google.com/gemini-enterprise-agent-platform/resources/agent-locations).
+References: [ADK structured input and output](https://adk.dev/agents/llm-agents/#structure-data-input-and-output),
+[supported Agent Runtime locations](https://docs.cloud.google.com/gemini-enterprise-agent-platform/resources/agent-locations),
+and [Gemini 2.5 Flash supported regions](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-flash).
 
 ## Deploy
 

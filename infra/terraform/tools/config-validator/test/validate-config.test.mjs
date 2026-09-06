@@ -24,6 +24,7 @@ test("binds Memory Director deployments to the approved GCP project", () => {
   assert.deepEqual(config.agent_engine, {
     enabled: true,
     location: "australia-southeast2",
+    model_location: "australia-southeast1",
     runtime_service_account_email:
       "memory-director-agent@memory-director-505708.iam.gserviceaccount.com",
     staging_bucket_name: "memory-director-505708-agent-staging",
@@ -56,6 +57,22 @@ test("rejects an unsupported Agent Engine location", () => {
   })], { encoding: "utf8" });
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /agent_engine\/location/);
+});
+
+test("rejects an unsupported Gemini model location", () => {
+  const result = spawnSync("node", [fileURLToPath(validator), "--json", JSON.stringify({
+    project_id: "memory-director-505708",
+    agent_engine: {
+      enabled: true,
+      location: "australia-southeast2",
+      model_location: "australia-southeast2",
+      runtime_service_account_email:
+        "memory-director-agent@memory-director-505708.iam.gserviceaccount.com",
+      staging_bucket_name: "memory-director-505708-agent-staging",
+    },
+  })], { encoding: "utf8" });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /agent_engine\/model_location/);
 });
 
 test("rejects configuration with an unknown property", () => {
