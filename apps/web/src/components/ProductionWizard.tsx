@@ -1,7 +1,7 @@
 "use client";
 
 import { unzipSync } from "fflate";
-import { CircleCheck, Images, Mic, Play, Sparkles, X } from "lucide-react";
+import { CircleCheck, Download, Images, Mic, Play, Share2, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 type Storyboard = {
@@ -88,7 +88,16 @@ async function extractPreview(blob: Blob, title: string) {
     throw new Error("The film preview was not included in the export.");
   }
   const videoFile = new File([new Uint8Array(archive[mp4Name])], `${title || "memory-film"}.mp4`, { type: "video/mp4" });
-  return { file: videoFile, url: URL.createObjectURL(videoFile) };
+  const coverName = Object.keys(archive).find((name) => /\.(jpe?g)$/i.test(name.replace(/\/+$/, "")));
+  const coverFile = coverName
+    ? new File([new Uint8Array(archive[coverName])], `${title || "memory-film"}-cover.jpg`, { type: "image/jpeg" })
+    : null;
+  const videoUrl = URL.createObjectURL(videoFile);
+  return {
+    file: videoFile,
+    posterUrl: coverFile ? URL.createObjectURL(coverFile) : null,
+    url: videoUrl,
+  };
 }
 
 export function ProductionWizard() {
@@ -99,16 +108,20 @@ export function ProductionWizard() {
   const [productionState, setProductionState] = useState<ProductionState>("ready");
   const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [posterUrl, setPosterUrl] = useState<string | null>(null);
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [voiceError, setVoiceError] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [selectionNotice, setSelectionNotice] = useState("");
   const [progressMessage, setProgressMessage] = useState("");
+  const [completionMessage, setCompletionMessage] = useState("");
   const generationRef = useRef(0);
   const consentRef = useRef(false);
   const activeRequestRef = useRef<AbortController | null>(null);
   const productionStateRef = useRef<ProductionState>("ready");
+  const previewUrlRef = useRef<string | null>(null);
+  const posterUrlRef = useRef<string | null>(null);
 
   const canMakeFilm = memoryRequest.trim().length > 0 && mediaFiles.length > 0 && hasMediaPermission && productionState !== "preparing";
   const isPreparing = productionState === "preparing";
@@ -118,6 +131,10 @@ export function ProductionWizard() {
       generationRef.current += 1;
       activeRequestRef.current?.abort();
       activeRequestRef.current = null;
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+      if (posterUrlRef.current) URL.revokeObjectURL(posterUrlRef.current);
+      previewUrlRef.current = null;
+      posterUrlRef.current = null;
     },
     [],
   );
@@ -134,11 +151,14 @@ export function ProductionWizard() {
   }
 
   function clearPreview() {
-    setPreviewUrl((current) => {
-      if (current) URL.revokeObjectURL(current);
-      return null;
-    });
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    if (posterUrlRef.current) URL.revokeObjectURL(posterUrlRef.current);
+    previewUrlRef.current = null;
+    posterUrlRef.current = null;
+    setPreviewUrl(null);
+    setPosterUrl(null);
     setPreviewFile(null);
+    setCompletionMessage("");
   }
 
   function returnToReady() {
@@ -307,11 +327,15 @@ export function ProductionWizard() {
       const preview = await extractPreview(await exportResponse.blob(), nextStoryboard.title);
       if (!consentRef.current || generation !== generationRef.current) {
         URL.revokeObjectURL(preview.url);
+        if (preview.posterUrl) URL.revokeObjectURL(preview.posterUrl);
         return;
       }
       setStoryboard(nextStoryboard);
       setPreviewFile(preview.file);
+      previewUrlRef.current = preview.url;
+      posterUrlRef.current = preview.posterUrl;
       setPreviewUrl(preview.url);
+      setPosterUrl(preview.posterUrl);
       if (activeRequestRef.current === requestController) activeRequestRef.current = null;
       changeProductionState("preview");
     } catch (error) {
@@ -327,20 +351,31 @@ export function ProductionWizard() {
     }
   }
 
-  async function saveAndShare() {
+  function saveVideo() {
     if (!previewFile || !previewUrl) return;
+    const link = document.createElement("a");
+    link.href = previewUrl;
+    link.download = previewFile.name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setCompletionMessage("Video saved to this device.");
+    changeProductionState("saved");
+  }
+
+  async function shareVideo() {
+    if (!previewFile) return;
+    if (!navigator.share || (navigator.canShare && !navigator.canShare({ files: [previewFile] }))) {
+      setCompletionMessage("Save the video first, then send it from WhatsApp or WeChat.");
+      return;
+    }
     try {
-      if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [previewFile] }))) {
-        await navigator.share({ files: [previewFile], title: storyboard?.title ?? "Memory film" });
-      } else {
-        const link = document.createElement("a");
-        link.href = previewUrl;
-        link.download = previewFile.name;
-        link.click();
+      await navigator.share({ files: [previewFile], title: storyboard?.title ?? "Memory film" });
+      setCompletionMessage("Your video is still here if you want to save or share it again.");
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        setCompletionMessage("Save the video first, then send it from WhatsApp or WeChat.");
       }
-      changeProductionState("saved");
-    } catch {
-      // A dismissed native share sheet leaves the completed preview available.
     }
   }
 
@@ -428,10 +463,21 @@ export function ProductionWizard() {
       {(productionState === "preview" || productionState === "saved") && storyboard && previewUrl && (
         <section aria-label="Your film preview" className="wizard__preview">
           <h3>Your memory film</h3>
-          <video aria-label="Your memory film preview" controls playsInline src={previewUrl} />
+          <video
+            aria-label="Your memory film preview"
+            controls
+            onEnded={(event) => event.currentTarget.load()}
+            playsInline
+            poster={posterUrl ?? undefined}
+            src={previewUrl}
+          />
           <h4>{storyboard.title}</h4><p>{storyboard.caption}</p>
-          <button className="button button--primary" onClick={saveAndShare} type="button">Save &amp; share</button>
-          {productionState === "saved" && <p className="wizard__saved">Your film is ready. You choose where it goes next.</p>}
+          <div className="wizard__preview-actions">
+            <button className="button button--primary" onClick={saveVideo} type="button"><Download aria-hidden="true" />Save video</button>
+            <button className="button button--secondary" onClick={shareVideo} type="button"><Share2 aria-hidden="true" />Share video</button>
+          </div>
+          <p className="wizard__share-help">Choose WhatsApp, WeChat, or another app from your phone&apos;s share menu.</p>
+          {completionMessage && <p aria-live="polite" className="wizard__saved" role="status">{completionMessage}</p>}
         </section>
       )}
 
