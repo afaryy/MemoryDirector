@@ -183,6 +183,34 @@ def test_subprocess_executor_logs_only_sanitized_ffmpeg_error_lines(monkeypatch,
     assert metadata_sentinel not in caplog.text
 
 
+def test_subprocess_executor_classifies_only_fixed_filter_stage_names(monkeypatch, caplog) -> None:
+    source_path = "/tmp/memory-director-sensitive/source-1.mov"
+    metadata_sentinel = "private-family-caption"
+
+    def fake_run(command, **kwargs):
+        raise subprocess.CalledProcessError(
+            234,
+            command,
+            stderr=(
+                "[Parsed_scale_8] Failed to configure output pad on Parsed_scale_8\n"
+                "[auto_scale_0] Error reinitializing filters\n"
+                "[Parsed_xfade_16] Invalid argument\n"
+                f"Input metadata: {metadata_sentinel} at {source_path}\n"
+            ),
+        )
+
+    monkeypatch.setattr("app.render.subprocess.run", fake_run)
+
+    with pytest.raises(RuntimeError, match="Video rendering failed"):
+        SubprocessRenderExecutor().run(["ffmpeg", "-i", source_path])
+
+    assert "scale-stage" in caplog.text
+    assert "automatic-scale-stage" in caplog.text
+    assert "crossfade-stage" in caplog.text
+    assert source_path not in caplog.text
+    assert metadata_sentinel not in caplog.text
+
+
 def test_subprocess_executor_translates_timeout_without_command_leakage(monkeypatch, caplog) -> None:
     source_path = "/tmp/memory-director-sensitive/source-0.jpg"
 
