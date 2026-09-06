@@ -10,6 +10,16 @@ resource "google_cloud_run_v2_service" "this" {
   ingress             = var.ingress
   deletion_protection = false
 
+  lifecycle {
+    # Cloud Run returns service-level zero-value scaling fields even when they
+    # are not configured. The provider otherwise proposes removing them on
+    # every plan.
+    ignore_changes = [
+      scaling,
+      template[0].containers[0].resources[0].limits["cpu"],
+    ]
+  }
+
   template {
     service_account = var.service_account_email
     timeout         = var.timeout
