@@ -46,7 +46,7 @@ module "registry" {
 module "media_bucket" {
   source        = "../../base/private_media_bucket"
   project_id    = var.project_id
-  bucket_name   = "${var.resource_name}-media"
+  bucket_name   = "${var.project_id}-media"
   location      = var.region
   force_destroy = true
   labels        = { environment = "sandbox", managed_by = "terraform", project = "memory-director" }

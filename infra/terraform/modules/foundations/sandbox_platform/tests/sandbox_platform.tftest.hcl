@@ -4,7 +4,7 @@ run "creates_only_destroyable_sandbox_platform_resources" {
   command = plan
 
   variables {
-    project_id    = "memory-director-sandbox"
+    project_id    = "memory-director-sandbox-505708"
     region        = "australia-southeast1"
     resource_name = "memory-director-sandbox"
   }
@@ -15,8 +15,8 @@ run "creates_only_destroyable_sandbox_platform_resources" {
   }
 
   assert {
-    condition     = output.media_bucket_name == "memory-director-sandbox-media"
-    error_message = "The platform must use its private media bucket naming contract."
+    condition     = output.media_bucket_name == "memory-director-sandbox-505708-media"
+    error_message = "The platform must derive its globally unique private media bucket name from the project ID."
   }
 
   assert {
@@ -25,7 +25,7 @@ run "creates_only_destroyable_sandbox_platform_resources" {
   }
 
   assert {
-    condition     = output.runtime_service_account_email == "memory-director-runtime@memory-director-sandbox.iam.gserviceaccount.com"
+    condition     = output.runtime_service_account_email == "memory-director-runtime@memory-director-sandbox-505708.iam.gserviceaccount.com"
     error_message = "The platform must expose the no-key Cloud Run runtime identity."
   }
 }
