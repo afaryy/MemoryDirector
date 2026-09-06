@@ -1,4 +1,11 @@
 variable "project_id" { type = string }
+variable "project_number" {
+  type = string
+  validation {
+    condition     = can(regex("^[0-9]+$", var.project_number))
+    error_message = "project_number must contain digits only."
+  }
+}
 variable "region" { type = string }
 variable "resource_name" { type = string }
 

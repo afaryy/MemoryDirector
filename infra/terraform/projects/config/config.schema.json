@@ -20,6 +20,19 @@
     "mcp_invoker_service_account_email": { "type": "string", "pattern": "^[^@\\s]+@[^@\\s]+\\.iam\\.gserviceaccount\\.com$" },
     "mcp_endpoint": { "type": "string", "pattern": "^https://" },
     "consent_event_writer_image": { "type": "string", "minLength": 1 },
+    "agent_engine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "runtime_service_account_email", "staging_bucket_name"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "runtime_service_account_email": {
+          "type": "string",
+          "pattern": "^memory-director-agent@[^@\\s]+\\.iam\\.gserviceaccount\\.com$"
+        },
+        "staging_bucket_name": { "type": "string", "minLength": 3 }
+      }
+    },
     "public_edge": {
       "type": "object",
       "additionalProperties": false,

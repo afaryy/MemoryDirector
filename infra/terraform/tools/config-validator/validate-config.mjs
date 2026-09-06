@@ -14,7 +14,27 @@ if (values.length === 0) {
   process.exit(2);
 }
 
-const errors = values.flatMap((value) => validate(value) ? [] : validate.errors ?? []);
+const errors = values.flatMap((value) => {
+  const schemaErrors = validate(value) ? [] : validate.errors ?? [];
+  const agentEngineErrors = [];
+  if (value.project_id && value.agent_engine) {
+    const expectedEmail = `memory-director-agent@${value.project_id}.iam.gserviceaccount.com`;
+    if (value.agent_engine.runtime_service_account_email !== expectedEmail) {
+      agentEngineErrors.push({
+        instancePath: "/agent_engine/runtime_service_account_email",
+        message: `must equal ${expectedEmail}`,
+      });
+    }
+    const expectedBucket = `${value.project_id}-agent-staging`;
+    if (value.agent_engine.staging_bucket_name !== expectedBucket) {
+      agentEngineErrors.push({
+        instancePath: "/agent_engine/staging_bucket_name",
+        message: `must equal ${expectedBucket}`,
+      });
+    }
+  }
+  return [...schemaErrors, ...agentEngineErrors];
+});
 if (errors.length > 0) {
   const message = errors.map((error) => {
     const property = error.params?.additionalProperty ? ` (${error.params.additionalProperty})` : "";

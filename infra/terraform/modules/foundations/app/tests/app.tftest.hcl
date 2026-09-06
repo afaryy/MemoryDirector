@@ -57,3 +57,22 @@ run "uses_load_balancer_ingress_when_public_ingress_is_disabled" {
     error_message = "Locked services must accept traffic only through the load balancer."
   }
 }
+
+run "injects_only_the_validated_agent_engine_resource_into_the_api" {
+  command = plan
+
+  variables {
+    project_id            = "memory-director-505708"
+    region                = "australia-southeast1"
+    name_prefix           = "memory-director-sandbox"
+    api_image             = "example.invalid/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    web_image             = "unused"
+    service               = "api"
+    agent_engine_resource = "projects/192915586401/locations/australia-southeast1/reasoningEngines/123"
+  }
+
+  assert {
+    condition     = output.api_environment_variables.MEMORY_FILM_PLANNER_RESOURCE == "projects/192915586401/locations/australia-southeast1/reasoningEngines/123"
+    error_message = "The API must receive the smoke-tested Agent Engine resource through Terraform."
+  }
+}

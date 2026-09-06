@@ -41,6 +41,7 @@ provider "google" { project = local.project.project_id }
 module "platform" {
   source                      = "../../modules/foundations/sandbox_platform"
   project_id                  = local.project.project_id
+  project_number              = local.project.project_number
   region                      = local.region
   resource_name               = local.project.resource_name
   mcp_image                   = try(local.project.mcp_image, "ghcr.io/clickhouse/mcp-clickhouse@sha256:f4d9f1502a14a98fd17f3ecf8654bd102ba5b1a5bde86e54a9579ed8871ef8d7")
@@ -65,3 +66,5 @@ output "configuration_summary" {
 
 output "mcp_uri" { value = module.platform.mcp_uri }
 output "consent_event_writer_uri" { value = module.platform.consent_event_writer_uri }
+output "agent_runtime_service_account_email" { value = module.platform.agent_runtime_service_account_email }
+output "agent_staging_bucket_name" { value = module.platform.agent_staging_bucket_name }

@@ -8,6 +8,11 @@
   "enable_mcp": true,
   "mcp_secret_project_id": "memory-director-505708",
   "mcp_invoker_service_account_email": "github-terraform-sandbox@memory-director-505708.iam.gserviceaccount.com",
+  "agent_engine": {
+    "enabled": true,
+    "runtime_service_account_email": "memory-director-agent@memory-director-505708.iam.gserviceaccount.com",
+    "staging_bucket_name": "memory-director-505708-agent-staging"
+  },
   "public_edge": {
     "apex_domain": "memorydirector.com",
     "cloudflare_zone_id": "d963f645b3ea1a7b68611369f90cc276",

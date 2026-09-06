@@ -21,6 +21,25 @@ test("binds Memory Director deployments to the approved GCP project", () => {
     config.mcp_invoker_service_account_email,
     "github-terraform-sandbox@memory-director-505708.iam.gserviceaccount.com",
   );
+  assert.deepEqual(config.agent_engine, {
+    enabled: true,
+    runtime_service_account_email:
+      "memory-director-agent@memory-director-505708.iam.gserviceaccount.com",
+    staging_bucket_name: "memory-director-505708-agent-staging",
+  });
+});
+
+test("rejects an Agent Engine identity outside the configured project", () => {
+  const result = spawnSync("node", [fileURLToPath(validator), "--json", JSON.stringify({
+    project_id: "memory-director-505708",
+    agent_engine: {
+      enabled: true,
+      runtime_service_account_email: "memory-director-agent@another-project.iam.gserviceaccount.com",
+      staging_bucket_name: "memory-director-505708-agent-staging",
+    },
+  })], { encoding: "utf8" });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /runtime_service_account_email/);
 });
 
 test("rejects configuration with an unknown property", () => {

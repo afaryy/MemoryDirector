@@ -177,7 +177,14 @@ jobs:
           set -euo pipefail
           api_prefix="memory-director/sandbox/app-api"
           web_prefix="memory-director/sandbox/app-web"
-          api_image="$(gcloud run services describe "${{ steps.config.outputs.resource_name }}-api" --project "${{ steps.config.outputs.project_id }}" --region "${{ steps.config.outputs.region }}" --format='value(spec.template.spec.containers[0].image)')"
+          api_json="$(gcloud run services describe "${{ steps.config.outputs.resource_name }}-api" --project "${{ steps.config.outputs.project_id }}" --region "${{ steps.config.outputs.region }}" --format=json)"
+          api_image="$(jq -er '.spec.template.spec.containers[0].image' <<< "$api_json")"
+          agent_engine_resource="$(jq -r '[.spec.template.spec.containers[0].env[]? | select(.name == "MEMORY_FILM_PLANNER_RESOURCE") | .value][0] // empty' <<< "$api_json")"
+          agent_engine_args=()
+          if [ -n "$agent_engine_resource" ]; then
+            [[ "$agent_engine_resource" =~ ^projects/(memory-director-505708|192915586401)/locations/[a-z0-9-]+/reasoningEngines/[0-9]+$ ]]
+            agent_engine_args+=(-var="agent_engine_resource=$agent_engine_resource")
+          fi
           web_image="$(gcloud run services describe "${{ steps.config.outputs.resource_name }}-web" --project "${{ steps.config.outputs.project_id }}" --region "${{ steps.config.outputs.region }}" --format='value(spec.template.spec.containers[0].image)')"
           mcp_endpoint="$(gcloud run services describe "${{ steps.config.outputs.resource_name }}-mcp" --project "${{ steps.config.outputs.project_id }}" --region "${{ steps.config.outputs.region }}" --format='value(status.url)')"
           test -n "$api_image"
@@ -188,7 +195,7 @@ jobs:
             -var="project_config=${{ steps.config.outputs.project_config_file }}" \
             -var="environment_config=${{ steps.config.outputs.environment_config_file }}" \
             -var="service=api" -var="api_image=$api_image" -var="web_image=unused" \
-            -var="mcp_endpoint=$mcp_endpoint" -var="public_ingress=false"
+            -var="mcp_endpoint=$mcp_endpoint" -var="public_ingress=false" "${agent_engine_args[@]}"
           terraform -chdir=infra/terraform/components/app init -reconfigure -backend-config="bucket=${{ steps.config.outputs.state_bucket }}" -backend-config="prefix=$web_prefix"
           terraform -chdir=infra/terraform/components/app apply -auto-approve \
             -var="project_config=${{ steps.config.outputs.project_config_file }}" \

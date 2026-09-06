@@ -10,8 +10,10 @@ from typing import Literal
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
+from app.agent_engine import AgentEnginePlanner, AgentPlannerUnavailable
+from app.agent_planner import AgentPlanAdapter, AgentPlanningRequest
 from app.gemini_client import GeminiProductionPlanner, GoogleGenAiGateway
 from app.consent_guardian import ConsentDenied, consent_guardian_from_environment
 from app.consent_events import ConsentEvent, consent_event_publisher_from_environment
@@ -68,6 +70,7 @@ class StoryboardPayload(BaseModel):
 
 
 class ProductionProposalPayload(BaseModel):
+    user_id: str = Field(default="demo-user", min_length=1, max_length=128)
     brief: ProductionBrief
     places: list[PlaceCandidate]
 
@@ -122,6 +125,18 @@ def get_production_planner() -> GeminiProductionPlanner:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Gemini production planning is not configured.",
+        ) from error
+
+
+def get_agent_planner() -> AgentEnginePlanner | None:
+    if not os.environ.get("MEMORY_FILM_PLANNER_RESOURCE"):
+        return None
+    try:
+        return AgentEnginePlanner.from_environment()
+    except Exception as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Agent Engine production planning is not configured.",
         ) from error
 
 
@@ -442,4 +457,29 @@ def create_storyboard(
 
 @app.post("/production-proposals", response_model=ProductionProposal, status_code=status.HTTP_201_CREATED)
 def create_production_proposal(payload: ProductionProposalPayload) -> ProductionProposal:
-    return ProductionOrchestrator(get_production_planner()).produce(payload.brief, payload.places)
+    agent_planner = get_agent_planner()
+    if agent_planner is None:
+        return ProductionOrchestrator(get_production_planner()).produce(payload.brief, payload.places)
+
+    try:
+        request = AgentPlanningRequest.from_brief(
+            payload.brief, user_id=payload.user_id
+        )
+    except ValidationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Production request is outside the bounded agent contract.",
+        ) from error
+    try:
+        plan = agent_planner.plan(request)
+        return AgentPlanAdapter.to_proposal(request, plan)
+    except AgentPlannerUnavailable as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Production planning is temporarily unavailable.",
+        ) from error
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Agent Engine returned an invalid production plan.",
+        ) from error

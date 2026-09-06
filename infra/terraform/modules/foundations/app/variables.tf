@@ -38,3 +38,16 @@ variable "consent_event_writer_endpoint" {
   description = "Private Cloud Run endpoint for anonymous consent event recording."
   default     = null
 }
+
+variable "agent_engine_resource" {
+  type        = string
+  description = "Smoke-tested Agent Engine resource used by the production API."
+  default     = null
+  validation {
+    condition = var.agent_engine_resource == null || can(regex(
+      "^projects/(?:[a-z][a-z0-9-]{4,28}[a-z0-9]|[0-9]{6,30})/locations/[a-z]+(?:-[a-z0-9]+)*/reasoningEngines/[0-9]+$",
+      var.agent_engine_resource,
+    ))
+    error_message = "agent_engine_resource must be a full reasoningEngines resource name."
+  }
+}
