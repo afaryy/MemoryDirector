@@ -88,12 +88,12 @@ fails closed if the corresponding event does not exist. No raw media is copied
 to ClickHouse.
 
 Roll out in two phases: first provision the writer identity, secret container,
-internal service, schema grants, and API configuration; then enable production
-event recording and perform a consented-demo smoke run. Keep hosted ClickHouse
-evidence marked pending until that actual run verifies both gate calls and an
-export. The normal sandbox destroy can remove writer runtime resources but must
-retain the bootstrap state and identity layers according to the existing
-bootstrap policy.
+IAM-protected writer service with reachable ingress, schema grants, and API
+configuration; then enable production event recording and perform a
+consented-demo smoke run. Keep hosted ClickHouse evidence marked pending until
+that actual run verifies both gate calls and an export. The normal sandbox
+destroy can remove writer runtime resources but must retain the bootstrap state
+and identity layers according to the existing bootstrap policy.
 
 ## Tests and acceptance criteria
 

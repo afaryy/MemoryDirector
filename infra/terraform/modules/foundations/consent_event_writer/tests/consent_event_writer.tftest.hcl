@@ -16,4 +16,16 @@ run "allows_authenticated_runtime_invocation" {
     condition     = module.service.ingress == "INGRESS_TRAFFIC_ALL"
     error_message = "The IAM-protected writer must be routable from Cloud Run without requiring a VPC connector."
   }
+
+  assert {
+    condition     = google_cloud_run_v2_service_iam_binding.invoker.role == "roles/run.invoker"
+    error_message = "The writer must authoritatively manage the Cloud Run invoker role."
+  }
+
+  assert {
+    condition = toset(google_cloud_run_v2_service_iam_binding.invoker.members) == toset([
+      "serviceAccount:memory-director-runtime@memory-director-505708.iam.gserviceaccount.com",
+    ])
+    error_message = "Only the API runtime service account may invoke the consent-event writer."
+  }
 }
