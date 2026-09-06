@@ -16,7 +16,7 @@ class RecordingCaller:
 
 
 def test_guardian_allows_only_when_every_selected_media_id_has_evidence() -> None:
-    caller = RecordingCaller(json.dumps({"rows": [{"selected_media_count": 2}]}))
+    caller = RecordingCaller(json.dumps({"columns": ["selected_media_count"], "rows": [[2]]}))
     guardian = ClickHouseMcpConsentGuardian(caller)
 
     guardian.allow_export(media_ids=["media-a", "media-b"], soundtrack_mode="no_sound", stage="render")
@@ -27,7 +27,9 @@ def test_guardian_allows_only_when_every_selected_media_id_has_evidence() -> Non
 
 
 def test_guardian_denies_missing_selected_media_evidence() -> None:
-    guardian = ClickHouseMcpConsentGuardian(RecordingCaller(json.dumps({"rows": [{"selected_media_count": 1}]})))
+    guardian = ClickHouseMcpConsentGuardian(
+        RecordingCaller(json.dumps({"columns": ["selected_media_count"], "rows": [[1]]}))
+    )
 
     with pytest.raises(ConsentDenied, match="consent evidence"):
         guardian.allow_export(media_ids=["media-a", "media-b"], soundtrack_mode="original_song", stage="export")
