@@ -122,6 +122,111 @@ describe("ProductionWizard", () => {
     expect(screen.getByText("garden.jpg")).toBeVisible();
   });
 
+  it("shows the API guidance when the selected soundtrack is unavailable", async () => {
+    const jsonResponse = (body: unknown, status = 200) =>
+      new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse(
+            {
+              media_id: "sha256:garden",
+              description: "A sunny garden",
+              quality_score: 0.9,
+              duplicate_of: null,
+              privacy_flags: [],
+              orientation: "landscape",
+              duration_seconds: null,
+              decision_status: "unselected",
+            },
+            201,
+          ),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({ media_id: "sha256:garden", status: "selected", reason: "Chosen for this film" }),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse(
+            { title: "Garden afternoon", caption: "A warm moment together.", music_direction: "gentle acoustic" },
+            201,
+          ),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({ title: "Garden afternoon", caption: "A warm moment together.", output_format: "vertical-mp4" }, 201),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({ detail: "Instrumental music is not configured; choose original song or no sound." }, 422),
+        ),
+    );
+    render(<ProductionWizard />);
+
+    completeReadyState();
+    fireEvent.click(screen.getByRole("button", { name: "Make my film" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Instrumental music is not configured; choose original song or no sound.",
+    );
+    expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled();
+  });
+
+  it("keeps network failure details behind the generic recovery message", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValueOnce(new TypeError("Failed to fetch")));
+    render(<ProductionWizard />);
+
+    completeReadyState();
+    fireEvent.click(screen.getByRole("button", { name: "Make my film" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("We could not make your film. Please try again.");
+    expect(screen.queryByText("Failed to fetch")).not.toBeInTheDocument();
+  });
+
+  it("uses the generic recovery message when an export error is not JSON", async () => {
+    const jsonResponse = (body: unknown, status = 200) =>
+      new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse(
+            {
+              media_id: "sha256:garden",
+              description: "A sunny garden",
+              quality_score: 0.9,
+              duplicate_of: null,
+              privacy_flags: [],
+              orientation: "landscape",
+              duration_seconds: null,
+              decision_status: "unselected",
+            },
+            201,
+          ),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({ media_id: "sha256:garden", status: "selected", reason: "Chosen for this film" }),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse(
+            { title: "Garden afternoon", caption: "A warm moment together.", music_direction: "gentle acoustic" },
+            201,
+          ),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({ title: "Garden afternoon", caption: "A warm moment together.", output_format: "vertical-mp4" }, 201),
+        )
+        .mockResolvedValueOnce(new Response("upstream gateway failure", { status: 502 })),
+    );
+    render(<ProductionWizard />);
+
+    completeReadyState();
+    fireEvent.click(screen.getByRole("button", { name: "Make my film" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("We could not make your film. Please try again.");
+    expect(screen.queryByText("upstream gateway failure")).not.toBeInTheDocument();
+  });
+
   it("keeps typing available when the browser cannot start voice input", async () => {
     render(<ProductionWizard />);
     fireEvent.click(screen.getByRole("button", { name: "Voice input" }));

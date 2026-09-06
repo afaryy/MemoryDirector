@@ -13,6 +13,8 @@ type MediaReview = { media_id: string };
 type ProductionState = "ready" | "preparing" | "preview" | "error" | "saved";
 type SoundtrackMode = "original_song" | "instrumental" | "no_sound";
 
+class UserFacingExportError extends Error {}
+
 type SpeechResultEvent = { results: ArrayLike<ArrayLike<{ transcript: string }>> };
 type SpeechRecognitionInstance = {
   lang: string;
@@ -196,7 +198,12 @@ export function ProductionWizard() {
         exportForm.append("requested_style", nextStoryboard.music_direction ?? "warm acoustic");
       }
       const exportResponse = await fetch(`${apiBaseUrl}/renders/export`, { method: "POST", body: exportForm });
-      if (!exportResponse.ok) throw new Error("We could not make your film.");
+      if (!exportResponse.ok) {
+        const errorBody = (await exportResponse.json().catch(() => null)) as { detail?: unknown } | null;
+        const detail = typeof errorBody?.detail === "string" ? errorBody.detail.trim() : "";
+        if (detail) throw new UserFacingExportError(detail);
+        throw new Error("We could not make your film.");
+      }
       const preview = await extractPreview(await exportResponse.blob(), nextStoryboard.title);
       if (!consentRef.current || generation !== generationRef.current) {
         URL.revokeObjectURL(preview.url);
@@ -206,9 +213,11 @@ export function ProductionWizard() {
       setPreviewFile(preview.file);
       setPreviewUrl(preview.url);
       setProductionState("preview");
-    } catch {
+    } catch (error) {
       if (generation === generationRef.current) {
-        setErrorMessage("We could not make your film. Please try again.");
+        setErrorMessage(
+          error instanceof UserFacingExportError ? error.message : "We could not make your film. Please try again.",
+        );
         setProductionState("error");
       }
     }
