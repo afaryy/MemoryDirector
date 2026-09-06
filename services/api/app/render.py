@@ -9,7 +9,7 @@ from app.models import Storyboard
 
 TARGET_VIDEO_SECONDS = 60
 TRANSITION_SECONDS = 1
-PHOTO_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp"}
+PHOTO_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}
 logger = logging.getLogger(__name__)
 
 

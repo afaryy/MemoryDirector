@@ -12,10 +12,12 @@ from app.render import DeterministicVerticalRenderer, RenderExecutionError, Rend
 class RenderStorage:
     def __init__(self) -> None:
         self.objects: dict[str, bytes] = {}
+        self.content_types: dict[str, str] = {}
         self.decisions: dict[str, tuple[str, str]] = {}
 
     def put(self, media_id: str, content_type: str, body: bytes) -> StoredMedia:
         self.objects[media_id] = body
+        self.content_types[media_id] = content_type
         return StoredMedia(
             media_id=media_id,
             content_type=content_type,
@@ -29,7 +31,7 @@ class RenderStorage:
             return None
         return StoredMedia(
             media_id=media_id,
-            content_type="image/jpeg",
+            content_type=self.content_types[media_id],
             size_bytes=len(self.objects[media_id]),
             sha256="digest",
             gs_uri=f"gs://private/media/{media_id}/original",
@@ -129,6 +131,39 @@ async def test_selected_analyzed_media_reaches_renderer_without_new_upload(monke
     with zipfile.ZipFile(io.BytesIO(exported.content)) as bundle:
         assert any(name.endswith(".mp4") for name in bundle.namelist())
         assert any(name.endswith(".jpg") for name in bundle.namelist())
+
+
+@pytest.mark.anyio
+async def test_selected_heic_media_keeps_its_format_when_staged_for_render(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = RenderStorage()
+    executor = RecordingExecutor()
+    monkeypatch.setattr(main_module, "get_media_storage", lambda: storage, raising=False)
+    monkeypatch.setattr(main_module, "get_media_analyzer", lambda: RenderAnalyzer(), raising=False)
+    monkeypatch.setattr(main_module, "get_renderer", lambda: DeterministicVerticalRenderer(executor))
+    monkeypatch.setattr(main_module, "get_consent_guardian", lambda: RecordingGuardian(), raising=False)
+    monkeypatch.setattr(main_module, "get_consent_event_publisher", lambda: RecordingPublisher(), raising=False)
+
+    async with AsyncClient(transport=ASGITransport(app=main_module.app), base_url="http://test") as client:
+        analyzed = await client.post(
+            "/media/analyze",
+            files={"media": ("phone-photo.heic", b"synthetic-heic", "image/heic")},
+            data={"consent": "true"},
+        )
+        media_id = analyzed.json()["media_id"]
+        await client.post(
+            f"/media/{media_id}/decision",
+            json={"status": "selected", "reason": "phone photo"},
+        )
+        exported = await client.post(
+            "/renders/export",
+            data={"title": "Phone memory", "caption": "Together.", "approved": "true"},
+            files=[("media_ids", (None, media_id))],
+        )
+
+    assert exported.status_code == 200
+    assert any(argument.endswith("source-0.heic") for argument in executor.commands[0])
 
 
 @pytest.mark.anyio
