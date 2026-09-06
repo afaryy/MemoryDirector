@@ -37,6 +37,7 @@ from app.render import (
     RenderExecutionError,
     RenderRequest,
     RenderVerificationError,
+    SubprocessHeifConverter,
     SubprocessRenderExecutor,
     SubprocessVideoDurationProbe,
     create_render_request,
@@ -125,7 +126,11 @@ def get_production_planner() -> GeminiProductionPlanner:
 
 
 def get_renderer() -> DeterministicVerticalRenderer:
-    return DeterministicVerticalRenderer(SubprocessRenderExecutor(), duration_probe=SubprocessVideoDurationProbe())
+    return DeterministicVerticalRenderer(
+        SubprocessRenderExecutor(),
+        duration_probe=SubprocessVideoDurationProbe(),
+        heif_converter=SubprocessHeifConverter(),
+    )
 
 
 def get_preference_repository():

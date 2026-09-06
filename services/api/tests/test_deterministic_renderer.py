@@ -7,6 +7,8 @@ from app.models import Storyboard
 from app.render import (
     DeterministicVerticalRenderer,
     RenderRequest,
+    RenderExecutionError,
+    SubprocessHeifConverter,
     RenderVerificationError,
     SubprocessRenderExecutor,
     SubprocessVideoDurationProbe,
@@ -20,6 +22,15 @@ class RecordingExecutor:
 
     def run(self, command: list[str]) -> None:
         self.commands.append(command)
+
+
+class RecordingHeifConverter:
+    def __init__(self) -> None:
+        self.calls: list[tuple[Path, Path]] = []
+
+    def convert(self, source_path: Path, output_path: Path) -> None:
+        self.calls.append((source_path, output_path))
+        output_path.write_bytes(b"converted-jpeg")
 
 
 def test_renderer_builds_a_deterministic_vertical_export_package(tmp_path: Path) -> None:
@@ -146,6 +157,54 @@ def test_renderer_uses_optional_memory_song_for_a_combined_film(tmp_path: Path) 
     assert "-an" not in command
 
 
+def test_renderer_converts_heic_to_temporary_jpeg_before_combining_media(tmp_path: Path) -> None:
+    executor = RecordingExecutor()
+    converter = RecordingHeifConverter()
+    heic = tmp_path / "phone-photo.heic"
+    video = tmp_path / "moment.mov"
+    heic.write_bytes(b"synthetic-heic")
+    video.write_bytes(b"synthetic-video")
+
+    DeterministicVerticalRenderer(executor, heif_converter=converter).render_many(
+        request=RenderRequest(title="Phone memory", caption="Together."),
+        source_paths=[heic, video],
+        output_directory=tmp_path / "exports",
+    )
+
+    assert converter.calls[0][0] == heic
+    converted_path = converter.calls[0][1]
+    assert converted_path.suffix == ".jpg"
+    render_command = executor.commands[0]
+    assert str(converted_path) in render_command
+    assert render_command[render_command.index(str(converted_path)) - 3 : render_command.index(str(converted_path))] == [
+        "-loop",
+        "1",
+        "-i",
+    ]
+
+
+def test_renderer_loops_a_single_phone_photo_as_a_still_image(tmp_path: Path) -> None:
+    executor = RecordingExecutor()
+    converter = RecordingHeifConverter()
+    heic = tmp_path / "phone-photo.heic"
+    heic.write_bytes(b"synthetic-heic")
+
+    DeterministicVerticalRenderer(executor, heif_converter=converter).render(
+        request=RenderRequest(title="Phone memory", caption="Together."),
+        source_path=heic,
+        output_directory=tmp_path / "exports",
+    )
+
+    converted_path = converter.calls[0][1]
+    render_command = executor.commands[0]
+    assert render_command[render_command.index(str(converted_path)) - 3 : render_command.index(str(converted_path))] == [
+        "-loop",
+        "1",
+        "-i",
+    ]
+    assert "-stream_loop" not in render_command
+
+
 def test_subprocess_executor_allows_sixty_second_export_to_finish(monkeypatch) -> None:
     calls = []
 
@@ -243,3 +302,53 @@ def test_duration_probe_translates_subprocess_failure_without_path_leakage(monke
     assert str(video_path) not in str(captured.value)
     assert "duration-probe-failed" in caplog.text
     assert str(video_path) not in caplog.text
+
+
+def test_heif_converter_translates_failure_without_path_or_metadata_leakage(monkeypatch, caplog) -> None:
+    source_path = Path("/tmp/memory-director-sensitive/family.heic")
+    output_path = Path("/tmp/memory-director-sensitive/converted.jpg")
+    metadata_sentinel = "private-family-caption"
+
+    def fake_run(command, **kwargs):
+        raise subprocess.CalledProcessError(1, command, stderr=f"{metadata_sentinel}: {source_path}")
+
+    monkeypatch.setattr("app.render.subprocess.run", fake_run)
+
+    with pytest.raises(RenderExecutionError, match="Phone photo conversion failed") as captured:
+        SubprocessHeifConverter().convert(source_path, output_path)
+
+    assert str(source_path) not in str(captured.value)
+    assert str(output_path) not in caplog.text
+    assert metadata_sentinel not in caplog.text
+    assert "heif-convert failed (exit-1)" in caplog.text
+
+
+def test_heif_converter_promotes_first_numbered_image_to_requested_output(monkeypatch, tmp_path: Path) -> None:
+    source_path = tmp_path / "phone-sequence.heic"
+    output_path = tmp_path / "converted.jpg"
+    source_path.write_bytes(b"synthetic-heif-sequence")
+
+    def fake_run(command, **kwargs):
+        (tmp_path / "converted-2.jpg").write_bytes(b"second-image")
+        (tmp_path / "converted-1.jpg").write_bytes(b"primary-image")
+
+    monkeypatch.setattr("app.render.subprocess.run", fake_run)
+
+    SubprocessHeifConverter().convert(source_path, output_path)
+
+    assert output_path.read_bytes() == b"primary-image"
+
+
+def test_heif_converter_rejects_success_without_a_nonempty_output(monkeypatch, tmp_path: Path, caplog) -> None:
+    source_path = tmp_path / "malformed.heic"
+    output_path = tmp_path / "converted.jpg"
+    source_path.write_bytes(b"malformed")
+
+    monkeypatch.setattr("app.render.subprocess.run", lambda command, **kwargs: None)
+
+    with pytest.raises(RenderExecutionError, match="Phone photo conversion failed"):
+        SubprocessHeifConverter().convert(source_path, output_path)
+
+    assert str(source_path) not in caplog.text
+    assert str(output_path) not in caplog.text
+    assert "heif-convert failed (missing-output)" in caplog.text

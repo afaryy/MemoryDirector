@@ -77,6 +77,15 @@ class RecordingExecutor:
                 cover.write(b"fake-cover")
 
 
+class RecordingHeifConverter:
+    def __init__(self) -> None:
+        self.calls = []
+
+    def convert(self, source_path, output_path) -> None:
+        self.calls.append((source_path, output_path))
+        output_path.write_bytes(b"converted-jpeg")
+
+
 class RecordingGuardian:
     def __init__(self) -> None:
         self.stages: list[str] = []
@@ -139,9 +148,14 @@ async def test_selected_heic_media_keeps_its_format_when_staged_for_render(
 ) -> None:
     storage = RenderStorage()
     executor = RecordingExecutor()
+    converter = RecordingHeifConverter()
     monkeypatch.setattr(main_module, "get_media_storage", lambda: storage, raising=False)
     monkeypatch.setattr(main_module, "get_media_analyzer", lambda: RenderAnalyzer(), raising=False)
-    monkeypatch.setattr(main_module, "get_renderer", lambda: DeterministicVerticalRenderer(executor))
+    monkeypatch.setattr(
+        main_module,
+        "get_renderer",
+        lambda: DeterministicVerticalRenderer(executor, heif_converter=converter),
+    )
     monkeypatch.setattr(main_module, "get_consent_guardian", lambda: RecordingGuardian(), raising=False)
     monkeypatch.setattr(main_module, "get_consent_event_publisher", lambda: RecordingPublisher(), raising=False)
 
@@ -163,7 +177,8 @@ async def test_selected_heic_media_keeps_its_format_when_staged_for_render(
         )
 
     assert exported.status_code == 200
-    assert any(argument.endswith("source-0.heic") for argument in executor.commands[0])
+    assert converter.calls[0][0].name == "source-0.heic"
+    assert any(argument.endswith("converted-source-0.jpg") for argument in executor.commands[0])
 
 
 @pytest.mark.anyio
