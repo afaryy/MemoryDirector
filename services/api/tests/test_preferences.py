@@ -62,7 +62,6 @@ def test_mcp_http_caller_initializes_session_then_calls_tool(monkeypatch) -> Non
         status, headers, payload = responses.pop(0)
         assert request.full_url == "https://mcp.example/mcp"
         assert request.headers["Authorization"] == "Bearer mcp-token"
-        assert timeout == 5
         return FakeResponse(status, headers, payload)
 
     monkeypatch.setattr("app.preferences.urlopen", fake_urlopen)
@@ -72,3 +71,37 @@ def test_mcp_http_caller_initializes_session_then_calls_tool(monkeypatch) -> Non
 
     assert json.loads(result) == {"rows": []}
     assert responses == []
+
+
+def test_mcp_http_caller_allows_the_server_cold_start_window(monkeypatch) -> None:
+    responses = [
+        ({"Mcp-Session-Id": "session-1"}, {"result": {"serverInfo": {"name": "mcp-clickhouse"}}}),
+        ({}, {"result": {"content": [{"type": "text", "text": '{"rows": []}'}]}}),
+    ]
+    timeouts = []
+
+    class FakeResponse:
+        def __init__(self, headers: dict[str, str], payload: dict) -> None:
+            self.headers = headers
+            self._payload = payload
+
+        def read(self) -> bytes:
+            return json.dumps(self._payload).encode()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    def fake_urlopen(request, timeout):
+        timeouts.append(timeout)
+        headers, payload = responses.pop(0)
+        return FakeResponse(headers, payload)
+
+    monkeypatch.setattr("app.preferences.urlopen", fake_urlopen)
+    caller = McpHttpToolCaller("https://mcp.example", "mcp-token", identity_token="identity-token")
+
+    caller.call_tool("run_query", {"query": "SELECT 1"})
+
+    assert timeouts == [30, 30]
