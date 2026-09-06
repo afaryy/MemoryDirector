@@ -12,16 +12,19 @@ module "runtime" {
 }
 
 module "service" {
-  source                  = "../../base/cloud_run_service"
-  project_id              = var.project_id
-  name                    = "${var.resource_name}-consent-events"
-  region                  = var.region
-  image                   = var.image
-  service_account_email   = module.runtime.email
-  container_port          = 8000
-  memory                  = "512Mi"
-  timeout                 = "60s"
-  ingress                 = "INGRESS_TRAFFIC_INTERNAL_ONLY"
+  source                = "../../base/cloud_run_service"
+  project_id            = var.project_id
+  name                  = "${var.resource_name}-consent-events"
+  region                = var.region
+  image                 = var.image
+  service_account_email = module.runtime.email
+  container_port        = 8000
+  memory                = "512Mi"
+  timeout               = "60s"
+  # Cloud Run-to-Cloud Run calls use the service URL unless a VPC path is
+  # configured. Keep that route reachable, while IAM below restricts invocation
+  # to the API runtime identity (there is deliberately no allUsers binding).
+  ingress                 = "INGRESS_TRAFFIC_ALL"
   allow_public_invocation = false
   invoker_members         = ["serviceAccount:${var.api_runtime_service_account_email}"]
   secret_environment_variables = {

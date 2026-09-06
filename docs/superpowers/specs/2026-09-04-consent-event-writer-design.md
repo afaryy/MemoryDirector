@@ -74,9 +74,11 @@ Actions accesses migration credentials only in its protected ClickHouse
 bootstrap workflow.
 
 The platform component owns the writer service and its IAM; the app component
-receives only the private writer URI as a non-secret environment variable.
-All Cloud Run services use internal invocation and workload identity. No
-service-account key is created.
+receives only the writer URI as a non-secret environment variable. The writer's
+Cloud Run route is reachable so the API can call it without a VPC connector,
+but it has no `allUsers` invoker binding: only the API runtime service account
+can invoke it with a Google-signed identity token. No service-account key is
+created.
 
 ## Failure, retention, and rollout
 

@@ -104,6 +104,9 @@ jobs:
       - run: terraform -chdir=infra/terraform/modules/foundations/sandbox_platform init -backend=false
       - run: terraform -chdir=infra/terraform/modules/foundations/sandbox_platform validate
       - run: terraform -chdir=infra/terraform/modules/foundations/sandbox_platform test
+      - run: terraform -chdir=infra/terraform/modules/foundations/consent_event_writer init -backend=false
+      - run: terraform -chdir=infra/terraform/modules/foundations/consent_event_writer validate
+      - run: terraform -chdir=infra/terraform/modules/foundations/consent_event_writer test
       - run: terraform -chdir=infra/terraform/modules/foundations/app init -backend=false
       - run: terraform -chdir=infra/terraform/modules/foundations/app validate
       - run: terraform -chdir=infra/terraform/modules/foundations/app test
