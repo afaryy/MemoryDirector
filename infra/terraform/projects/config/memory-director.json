@@ -11,6 +11,7 @@
   "agent_engine": {
     "enabled": true,
     "location": "australia-southeast2",
+    "model_location": "australia-southeast1",
     "runtime_service_account_email": "memory-director-agent@memory-director-505708.iam.gserviceaccount.com",
     "staging_bucket_name": "memory-director-505708-agent-staging"
   },

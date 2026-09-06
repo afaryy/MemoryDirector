@@ -21,9 +21,14 @@ test("Agent Engine deployment is manual, WIF-authenticated, and smoke-gated", ()
   assert.match(workflow, /python -m scripts\.deploy_agent_engine/);
   assert.match(workflow, /python -m scripts\.smoke_agent_engine/);
   assert.match(workflow, /agent_location="\$\(jq -er '\.agent_engine\.location'/);
+  assert.match(workflow, /model_location="\$\(jq -er '\.agent_engine\.model_location'/);
   assert.match(
     workflow,
     /GOOGLE_CLOUD_LOCATION: \$\{\{ steps\.config\.outputs\.agent_location \}\}/,
+  );
+  assert.match(
+    workflow,
+    /AGENT_ENGINE_MODEL_LOCATION: \$\{\{ steps\.config\.outputs\.model_location \}\}/,
   );
   assert.doesNotMatch(
     workflow,
