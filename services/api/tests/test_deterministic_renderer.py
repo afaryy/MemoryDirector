@@ -93,6 +93,8 @@ def test_renderer_sequences_media_with_crop_to_fill_crossfades_and_an_exact_dura
     assert filter_graph.count("fps=30,format=yuv420p,settb=AVTB") == 2
     assert "xfade=transition=fade:duration=1:offset=30" in filter_graph
     assert "trim=duration=31" in filter_graph
+    assert command[command.index("-filter_complex_threads") + 1] == "1"
+    assert command.index("-filter_complex_threads") < command.index("-filter_complex")
     assert command[command.index("-t") + 1] == "60"
     assert command[command.index("-preset") + 1] == "veryfast"
 
