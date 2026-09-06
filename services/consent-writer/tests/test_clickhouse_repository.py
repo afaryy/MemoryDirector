@@ -1,3 +1,5 @@
+import pytest
+
 from app.events import ConsentEvent
 from app.repository import ClickHouseEventRepository, repository_from_credentials
 
@@ -55,3 +57,43 @@ def test_repository_rejects_the_obsolete_lowercase_secret_contract() -> None:
         assert str(error) == "ClickHouse event writer credentials are invalid"
     else:
         raise AssertionError("obsolete lowercase credentials must not be accepted")
+
+
+@pytest.mark.parametrize(
+    ("secure", "verify", "expected_secure", "expected_verify"),
+    [
+        ("false", "false", False, False),
+        (True, False, True, False),
+    ],
+)
+def test_repository_parses_string_and_native_tls_booleans(
+    secure, verify, expected_secure, expected_verify
+) -> None:
+    received = {}
+    credentials = {
+        "CLICKHOUSE_HOST": "clickhouse.example",
+        "CLICKHOUSE_PORT": "8443",
+        "CLICKHOUSE_USER": "writer",
+        "CLICKHOUSE_PASSWORD": "secret",
+        "CLICKHOUSE_DATABASE": "memory_director",
+        "CLICKHOUSE_SECURE": secure,
+        "CLICKHOUSE_VERIFY": verify,
+    }
+
+    import json
+
+    repository_from_credentials(
+        json.dumps(credentials),
+        client_factory=lambda **kwargs: received.update(kwargs) or RecordingClient(),
+    )
+
+    assert received["secure"] is expected_secure
+    assert received["verify"] is expected_verify
+
+
+def test_repository_rejects_invalid_tls_boolean_text() -> None:
+    with pytest.raises(ValueError, match="credentials are invalid"):
+        repository_from_credentials(
+            '{"CLICKHOUSE_HOST":"clickhouse.example","CLICKHOUSE_USER":"writer","CLICKHOUSE_PASSWORD":"secret","CLICKHOUSE_SECURE":"sometimes"}',
+            client_factory=lambda **kwargs: RecordingClient(),
+        )
