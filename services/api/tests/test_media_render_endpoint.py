@@ -217,5 +217,7 @@ async def test_two_selected_analyzed_media_are_combined_in_one_export(monkeypatc
         )
 
     assert exported.status_code == 200
-    assert any("xfade=transition=fade:duration=1" in " ".join(command) for command in executor.commands)
+    render_commands = [" ".join(command) for command in executor.commands]
+    assert any("fade=t=in" in command and "concat=n=2:v=1:a=0" in command for command in render_commands)
+    assert all("xfade=" not in command for command in render_commands)
     assert guardian.stages == ["render", "export"]
