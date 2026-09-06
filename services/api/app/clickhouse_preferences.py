@@ -1,6 +1,9 @@
+import json
 from typing import Protocol
 
-from app.preferences import ClickHouseMcpPreferenceRepository, McpToolCaller
+from google.cloud import secretmanager
+
+from app.preferences import ClickHouseMcpPreferenceRepository, McpHttpToolCaller, McpToolCaller
 
 
 class PreferenceLookup(Protocol):
@@ -28,3 +31,30 @@ class ClickHousePreferenceTool:
             "music_direction": recommendation.music_direction.removesuffix(" instrumental"),
             "evidence_count": recommendation.evidence_count,
         }
+
+
+class LazyClickHousePreferenceTool:
+    """Resolve the MCP token inside Agent Engine instead of serializing a secret."""
+
+    def __init__(self, *, endpoint: str, credentials_secret_version_name: str) -> None:
+        if not endpoint or not credentials_secret_version_name:
+            raise ValueError("MCP endpoint and credentials secret version are required")
+        self._endpoint = endpoint
+        self._credentials_secret_version_name = credentials_secret_version_name
+
+    def lookup_approved_music_preference(
+        self, user_id: str, occasion: str
+    ) -> dict[str, str | int] | None:
+        try:
+            response = secretmanager.SecretManagerServiceClient().access_secret_version(
+                name=self._credentials_secret_version_name
+            )
+            credentials = json.loads(response.payload.data.decode())
+            auth_token = credentials["CLICKHOUSE_MCP_AUTH_TOKEN"]
+            if not isinstance(auth_token, str) or not auth_token:
+                return None
+            return ClickHousePreferenceTool(
+                McpHttpToolCaller(self._endpoint, auth_token)
+            ).lookup_approved_music_preference(user_id, occasion)
+        except Exception:
+            return None

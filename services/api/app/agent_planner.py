@@ -19,6 +19,7 @@ class PlannerMedia(BaseModel):
 
 
 class AgentPlanningRequest(BaseModel):
+    user_id: str = Field(default="demo-user", min_length=1, max_length=128)
     occasion: str
     target_duration_seconds: int
     moods: list[str]
@@ -26,8 +27,11 @@ class AgentPlanningRequest(BaseModel):
     media: list[PlannerMedia]
 
     @classmethod
-    def from_brief(cls, brief: ProductionBrief) -> "AgentPlanningRequest":
+    def from_brief(
+        cls, brief: ProductionBrief, *, user_id: str = "demo-user"
+    ) -> "AgentPlanningRequest":
         return cls(
+            user_id=user_id,
             occasion=brief.occasion,
             target_duration_seconds=brief.target_duration_seconds,
             moods=brief.moods,
