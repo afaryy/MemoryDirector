@@ -26,7 +26,8 @@ APPLICATION_MUSIC_DIRECTIONS: tuple[MusicDirectionName, ...] = (
     "Warm traditional-inspired instrumental",
     "Bright calm instrumental",
 )
-_URI_SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*://", re.IGNORECASE)
+_URI_SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*:", re.IGNORECASE)
+_SHA256_MEDIA_ID = re.compile(r"^sha256:[a-z0-9]+$", re.IGNORECASE)
 _PRIVATE_GCS_HTTPS_URI = re.compile(
     r"https?://(?:storage\.googleapis\.com|storage\.cloud\.google\.com|"
     r"[^/?#]+\.storage\.googleapis\.com)(?:[/?#]|$)",
@@ -35,7 +36,11 @@ _PRIVATE_GCS_HTTPS_URI = re.compile(
 
 
 def _opaque_media_id(value: str) -> str:
-    if _URI_SCHEME.match(value):
+    if (
+        value != value.strip()
+        or value.startswith("//")
+        or (_URI_SCHEME.match(value) and not _SHA256_MEDIA_ID.fullmatch(value))
+    ):
         raise ValueError("media ID must be an opaque identifier, not a URI")
     return value
 

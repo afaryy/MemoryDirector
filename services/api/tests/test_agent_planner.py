@@ -134,11 +134,25 @@ def test_rejects_private_google_storage_https_uri_in_agent_output(
         "gs://private-bucket/clip.mp4",
         "https://storage.googleapis.com/private-bucket/clip.mp4",
         "https://example.test/clip.mp4",
+        "data:video/mp4;base64,AAAA",
+        "mailto:private@example.test",
+        "urn:media:private-clip",
+        "//storage.googleapis.com/private-bucket/clip.mp4",
+        " clip-1",
+        "clip-1 ",
     ],
 )
 def test_rejects_uri_shaped_media_identifier(media_id: str) -> None:
     with pytest.raises(ValueError, match="media ID"):
         PlannerMedia(media_id=media_id, quality_score=0.9, duplicate_of=None)
+
+
+def test_accepts_application_sha256_media_identifier() -> None:
+    media = PlannerMedia(
+        media_id="sha256:garden", quality_score=0.9, duplicate_of=None
+    )
+
+    assert media.media_id == "sha256:garden"
 
 
 def test_agent_request_rejects_unbounded_text_and_media_lists() -> None:

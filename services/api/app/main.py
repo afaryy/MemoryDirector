@@ -10,7 +10,7 @@ from typing import Literal
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from app.agent_engine import AgentEnginePlanner, AgentPlannerUnavailable
 from app.agent_planner import AgentPlanAdapter, AgentPlanningRequest
@@ -461,7 +461,15 @@ def create_production_proposal(payload: ProductionProposalPayload) -> Production
     if agent_planner is None:
         return ProductionOrchestrator(get_production_planner()).produce(payload.brief, payload.places)
 
-    request = AgentPlanningRequest.from_brief(payload.brief, user_id=payload.user_id)
+    try:
+        request = AgentPlanningRequest.from_brief(
+            payload.brief, user_id=payload.user_id
+        )
+    except ValidationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Production request is outside the bounded agent contract.",
+        ) from error
     try:
         plan = agent_planner.plan(request)
         return AgentPlanAdapter.to_proposal(request, plan)

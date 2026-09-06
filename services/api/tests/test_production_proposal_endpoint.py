@@ -115,3 +115,31 @@ async def test_production_proposal_endpoint_does_not_fabricate_when_agent_engine
 
     assert response.status_code == 503
     assert response.json() == {"detail": "Production planning is temporarily unavailable."}
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "brief_update",
+    [
+        {"target_duration_seconds": 45},
+        {"occasion": "x" * 501},
+        {
+            "media": [
+                {"media_id": "data:video/mp4;base64,AAAA", "quality_score": 0.9, "duplicate_of": None}
+            ]
+        },
+    ],
+)
+async def test_configured_agent_rejects_request_outside_bounded_contract(
+    monkeypatch: pytest.MonkeyPatch, brief_update: dict
+) -> None:
+    planner = FakeAgentPlanner()
+    monkeypatch.setattr(main_module, "get_agent_planner", lambda: planner)
+    payload = proposal_payload()
+    payload["brief"].update(brief_update)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/production-proposals", json=payload)
+
+    assert response.status_code == 422
+    assert planner.requests == []
