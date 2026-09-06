@@ -27,7 +27,7 @@ class McpHttpToolCaller:
         auth_token: str,
         *,
         identity_token: str | None = None,
-        timeout: float = 5,
+        timeout: float = 30,
     ) -> None:
         if not endpoint or not auth_token:
             raise ValueError("MCP endpoint and auth token are required")
