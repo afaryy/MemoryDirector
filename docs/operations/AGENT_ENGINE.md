@@ -8,6 +8,14 @@ browser.
 ## Runtime boundary
 
 - Google Gemini is the only model provider.
+- Agent Engine runs in `australia-southeast2` (Melbourne), an officially
+  supported Agent Runtime location. The existing Cloud Run application and
+  media services remain in `australia-southeast1` (Sydney). The bounded planning
+  request and result cross this regional boundary, as does the fixed read-only
+  preference lookup between Agent Engine and the Sydney ClickHouse MCP service.
+  Deployment packages also move from the private Sydney staging bucket into
+  Google-managed Agent Engine build infrastructure. Private user media bytes
+  are never sent to Agent Engine or the MCP service.
 - `memory-director-agent@memory-director-505708.iam.gserviceaccount.com` is the
   no-key runtime identity. Terraform grants it Vertex AI use, access to the
   `clickhouse-credentials` secret container, and invocation of the private
@@ -33,7 +41,7 @@ browser.
   behind the separate approval and Consent Guardian gate.
 
 Reference: [ADK structured input and output](https://adk.dev/agents/llm-agents/#structure-data-input-and-output)
-and [Vertex AI Agent Engine deployment](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/agent-engine/deploy).
+and [supported Agent Runtime locations](https://docs.cloud.google.com/gemini-enterprise-agent-platform/resources/agent-locations).
 
 ## Deploy
 
