@@ -17,7 +17,7 @@ class ConsentEvent:
 
 
 class ConsentEventPublisher:
-    def __init__(self, endpoint: str, timeout: float = 5) -> None:
+    def __init__(self, endpoint: str, timeout: float = 30) -> None:
         self._endpoint = endpoint.rstrip("/") + "/events"
         self._timeout = timeout
 
