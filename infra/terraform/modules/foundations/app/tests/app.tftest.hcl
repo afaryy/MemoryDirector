@@ -4,7 +4,7 @@ run "creates_public_api_and_web_services_from_immutable_images" {
   command = plan
 
   variables {
-    project_id   = "memory-director-sandbox"
+    project_id   = "memory-director-sandbox-505708"
     region       = "australia-southeast1"
     name_prefix  = "memory-director-sandbox"
     api_image    = "example.invalid/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -14,7 +14,7 @@ run "creates_public_api_and_web_services_from_immutable_images" {
   }
 
   assert {
-    condition     = output.runtime_service_account_email == "memory-director-runtime@memory-director-sandbox.iam.gserviceaccount.com"
+    condition     = output.runtime_service_account_email == "memory-director-runtime@memory-director-sandbox-505708.iam.gserviceaccount.com"
     error_message = "Both app services must use the no-key runtime identity."
   }
 
@@ -31,6 +31,11 @@ run "creates_public_api_and_web_services_from_immutable_images" {
   assert {
     condition     = output.api_memory == "2Gi"
     error_message = "The API needs enough memory for ffmpeg media rendering."
+  }
+
+  assert {
+    condition     = output.api_media_bucket == "memory-director-sandbox-505708-media"
+    error_message = "The API must use the globally unique media bucket derived from the GCP project ID."
   }
 }
 
