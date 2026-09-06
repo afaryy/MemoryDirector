@@ -397,9 +397,11 @@ def test_deploy_uses_dedicated_identity_and_reproducible_runtime(
         "display_name": "Memory Director Film Planner",
         "description": "Creates safe reviewable 60-second memory-film plans.",
         "requirements": [
+            "cloudpickle==3.1.2",
             "google-adk==1.35.2",
             "google-cloud-aiplatform[adk,agent_engines]==1.148.1",
             "google-cloud-secret-manager==2.30.0",
+            "pydantic==2.13.4",
         ],
         "staging_bucket": "gs://demo-agent-staging",
         "service_account": "memory-director-agent@demo-project.iam.gserviceaccount.com",
