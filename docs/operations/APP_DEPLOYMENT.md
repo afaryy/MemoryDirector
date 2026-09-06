@@ -8,7 +8,8 @@ through the bootstrap WIF provider and the sandbox Terraform service account.
 
 ## Triggers
 
-- A successful `CI` workflow run on `main` deploys `all`.
+- A successful `Tests` workflow run on `main` deploys `all` only when the
+  sandbox `AUTO_DEPLOY_ENABLED` variable is `true`.
 - `Actions > Deploy application > Run workflow` supports `api`, `web`, or
   `all`.
 
@@ -24,6 +25,8 @@ after bootstrap has been applied:
 
 - `GCP_WORKLOAD_IDENTITY_PROVIDER`
 - `TERRAFORM_SERVICE_ACCOUNT`
+- `GCP_PROJECT_ID` (must be `memory-director-505708`)
+- `AUTO_DEPLOY_ENABLED` (`false` until automatic deployment is intentionally enabled)
 
 The workflow reads the project ID, region, Artifact Registry repository name,
 and Terraform state bucket from the checked-in non-sensitive JSON
@@ -40,7 +43,7 @@ component:
 
 - `GOOGLE_CLOUD_PROJECT`: the configured GCP project ID;
 - `GOOGLE_CLOUD_LOCATION`: the configured sandbox region;
-- `MEDIA_BUCKET`: the private platform bucket named `<resource_name>-media`;
+- `MEDIA_BUCKET`: the private platform bucket named `<project_id>-media`;
 - `GEMINI_MODEL`: optional model override, defaulting to `gemini-2.5-flash`.
 - `LYRIA_LOCATION`: optional Lyria 3 location override, defaulting to `global`.
 

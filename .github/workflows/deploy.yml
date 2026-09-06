@@ -24,13 +24,32 @@ env:
   STATE_PREFIX: memory-director/sandbox
 
 jobs:
-  deploy:
+  authorize:
     if: >-
-      vars.GCP_PROJECT_ID == 'memory-director-505708' &&
-      (
-        github.event_name == 'workflow_dispatch' ||
-        (vars.AUTO_DEPLOY_ENABLED == 'true' && github.event.workflow_run.conclusion == 'success')
-      )
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: sandbox
+    outputs:
+      authorized: ${{ steps.authorization.outputs.authorized }}
+    steps:
+      - id: authorization
+        name: Validate deployment authorization
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ vars.GCP_PROJECT_ID }}" = "memory-director-505708"
+          authorized=false
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            authorized=true
+          elif [ "${{ vars.AUTO_DEPLOY_ENABLED }}" = "true" ] && [ "${{ github.event.workflow_run.conclusion }}" = "success" ]; then
+            authorized=true
+          fi
+          echo "authorized=$authorized" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: authorize
+    if: needs.authorize.outputs.authorized == 'true'
     runs-on: ubuntu-latest
     environment: sandbox
     permissions:
