@@ -1,6 +1,8 @@
 """Runtime adapter for the deployed Memory Director Agent Engine."""
 
 import asyncio
+import hashlib
+import json
 import os
 import re
 from collections.abc import AsyncIterable, Mapping
@@ -16,7 +18,10 @@ RESOURCE_NAME_PATTERN = re.compile(
     r"locations/(?P<location>[a-z]+(?:-[a-z0-9]+)*)/"
     r"reasoningEngines/(?P<id>[0-9]+)$"
 )
-_RUNTIME_USER_ID = "memory-director-production-api"
+AGENT_TIMEOUT_SECONDS = 30.0
+MAX_AGENT_EVENTS = 128
+MAX_PLAN_CANDIDATES = 128
+MAX_PLAN_CANDIDATE_BYTES = 64 * 1024
 
 
 class AgentEnginesClient(Protocol):
@@ -81,10 +86,29 @@ class AgentEnginePlanner:
     ) -> AgentProductionPlan:
         candidates: list[object] = []
         try:
-            async for event in remote_agent.async_stream_query(
-                message=request.model_dump_json(), user_id=_RUNTIME_USER_ID
-            ):
-                candidates.extend(_plan_candidates(event))
+            async with asyncio.timeout(AGENT_TIMEOUT_SECONDS):
+                event_count = 0
+                async for event in remote_agent.async_stream_query(
+                    message=request.model_dump_json(),
+                    user_id=_privacy_safe_user_partition(request.user_id),
+                ):
+                    event_count += 1
+                    if event_count > MAX_AGENT_EVENTS:
+                        raise InvalidAgentPlanError(
+                            "Agent Engine response exceeded the event limit."
+                        )
+                    for candidate in _plan_candidates(event):
+                        if len(candidates) >= MAX_PLAN_CANDIDATES:
+                            raise InvalidAgentPlanError(
+                                "Agent Engine response exceeded the candidate limit."
+                            )
+                        if _candidate_size_bytes(candidate) > MAX_PLAN_CANDIDATE_BYTES:
+                            raise InvalidAgentPlanError(
+                                "Agent Engine response exceeded the payload limit."
+                            )
+                        candidates.append(candidate)
+        except InvalidAgentPlanError:
+            raise
         except Exception as error:
             raise AgentPlannerUnavailable("Agent Engine planning is unavailable.") from error
         for candidate in reversed(candidates):
@@ -125,3 +149,16 @@ def _parse_plan(candidate: object) -> AgentProductionPlan:
     if isinstance(candidate, Mapping):
         return AgentProductionPlan.model_validate(dict(candidate))
     raise TypeError("Agent Engine plan response was not JSON.")
+
+
+def _privacy_safe_user_partition(user_id: str) -> str:
+    digest = hashlib.sha256(f"memory-director:{user_id}".encode()).hexdigest()
+    return f"md-{digest[:32]}"
+
+
+def _candidate_size_bytes(candidate: object) -> int:
+    if isinstance(candidate, str):
+        return len(candidate.encode())
+    return len(
+        json.dumps(candidate, separators=(",", ":"), ensure_ascii=False).encode()
+    )

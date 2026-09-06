@@ -21,8 +21,13 @@ browser.
   value. The runtime reads the MCP bearer token and obtains a short-lived Cloud
   Run identity token only when the tool runs.
 - The API validates known media IDs, rejects private `gs://` references and
-  requires selected segments to total exactly 60 seconds before accepting a
-  plan. The response schema is included in the instruction and enforced by the
+  Google Storage HTTPS URLs, rejects URI-shaped media identifiers, and requires
+  selected segments to total exactly 60 seconds before accepting a plan. Music
+  direction is a closed application-library enum shared with the preference
+  tool. Agent Engine receives a deterministic hashed user partition rather than
+  the original user identifier, and API calls are bounded by a 30-second stream
+  timeout, 128 events/candidates, and a 64 KiB candidate limit. The response
+  schema is included in the instruction and enforced by the
   API instead of ADK `output_schema`: Google documents that combining
   `output_schema` and tools is not reliable for Gemini 2.5. Export remains
   behind the separate approval and Consent Guardian gate.

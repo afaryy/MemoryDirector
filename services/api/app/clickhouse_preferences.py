@@ -3,6 +3,7 @@ from typing import Protocol
 
 from google.cloud import secretmanager
 
+from app.agent_planner import APPLICATION_MUSIC_DIRECTIONS
 from app.preferences import ClickHouseMcpPreferenceRepository, McpHttpToolCaller, McpToolCaller
 
 
@@ -27,8 +28,22 @@ class ClickHousePreferenceTool:
             return None
         if recommendation is None:
             return None
+        stored_direction = recommendation.music_direction.strip().casefold()
+        while stored_direction.endswith(" instrumental"):
+            stored_direction = stored_direction.removesuffix(" instrumental").rstrip()
+        music_direction = next(
+            (
+                candidate
+                for candidate in APPLICATION_MUSIC_DIRECTIONS
+                if stored_direction
+                == candidate.removesuffix(" instrumental").casefold()
+            ),
+            None,
+        )
+        if music_direction is None:
+            return None
         return {
-            "music_direction": recommendation.music_direction.removesuffix(" instrumental"),
+            "music_direction": music_direction,
             "evidence_count": recommendation.evidence_count,
         }
 

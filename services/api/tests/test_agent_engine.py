@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 import cloudpickle
@@ -75,6 +76,27 @@ class PayloadRemoteAgent:
         yield self._payload
 
 
+class RecordingRemoteAgent:
+    def __init__(self) -> None:
+        self.user_ids: list[str] = []
+
+    async def async_stream_query(self, *, message: str, user_id: str):
+        self.user_ids.append(user_id)
+        yield {"content": {"parts": [{"text": json.dumps(valid_plan_payload())}]}}
+
+
+class SlowRemoteAgent:
+    async def async_stream_query(self, *, message: str, user_id: str):
+        await asyncio.sleep(1)
+        yield {"content": {"parts": [{"text": json.dumps(valid_plan_payload())}]}}
+
+
+class ExcessiveEventsRemoteAgent:
+    async def async_stream_query(self, *, message: str, user_id: str):
+        for _ in range(129):
+            yield {"text": "{}"}
+
+
 def planning_request() -> AgentPlanningRequest:
     return AgentPlanningRequest(
         occasion="A sunny afternoon",
@@ -145,6 +167,66 @@ def test_agent_engine_planner_parses_closed_production_plan() -> None:
 
     assert isinstance(plan, AgentProductionPlan)
     assert plan.title == "A sunny afternoon"
+
+
+def test_agent_engine_uses_distinct_privacy_safe_user_partitions() -> None:
+    remote_agent = RecordingRemoteAgent()
+    planner = AgentEnginePlanner(
+        resource_name="projects/demo-project/locations/us-central1/reasoningEngines/123",
+        client=RecordingAgentEngineClient(RecordingAgentEngines(remote_agent=remote_agent)),
+    )
+
+    planner.plan(planning_request().model_copy(update={"user_id": "alice@example.test"}))
+    planner.plan(planning_request().model_copy(update={"user_id": "bob@example.test"}))
+
+    assert len(remote_agent.user_ids) == 2
+    assert remote_agent.user_ids[0] != remote_agent.user_ids[1]
+    assert "alice" not in remote_agent.user_ids[0]
+    assert "bob" not in remote_agent.user_ids[1]
+
+
+def test_agent_engine_stream_has_an_explicit_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(agent_engine_module, "AGENT_TIMEOUT_SECONDS", 0.001)
+    planner = AgentEnginePlanner(
+        resource_name="projects/demo-project/locations/us-central1/reasoningEngines/123",
+        client=RecordingAgentEngineClient(
+            RecordingAgentEngines(remote_agent=SlowRemoteAgent())
+        ),
+    )
+
+    with pytest.raises(AgentPlannerUnavailable, match="unavailable"):
+        planner.plan(planning_request())
+
+
+def test_agent_engine_rejects_an_excessive_event_stream() -> None:
+    planner = AgentEnginePlanner(
+        resource_name="projects/demo-project/locations/us-central1/reasoningEngines/123",
+        client=RecordingAgentEngineClient(
+            RecordingAgentEngines(remote_agent=ExcessiveEventsRemoteAgent())
+        ),
+    )
+
+    with pytest.raises(InvalidAgentPlanError, match="event limit"):
+        planner.plan(planning_request())
+
+
+def test_agent_engine_rejects_an_oversized_plan_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(agent_engine_module, "MAX_PLAN_CANDIDATE_BYTES", 32)
+    planner = AgentEnginePlanner(
+        resource_name="projects/demo-project/locations/us-central1/reasoningEngines/123",
+        client=RecordingAgentEngineClient(
+            RecordingAgentEngines(
+                remote_agent=PayloadRemoteAgent({"text": json.dumps(valid_plan_payload())})
+            )
+        ),
+    )
+
+    with pytest.raises(InvalidAgentPlanError, match="payload limit"):
+        planner.plan(planning_request())
 
 
 def test_agent_engine_lookup_failure_becomes_planner_unavailable() -> None:
@@ -241,7 +323,7 @@ def test_lazy_preference_tool_fetches_secret_only_when_called(
     assert agent.tools[0].__self__ is tool
 
     assert tool.lookup_approved_music_preference("user-1", "A sunny afternoon") == {
-        "music_direction": "warm acoustic",
+        "music_direction": "warm acoustic instrumental",
         "evidence_count": 2,
     }
     assert accessed_names == ["projects/demo-project/secrets/clickhouse-credentials/versions/latest"]

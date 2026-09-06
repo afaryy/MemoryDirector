@@ -32,7 +32,10 @@ def test_tool_uses_only_fixed_read_only_query_through_mcp() -> None:
         "user'7", "family ' lunch"
     )
 
-    assert result == {"music_direction": "warm acoustic", "evidence_count": 2}
+    assert result == {
+        "music_direction": "warm acoustic instrumental",
+        "evidence_count": 2,
+    }
     assert caller.calls[0].name == "run_query"
     query = " ".join(caller.calls[0].arguments["query"].split())
     assert re.match(r"SELECT value, count\(\) AS evidence_count FROM creative_preferences", query)
@@ -79,7 +82,7 @@ def test_tool_returns_none_for_malformed_mcp_response() -> None:
 
 def test_tool_returns_only_normalized_public_fields() -> None:
     caller = RecordingMcpToolCaller(
-        '{"rows":[{"value":"gentle festive","evidence_count":"3",'
+        '{"rows":[{"value":"GENTLE FESTIVE instrumental","evidence_count":"3",'
         '"user_id":"user-7","password":"do-not-return"}]}'
     )
 
@@ -87,4 +90,20 @@ def test_tool_returns_only_normalized_public_fields() -> None:
         "user-7", "family lunch"
     )
 
-    assert result == {"music_direction": "gentle festive", "evidence_count": 3}
+    assert result == {
+        "music_direction": "Gentle festive instrumental",
+        "evidence_count": 3,
+    }
+
+
+def test_tool_rejects_preference_outside_the_application_music_library() -> None:
+    caller = RecordingMcpToolCaller(
+        '[{"value":"copyrighted chart song","evidence_count":4}]'
+    )
+
+    assert (
+        ClickHousePreferenceTool(caller).lookup_approved_music_preference(
+            "user-7", "family lunch"
+        )
+        is None
+    )

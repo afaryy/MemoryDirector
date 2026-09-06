@@ -1,6 +1,8 @@
 from decimal import Decimal
+import re
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
 from app.models import (
     CurationPlan,
@@ -12,19 +14,53 @@ from app.models import (
 )
 
 
+MusicDirectionName = Literal[
+    "warm acoustic instrumental",
+    "Gentle festive instrumental",
+    "Warm traditional-inspired instrumental",
+    "Bright calm instrumental",
+]
+APPLICATION_MUSIC_DIRECTIONS: tuple[MusicDirectionName, ...] = (
+    "warm acoustic instrumental",
+    "Gentle festive instrumental",
+    "Warm traditional-inspired instrumental",
+    "Bright calm instrumental",
+)
+_URI_SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*://", re.IGNORECASE)
+_PRIVATE_GCS_HTTPS_URI = re.compile(
+    r"https?://(?:storage\.googleapis\.com|storage\.cloud\.google\.com|"
+    r"[^/?#]+\.storage\.googleapis\.com)(?:[/?#]|$)",
+    re.IGNORECASE,
+)
+
+
+def _opaque_media_id(value: str) -> str:
+    if _URI_SCHEME.match(value):
+        raise ValueError("media ID must be an opaque identifier, not a URI")
+    return value
+
+
+OpaqueMediaId = Annotated[
+    str,
+    Field(min_length=1, max_length=128),
+    AfterValidator(_opaque_media_id),
+]
+ShortText = Annotated[str, Field(min_length=1, max_length=80)]
+
+
 class PlannerMedia(BaseModel):
-    media_id: str
+    media_id: OpaqueMediaId
     quality_score: float = Field(ge=0, le=1)
-    duplicate_of: str | None
+    duplicate_of: OpaqueMediaId | None
 
 
 class AgentPlanningRequest(BaseModel):
     user_id: str = Field(default="demo-user", min_length=1, max_length=128)
-    occasion: str
-    target_duration_seconds: int
-    moods: list[str]
-    music_constraints: list[str]
-    media: list[PlannerMedia]
+    occasion: str = Field(min_length=1, max_length=500)
+    target_duration_seconds: Literal[60]
+    moods: list[ShortText] = Field(max_length=8)
+    music_constraints: list[ShortText] = Field(max_length=8)
+    media: list[PlannerMedia] = Field(max_length=100)
 
     @classmethod
     def from_brief(
@@ -43,7 +79,7 @@ class AgentPlanningRequest(BaseModel):
 class SelectedSegment(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    media_id: str
+    media_id: OpaqueMediaId
     trim_start_seconds: float = Field(ge=0)
     trim_end_seconds: float = Field(gt=0)
 
@@ -61,18 +97,20 @@ class SelectedSegment(BaseModel):
 class AgentProductionPlan(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    title: str
-    caption: str
-    music_direction: str
-    selected_segments: list[SelectedSegment]
-    held_back_media_ids: list[str]
-    user_explanation: str
+    title: str = Field(min_length=1, max_length=160)
+    caption: str = Field(max_length=500)
+    music_direction: MusicDirectionName
+    selected_segments: list[SelectedSegment] = Field(max_length=100)
+    held_back_media_ids: list[OpaqueMediaId] = Field(max_length=100)
+    user_explanation: str = Field(max_length=1000)
 
     @model_validator(mode="after")
     def reject_private_uri_leakage(self) -> "AgentProductionPlan":
         def contains_private_uri(value: object) -> bool:
             if isinstance(value, str):
-                return "gs://" in value.lower()
+                return "gs://" in value.lower() or bool(
+                    _PRIVATE_GCS_HTTPS_URI.search(value)
+                )
             if isinstance(value, list):
                 return any(contains_private_uri(item) for item in value)
             if isinstance(value, dict):
@@ -98,12 +136,7 @@ def validate_agent_plan(
     if total_duration != Decimal("60"):
         raise ValueError("agent plan must total exactly 60 seconds")
 
-    if plan.music_direction not in {
-        "warm acoustic instrumental",
-        "Gentle festive instrumental",
-        "Warm traditional-inspired instrumental",
-        "Bright calm instrumental",
-    }:
+    if plan.music_direction not in APPLICATION_MUSIC_DIRECTIONS:
         raise ValueError("music direction must be from the application library")
 
     selected_ids = {segment.media_id for segment in plan.selected_segments}

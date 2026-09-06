@@ -95,10 +95,85 @@ def test_rejects_uppercase_private_google_storage_uri_in_agent_text() -> None:
 
 
 def test_rejects_music_track_outside_library() -> None:
+    with pytest.raises(ValueError, match="music_direction"):
+        AgentProductionPlan.model_validate(
+            {**valid_plan().model_dump(), "music_direction": "copyrighted-song-identifier"}
+        )
+
+
+def test_plan_boundary_rechecks_music_library_after_model_construction() -> None:
     request = AgentPlanningRequest.from_brief(sample_brief())
-    plan = valid_plan().model_copy(update={"music_direction": "copyrighted-song-identifier"})
+    bypassed_model_validation = valid_plan().model_copy(
+        update={"music_direction": "copyrighted-song-identifier"}
+    )
+
     with pytest.raises(ValueError, match="music direction"):
-        validate_agent_plan(request, plan)
+        validate_agent_plan(request, bypassed_model_validation)
+
+
+@pytest.mark.parametrize(
+    "private_uri",
+    [
+        "https://storage.googleapis.com/private-bucket/clip.mp4",
+        "https://storage.cloud.google.com/private-bucket/clip.mp4",
+        "https://private-bucket.storage.googleapis.com/clip.mp4?X-Goog-Signature=secret",
+    ],
+)
+def test_rejects_private_google_storage_https_uri_in_agent_output(
+    private_uri: str,
+) -> None:
+    with pytest.raises(ValueError, match="private URI"):
+        AgentProductionPlan.model_validate(
+            {**valid_plan().model_dump(), "caption": private_uri}
+        )
+
+
+@pytest.mark.parametrize(
+    "media_id",
+    [
+        "gs://private-bucket/clip.mp4",
+        "https://storage.googleapis.com/private-bucket/clip.mp4",
+        "https://example.test/clip.mp4",
+    ],
+)
+def test_rejects_uri_shaped_media_identifier(media_id: str) -> None:
+    with pytest.raises(ValueError, match="media ID"):
+        PlannerMedia(media_id=media_id, quality_score=0.9, duplicate_of=None)
+
+
+def test_agent_request_rejects_unbounded_text_and_media_lists() -> None:
+    with pytest.raises(ValueError):
+        AgentPlanningRequest(
+            user_id="user-1",
+            occasion="x" * 501,
+            target_duration_seconds=60,
+            moods=["warm"],
+            music_constraints=[],
+            media=[],
+        )
+    with pytest.raises(ValueError):
+        AgentPlanningRequest(
+            user_id="user-1",
+            occasion="A day",
+            target_duration_seconds=60,
+            moods=["warm"] * 9,
+            music_constraints=[],
+            media=[],
+        )
+    with pytest.raises(ValueError):
+        AgentPlanningRequest(
+            user_id="user-1",
+            occasion="A day",
+            target_duration_seconds=60,
+            moods=["warm"],
+            music_constraints=[],
+            media=[
+                PlannerMedia(
+                    media_id=f"clip-{index}", quality_score=0.9, duplicate_of=None
+                )
+                for index in range(101)
+            ],
+        )
 
 
 def test_segment_requires_non_negative_start_and_positive_end() -> None:
