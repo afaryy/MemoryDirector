@@ -3,6 +3,10 @@ terraform {
   required_providers { google = { source = "hashicorp/google", version = "~> 6.0" } }
 }
 
+locals {
+  media_bucket_name = "${var.project_id}-media"
+}
+
 module "api" {
   count                 = contains(["api", "all"], var.service) ? 1 : 0
   source                = "../../base/cloud_run_service"
@@ -19,7 +23,7 @@ module "api" {
     WEB_ORIGINS           = "*"
     GOOGLE_CLOUD_PROJECT  = var.project_id
     GOOGLE_CLOUD_LOCATION = var.region
-    MEDIA_BUCKET          = "${var.name_prefix}-media"
+    MEDIA_BUCKET          = local.media_bucket_name
   }, var.mcp_endpoint == null ? {} : { CLICKHOUSE_MCP_ENDPOINT = var.mcp_endpoint }, var.consent_event_writer_endpoint == null ? {} : { CONSENT_EVENT_WRITER_ENDPOINT = var.consent_event_writer_endpoint })
   secret_environment_variables = var.mcp_endpoint == null ? {} : {
     CLICKHOUSE_CREDENTIALS_JSON = {

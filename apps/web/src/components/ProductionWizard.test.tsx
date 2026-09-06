@@ -79,6 +79,10 @@ describe("ProductionWizard", () => {
       })
       .mockResolvedValueOnce({
         ok: true,
+        json: async () => ({ media_id: "sha256:garden", status: "selected", reason: "Chosen for this film" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
         json: async () => ({ title: "Garden afternoon", caption: "A warm moment together.", music_direction: "gentle acoustic" }),
       })
       .mockResolvedValueOnce({ ok: true })
@@ -101,6 +105,9 @@ describe("ProductionWizard", () => {
 
     const exportCall = fetchMock.mock.calls.find(([url]) => url === "http://localhost:8000/renders/export");
     expect(exportCall?.[1]?.body.get("media_ids")).toBe("sha256:garden");
+    const selectionCall = fetchMock.mock.calls.find(([url]) => url === "http://localhost:8000/media/sha256:garden/decision");
+    expect(selectionCall?.[1]).toMatchObject({ method: "POST" });
+    expect(JSON.parse(selectionCall?.[1]?.body as string)).toEqual({ status: "selected", reason: "Chosen for this film" });
   });
 
   it("keeps the request and selected media when generation fails and offers Try again", async () => {

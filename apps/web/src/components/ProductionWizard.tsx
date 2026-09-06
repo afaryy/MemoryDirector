@@ -139,6 +139,17 @@ export function ProductionWizard() {
     );
     if (responses.some((response) => !response.ok)) throw new Error("We could not use those photos and videos.");
     const reviews = (await Promise.all(responses.map((response) => response.json()))) as MediaReview[];
+    if (generation !== generationRef.current || !consentRef.current) return null;
+    const selectionResponses = await Promise.all(
+      reviews.map((review) =>
+        fetch(`${apiBaseUrl}/media/${review.media_id}/decision`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "selected", reason: "Chosen for this film" }),
+        }),
+      ),
+    );
+    if (selectionResponses.some((response) => !response.ok)) throw new Error("We could not select those photos and videos.");
     return generation === generationRef.current ? reviews : null;
   }
 

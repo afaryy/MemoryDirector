@@ -1,5 +1,6 @@
 output "api_uri" { value = try(module.api[0].uri, null) }
 output "api_memory" { value = try(module.api[0].memory, null) }
+output "api_media_bucket" { value = local.media_bucket_name }
 output "api_ingress" { value = try(module.api[0].ingress, null) }
 output "web_uri" { value = try(module.web[0].uri, null) }
 output "web_ingress" { value = try(module.web[0].ingress, null) }
