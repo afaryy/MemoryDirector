@@ -19,3 +19,4 @@ dist/
 coverage/
 *.tsbuildinfo
 __private/
+.superdesign/tmp/
