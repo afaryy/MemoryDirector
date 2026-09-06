@@ -68,9 +68,9 @@ h2, h3, h4, p { margin-top: 0; }
 .wizard__request textarea::placeholder { color: #8a8f82; }
 .wizard__input-actions { position: absolute; right: .75rem; bottom: .75rem; display: flex; align-items: center; gap: .5rem; }
 .button { border: 0; font-weight: 700; }
-.button--clear { display: flex; min-height: 2.25rem; padding: 0 .75rem; align-items: center; gap: .25rem; border: 1px solid var(--clay); border-radius: 999px; background: white; color: var(--moss); font-size: .75rem; }
+.button--clear { display: flex; min-height: 2.75rem; padding: 0 .75rem; align-items: center; gap: .25rem; border: 1px solid var(--clay); border-radius: 999px; background: white; color: var(--moss); font-size: .75rem; }
 .button--clear svg { width: 1rem; height: 1rem; }
-.button--voice { display: grid; width: 2.25rem; height: 2.25rem; padding: 0; place-items: center; border-radius: 50%; background: var(--moss); color: white; }
+.button--voice { display: grid; width: 2.75rem; height: 2.75rem; padding: 0; place-items: center; border-radius: 50%; background: var(--moss); color: white; }
 .button--voice svg { width: 1.125rem; height: 1.125rem; }
 .button--voice.is-listening { background: var(--terracotta); box-shadow: 0 0 0 5px rgba(198, 107, 61, .18); }
 .wizard__request-help { margin: .75rem 0 0; color: var(--muted); font-size: .75rem; line-height: 1.4; }
