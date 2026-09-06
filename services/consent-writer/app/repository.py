@@ -21,6 +21,18 @@ class ClickHouseEventRepository:
         )
 
 
+def _credential_bool(credentials: dict[str, Any], key: str, default: bool) -> bool:
+    value = credentials.get(key, str(default).lower())
+    if isinstance(value, bool):
+        return value
+    normalized = str(value).strip().lower()
+    if normalized == "true":
+        return True
+    if normalized == "false":
+        return False
+    raise ValueError(f"{key} must be true or false")
+
+
 def repository_from_credentials(
     credentials_json: str,
     *,
@@ -29,11 +41,15 @@ def repository_from_credentials(
     """Create the narrowly scoped ClickHouse writer from Secret Manager payload."""
     try:
         credentials: dict[str, Any] = json.loads(credentials_json)
-        host = str(credentials["host"])
-        port = int(credentials.get("port", 8443))
-        username = str(credentials["username"])
-        password = str(credentials["password"])
-        database = str(credentials.get("database", "default"))
+        host = str(credentials["CLICKHOUSE_HOST"])
+        port = int(credentials.get("CLICKHOUSE_PORT", 8443))
+        username = str(credentials["CLICKHOUSE_USER"])
+        password = str(credentials["CLICKHOUSE_PASSWORD"])
+        database = str(credentials.get("CLICKHOUSE_DATABASE", "default"))
+        secure = _credential_bool(credentials, "CLICKHOUSE_SECURE", True)
+        verify = _credential_bool(credentials, "CLICKHOUSE_VERIFY", True)
+        if not all(value.strip() for value in (host, username, password, database)):
+            raise ValueError("empty ClickHouse credential")
     except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
         raise ValueError("ClickHouse event writer credentials are invalid") from error
 
@@ -49,6 +65,7 @@ def repository_from_credentials(
             username=username,
             password=password,
             database=database,
-            secure=True,
+            secure=secure,
+            verify=verify,
         )
     )

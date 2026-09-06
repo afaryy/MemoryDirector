@@ -1,7 +1,11 @@
 import json
+import logging
 import os
 from dataclasses import dataclass
 from urllib.request import Request, urlopen
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -20,8 +24,9 @@ class ConsentEventPublisher:
     def publish(self, event: ConsentEvent) -> None:
         headers = {"Content-Type": "application/json"}
         identity_token = self._identity_token()
-        if identity_token:
-            headers["Authorization"] = f"Bearer {identity_token}"
+        if not identity_token:
+            raise RuntimeError("consent event writer identity token is unavailable")
+        headers["Authorization"] = f"Bearer {identity_token}"
         request = Request(
             self._endpoint,
             data=json.dumps(event.__dict__).encode(),
@@ -38,7 +43,8 @@ class ConsentEventPublisher:
             from google.oauth2 import id_token
 
             return id_token.fetch_id_token(GoogleAuthRequest(), self._endpoint.removesuffix("/events"))
-        except Exception:
+        except Exception as error:
+            logger.warning("Consent writer identity token unavailable: %s", type(error).__name__)
             return None
 
 

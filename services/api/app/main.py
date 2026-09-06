@@ -222,6 +222,7 @@ def decide_media(media_id: str, payload: MediaDecisionPayload) -> MediaDecisionS
             publisher.publish(ConsentEvent(session_id=media_id, media_id=media_id, event_type="media_selected"))
         return saved
     except Exception as error:
+        logger.warning("Media decision or consent publication failed: %s", type(error).__name__)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Media decision is temporarily unavailable.") from error
 
 

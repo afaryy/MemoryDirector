@@ -27,7 +27,7 @@ def test_repository_connects_using_the_writer_credentials_only() -> None:
     client = RecordingClient()
 
     repository = repository_from_credentials(
-        '{"host":"clickhouse.example","port":8443,"username":"writer","password":"secret","database":"default"}',
+        '{"CLICKHOUSE_HOST":"clickhouse.example","CLICKHOUSE_PORT":"8443","CLICKHOUSE_USER":"writer","CLICKHOUSE_PASSWORD":"secret","CLICKHOUSE_DATABASE":"memory_director","CLICKHOUSE_SECURE":"true","CLICKHOUSE_VERIFY":"true"}',
         client_factory=lambda **kwargs: received.update(kwargs) or client,
     )
 
@@ -38,7 +38,20 @@ def test_repository_connects_using_the_writer_credentials_only() -> None:
         "port": 8443,
         "username": "writer",
         "password": "secret",
-        "database": "default",
+        "database": "memory_director",
         "secure": True,
+        "verify": True,
     }
     assert client.calls
+
+
+def test_repository_rejects_the_obsolete_lowercase_secret_contract() -> None:
+    try:
+        repository_from_credentials(
+            '{"host":"clickhouse.example","username":"writer","password":"secret"}',
+            client_factory=lambda **kwargs: RecordingClient(),
+        )
+    except ValueError as error:
+        assert str(error) == "ClickHouse event writer credentials are invalid"
+    else:
+        raise AssertionError("obsolete lowercase credentials must not be accepted")
