@@ -2,7 +2,7 @@
 
 import { unzipSync } from "fflate";
 import { CircleCheck, Images, Mic, Play, Sparkles, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Storyboard = {
   title: string;
@@ -30,6 +30,56 @@ type SpeechRecognitionWindow = Window & {
 };
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+const mediaAnalysisConcurrency = 2;
+const mediaAnalysisAttempts = 2;
+const mediaAnalysisRetryDelayMs = 250;
+
+function wait(milliseconds: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+async function mapWithConcurrency<Item, Result>(
+  items: Item[],
+  concurrency: number,
+  operation: (item: Item, index: number) => Promise<Result>,
+  stopActiveOperations?: () => void,
+): Promise<Result[]> {
+  const results = new Array<Result>(items.length);
+  let nextIndex = 0;
+  let firstError: unknown;
+  async function worker() {
+    while (nextIndex < items.length && firstError === undefined) {
+      const index = nextIndex++;
+      try {
+        results[index] = await operation(items[index], index);
+      } catch (error) {
+        if (firstError === undefined) {
+          firstError = error;
+          stopActiveOperations?.();
+        }
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+  if (firstError !== undefined) throw firstError;
+  return results;
+}
+
+async function analyzeMediaFile(file: File, signal: AbortSignal): Promise<MediaReview> {
+  for (let attempt = 1; attempt <= mediaAnalysisAttempts; attempt += 1) {
+    const formData = new FormData();
+    formData.append("consent", "true");
+    formData.append("media", file);
+    const response = await fetch(`${apiBaseUrl}/media/analyze`, { method: "POST", body: formData, signal });
+    if (response.ok) return (await response.json()) as MediaReview;
+    const isTransient = typeof response.status === "number" && response.status >= 500 && response.status <= 599;
+    if (!isTransient || attempt === mediaAnalysisAttempts) {
+      throw new Error("We could not use those photos and videos.");
+    }
+    await wait(mediaAnalysisRetryDelayMs);
+  }
+  throw new Error("We could not use those photos and videos.");
+}
 
 async function extractPreview(blob: Blob, title: string) {
   const archive = unzipSync(new Uint8Array(await blob.arrayBuffer()));
@@ -54,10 +104,34 @@ export function ProductionWizard() {
   const [voiceError, setVoiceError] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [selectionNotice, setSelectionNotice] = useState("");
+  const [progressMessage, setProgressMessage] = useState("");
   const generationRef = useRef(0);
   const consentRef = useRef(false);
+  const activeRequestRef = useRef<AbortController | null>(null);
+  const productionStateRef = useRef<ProductionState>("ready");
 
   const canMakeFilm = memoryRequest.trim().length > 0 && mediaFiles.length > 0 && hasMediaPermission && productionState !== "preparing";
+  const isPreparing = productionState === "preparing";
+
+  useEffect(
+    () => () => {
+      generationRef.current += 1;
+      activeRequestRef.current?.abort();
+      activeRequestRef.current = null;
+    },
+    [],
+  );
+
+  function invalidateGeneration() {
+    generationRef.current += 1;
+    activeRequestRef.current?.abort();
+    activeRequestRef.current = null;
+  }
+
+  function changeProductionState(nextState: ProductionState) {
+    productionStateRef.current = nextState;
+    setProductionState(nextState);
+  }
 
   function clearPreview() {
     setPreviewUrl((current) => {
@@ -68,16 +142,16 @@ export function ProductionWizard() {
   }
 
   function returnToReady() {
-    generationRef.current += 1;
+    invalidateGeneration();
     clearPreview();
     setStoryboard(null);
     setErrorMessage("");
-    setProductionState("ready");
+    changeProductionState("ready");
   }
 
   function updateRequest(value: string) {
     setMemoryRequest(value);
-    if (productionState !== "ready") returnToReady();
+    if (productionStateRef.current !== "ready" || activeRequestRef.current) returnToReady();
   }
 
   function selectMedia(files: FileList | null) {
@@ -86,7 +160,7 @@ export function ProductionWizard() {
       setSelectionNotice("Choose up to 15 photos and videos for one film.");
       return;
     }
-    generationRef.current += 1;
+    invalidateGeneration();
     clearPreview();
     setMediaFiles(nextFiles);
     consentRef.current = false;
@@ -94,18 +168,18 @@ export function ProductionWizard() {
     setStoryboard(null);
     setErrorMessage("");
     setSelectionNotice("");
-    setProductionState("ready");
+    changeProductionState("ready");
   }
 
   function removeMediaFile(index: number) {
-    generationRef.current += 1;
+    invalidateGeneration();
     clearPreview();
     setMediaFiles((current) => current.filter((_, currentIndex) => currentIndex !== index));
     consentRef.current = false;
     setHasMediaPermission(false);
     setStoryboard(null);
     setErrorMessage("");
-    setProductionState("ready");
+    changeProductionState("ready");
   }
 
   function startVoiceRequest() {
@@ -130,27 +204,40 @@ export function ProductionWizard() {
     }
   }
 
-  async function analyzeMedia(generation: number): Promise<MediaReview[] | null> {
+  async function analyzeMedia(
+    generation: number,
+    signal: AbortSignal,
+    stopActiveOperations: () => void,
+  ): Promise<MediaReview[] | null> {
     if (!consentRef.current) throw new Error("Permission is required before making a film.");
-    const responses = await Promise.all(
-      mediaFiles.map(async (file) => {
-        const formData = new FormData();
-        formData.append("consent", "true");
-        formData.append("media", file);
-        return fetch(`${apiBaseUrl}/media/analyze`, { method: "POST", body: formData });
-      }),
-    );
-    if (responses.some((response) => !response.ok)) throw new Error("We could not use those photos and videos.");
-    const reviews = (await Promise.all(responses.map((response) => response.json()))) as MediaReview[];
+    let completed = 0;
+    const reviews = await mapWithConcurrency(mediaFiles, mediaAnalysisConcurrency, async (file) => {
+      if (generation !== generationRef.current || !consentRef.current || signal.aborted) {
+        throw new DOMException("Generation cancelled", "AbortError");
+      }
+      const review = await analyzeMediaFile(file, signal);
+      completed += 1;
+      if (generation === generationRef.current) {
+        setProgressMessage(`Checked ${completed} of ${mediaFiles.length} moments…`);
+      }
+      return review;
+    }, stopActiveOperations);
     if (generation !== generationRef.current || !consentRef.current) return null;
-    const selectionResponses = await Promise.all(
-      reviews.map((review) =>
-        fetch(`${apiBaseUrl}/media/${review.media_id}/decision`, {
+    const selectionResponses = await mapWithConcurrency(
+      reviews,
+      mediaAnalysisConcurrency,
+      (review) => {
+        if (generation !== generationRef.current || !consentRef.current || signal.aborted) {
+          throw new DOMException("Generation cancelled", "AbortError");
+        }
+        return fetch(`${apiBaseUrl}/media/${review.media_id}/decision`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: "selected", reason: "Chosen for this film" }),
-        }),
-      ),
+          signal,
+        });
+      },
+      stopActiveOperations,
     );
     if (selectionResponses.some((response) => !response.ok)) throw new Error("We could not select those photos and videos.");
     return generation === generationRef.current ? reviews : null;
@@ -158,18 +245,24 @@ export function ProductionWizard() {
 
   async function makeFilm() {
     if (!canMakeFilm) return;
+    activeRequestRef.current?.abort();
     const generation = ++generationRef.current;
+    const requestController = new AbortController();
+    activeRequestRef.current = requestController;
     clearPreview();
     setStoryboard(null);
     setErrorMessage("");
-    setProductionState("preparing");
+    setProgressMessage(`Checking ${mediaFiles.length} moments…`);
+    changeProductionState("preparing");
 
     try {
-      const reviews = await analyzeMedia(generation);
+      const reviews = await analyzeMedia(generation, requestController.signal, () => requestController.abort());
       if (!reviews || !consentRef.current || generation !== generationRef.current) return;
+      setProgressMessage("Choosing the best moments…");
       const storyboardResponse = await fetch(`${apiBaseUrl}/storyboards`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: requestController.signal,
         body: JSON.stringify({
           occasion: memoryRequest,
           moods: ["warm", "cheerful"],
@@ -184,10 +277,12 @@ export function ProductionWizard() {
       const renderResponse = await fetch(`${apiBaseUrl}/renders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: requestController.signal,
         body: JSON.stringify({ storyboard: nextStoryboard, approved: true }),
       });
       if (!renderResponse.ok) throw new Error("We could not make your film.");
 
+      setProgressMessage("Making your video and sound…");
       const exportForm = new FormData();
       exportForm.append("title", nextStoryboard.title);
       exportForm.append("caption", nextStoryboard.caption);
@@ -198,7 +293,11 @@ export function ProductionWizard() {
         [memoryRequest, nextStoryboard.title, nextStoryboard.caption].forEach((detail) => exportForm.append("memory_details", detail));
         exportForm.append("requested_style", nextStoryboard.music_direction ?? "warm acoustic");
       }
-      const exportResponse = await fetch(`${apiBaseUrl}/renders/export`, { method: "POST", body: exportForm });
+      const exportResponse = await fetch(`${apiBaseUrl}/renders/export`, {
+        method: "POST",
+        body: exportForm,
+        signal: requestController.signal,
+      });
       if (!exportResponse.ok) {
         const errorBody = (await exportResponse.json().catch(() => null)) as { detail?: unknown } | null;
         const detail = typeof errorBody?.detail === "string" ? errorBody.detail.trim() : "";
@@ -213,13 +312,17 @@ export function ProductionWizard() {
       setStoryboard(nextStoryboard);
       setPreviewFile(preview.file);
       setPreviewUrl(preview.url);
-      setProductionState("preview");
+      if (activeRequestRef.current === requestController) activeRequestRef.current = null;
+      changeProductionState("preview");
     } catch (error) {
+      requestController.abort();
       if (generation === generationRef.current) {
+        generationRef.current += 1;
+        if (activeRequestRef.current === requestController) activeRequestRef.current = null;
         setErrorMessage(
           error instanceof UserFacingExportError ? error.message : "We could not make your film. Please try again.",
         );
-        setProductionState("error");
+        changeProductionState("error");
       }
     }
   }
@@ -235,7 +338,7 @@ export function ProductionWizard() {
         link.download = previewFile.name;
         link.click();
       }
-      setProductionState("saved");
+      changeProductionState("saved");
     } catch {
       // A dismissed native share sheet leaves the completed preview available.
     }
@@ -243,9 +346,9 @@ export function ProductionWizard() {
 
   return (
     <section aria-label="Memory film creator" className="wizard">
-      {(productionState === "ready" || productionState === "error") && (
+      {(productionState === "ready" || productionState === "error" || productionState === "preparing") && (
         <>
-          <section aria-label="Make your memory film" className="wizard__stage wizard__stage--request">
+          <fieldset aria-label="Make your memory film" className={`wizard__stage wizard__stage--request${isPreparing ? " is-preparing" : ""}`} disabled={isPreparing}>
             <header className="wizard__header">
               <div>
                 <p className="wizard__eyebrow">A short film, made for you</p>
@@ -307,25 +410,19 @@ export function ProductionWizard() {
               <input aria-label="I have permission to use these media." checked={hasMediaPermission} id="media-permission" onChange={(event) => { consentRef.current = event.target.checked; setHasMediaPermission(event.target.checked); }} type="checkbox" />
               <span>I have permission to use these photos and videos.</span>
             </label>
-          </section>
+          </fieldset>
 
-          <section aria-label="Preview information" className="wizard__preview-callout">
-            <div className="wizard__preview-copy"><span aria-hidden="true"><Play /></span><div><h3>Watch before you save</h3><p>Your 60-second film appears here after it is made.</p></div></div>
-            <span className="wizard__preview-badge">Preview first</span>
+          <section aria-label={isPreparing ? "Making your film" : "Preview information"} aria-live={isPreparing ? "polite" : undefined} className={`wizard__preview-callout${isPreparing ? " is-preparing" : ""}`} role={isPreparing ? "status" : undefined}>
+            <div className="wizard__preview-copy"><span aria-hidden="true"><Play /></span><div><h3>{isPreparing ? "Making your film…" : "Watch before you save"}</h3><p>{isPreparing ? progressMessage : "Your 60-second film appears here after it is made."}</p></div></div>
+            <span className="wizard__preview-badge">{isPreparing ? `${mediaFiles.length} moments` : "Preview first"}</span>
           </section>
 
           <div className="wizard__action-bar">
             <div>
-              <button className="button button--primary" disabled={!canMakeFilm} onClick={makeFilm} type="button">{productionState === "error" ? "Try again" : "Make my film"}<Sparkles aria-hidden="true" /></button>
+              <button className="button button--primary" disabled={!canMakeFilm} onClick={makeFilm} type="button">{isPreparing ? "Please wait…" : productionState === "error" ? "Try again" : "Make my film"}<Sparkles aria-hidden="true" /></button>
             </div>
           </div>
         </>
-      )}
-
-      {productionState === "preparing" && (
-        <section aria-label="Making your film" className="wizard__stage wizard__stage--waiting">
-          <h3>Making your film…</h3><p>We are choosing the best moments and preparing your sound.</p>
-        </section>
       )}
 
       {(productionState === "preview" || productionState === "saved") && storyboard && previewUrl && (
@@ -338,12 +435,13 @@ export function ProductionWizard() {
         </section>
       )}
 
-      <p aria-live="polite" className="wizard__status" role="status">
-        {productionState === "preparing" && "Making your film…"}
-        {errorMessage}
-        {selectionNotice}
-        {voiceError && "Voice input is not available. You can type your request instead."}
-      </p>
+      {(errorMessage || selectionNotice || voiceError) && (
+        <p aria-live="polite" className="wizard__status" role="status">
+          {errorMessage}
+          {selectionNotice}
+          {voiceError && "Voice input is not available. You can type your request instead."}
+        </p>
+      )}
     </section>
   );
 }

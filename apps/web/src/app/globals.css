@@ -34,7 +34,8 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, label[for="me
 
 h2, h3, h4, p { margin-top: 0; }
 .wizard { margin-top: 1.5rem; }
-.wizard__stage, .wizard__preview { padding: 2rem; border-radius: 28px; background: white; box-shadow: 0 18px 45px rgba(96, 108, 56, .12); }
+.wizard__stage, .wizard__preview { min-inline-size: 0; padding: 2rem; border: 0; border-radius: 28px; background: white; box-shadow: 0 18px 45px rgba(96, 108, 56, .12); }
+.wizard__stage.is-preparing { opacity: .72; }
 .wizard__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1.25rem; }
 .wizard__eyebrow { margin: 0; color: var(--terracotta); font-size: .875rem; font-weight: 600; }
 .wizard__header h2 { margin: .5rem 0 0; font-size: clamp(1.875rem, 4.7vw, 2.125rem); line-height: 1.2; letter-spacing: -.055em; white-space: nowrap; }
@@ -94,6 +95,8 @@ h2, h3, h4, p { margin-top: 0; }
 .wizard__preview-copy h3 { margin: 0; font-size: 1rem; }
 .wizard__preview-copy p { margin: .25rem 0 0; color: var(--sand); font-size: .875rem; line-height: 1.45; }
 .wizard__preview-badge { padding: .25rem .75rem; border-radius: 999px; background: rgba(255, 255, 255, .15); color: var(--sand); font-size: .75rem; font-weight: 600; white-space: nowrap; }
+.wizard__preview-callout.is-preparing { outline: 3px solid rgba(198, 107, 61, .35); outline-offset: 3px; }
+.wizard__preview-callout.is-preparing .wizard__preview-copy > span { animation: gentle-pulse 1.6s ease-in-out infinite; }
 
 .wizard__action-bar { position: fixed; z-index: 10; right: 0; bottom: 0; left: 0; padding: .75rem 1rem; border-top: 1px solid var(--oat); background: rgba(232, 220, 199, .95); backdrop-filter: blur(10px); }
 .wizard__action-bar > div { width: min(100%, 48rem); margin-inline: auto; }
@@ -103,9 +106,8 @@ h2, h3, h4, p { margin-top: 0; }
 .button--primary:disabled { background: #d29a7c; box-shadow: 0 8px 0 #b37d62; color: #fffaf5; cursor: not-allowed; }
 .button--primary svg { width: 1.125rem; height: 1.125rem; }
 
-.wizard__stage--waiting { border-left: .4rem solid var(--terracotta); }
-.wizard__stage--waiting h3 { margin-bottom: .5rem; }
-.wizard__stage--waiting p { margin: 0; color: var(--muted); }
+@keyframes gentle-pulse { 50% { transform: scale(.92); opacity: .72; } }
+@media (prefers-reduced-motion: reduce) { .wizard__preview-callout.is-preparing .wizard__preview-copy > span { animation: none; } }
 .wizard__preview { max-width: 34rem; margin-inline: auto; text-align: left; }
 .wizard__preview video { display: block; width: min(100%, 20rem); max-height: min(52vh, 34rem); margin: .9rem auto; border-radius: 18px; background: var(--ink); aspect-ratio: 9 / 16; }
 .wizard__preview > p { color: var(--muted); }
