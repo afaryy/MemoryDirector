@@ -46,6 +46,7 @@ test("deployment serializes with lockdown and preserves the existing ingress mod
   assert.match(deploy, /for service in api web; do/);
   assert.match(deploy, /gcloud run services describe "\$\{\{ steps\.config\.outputs\.resource_name \}\}-\$service"/);
   assert.match(deploy, /NOT_FOUND/);
+  assert.match(deploy, /Cannot find service/);
   assert.doesNotMatch(deploy, /2>\/dev\/null \|\| true/);
   assert.match(deploy, /-var="public_ingress=\$\{\{ steps\.ingress\.outputs\.public_ingress \}\}"/);
 });
