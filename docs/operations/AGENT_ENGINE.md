@@ -65,6 +65,17 @@ The deployment workflow is manual and runs only from `main` in the protected
 6. Only after the smoke test passes does Terraform set
    `MEMORY_FILM_PLANNER_RESOURCE` on the API.
 
+## Activate current API code with an existing Agent Engine
+
+Use `operation=activate_existing` after a hosted Agent Engine has already been created
+but the API switch did not occur. Enter that full resource name in
+`rollback_resource` and confirm with `DEPLOY_AGENT_SANDBOX`. Activation builds
+the immutable API image from the selected `main` commit, runs the same hosted
+smoke gate against the existing resource, and changes the API only after the
+gate passes. It does not provision or update the selected Agent Engine, so its
+embedded planner code and generation settings remain unchanged. Use `deploy`,
+not `activate_existing`, whenever planner code or configuration has changed.
+
 The sanitized artifact contains a resource name, selected fixture media IDs,
 duration, music direction and two booleans. It contains no photo, private URI,
 database response, bearer token or Secret Manager value.
