@@ -198,6 +198,7 @@ class DeterministicVerticalRenderer:
                 filters.append(
                     f"[{index}:v]scale=1080:1920:force_original_aspect_ratio=increase,"
                     f"crop=1080:1920,setsar=1,"
+                    f"fps=30,format=yuv420p,settb=AVTB,"
                     f"trim=duration={segment.duration_seconds},setpts=PTS-STARTPTS[v{index}]"
                 )
             current_label = "v0"

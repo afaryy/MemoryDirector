@@ -80,6 +80,7 @@ def test_renderer_sequences_media_with_crop_to_fill_crossfades_and_an_exact_dura
     assert command.count("-i") == 2
     filter_graph = command[command.index("-filter_complex") + 1]
     assert "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1" in filter_graph
+    assert filter_graph.count("fps=30,format=yuv420p,settb=AVTB") == 2
     assert "xfade=transition=fade:duration=1:offset=30" in filter_graph
     assert "trim=duration=31" in filter_graph
     assert command[command.index("-t") + 1] == "60"
