@@ -132,13 +132,24 @@ class FakePreferenceRepository:
         )
 
 
+def _escape_clickhouse_string(value: str) -> str:
+    return (
+        value.replace("\\", "\\\\")
+        .replace("\x00", "\\0")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
+        .replace("'", "''")
+    )
+
+
 class ClickHouseMcpPreferenceRepository:
     def __init__(self, caller: McpToolCaller) -> None:
         self._caller = caller
 
     def recommendation_query(self, user_id: str, occasion: str) -> str:
-        safe_user_id = user_id.replace("'", "''")
-        safe_occasion = occasion.replace("'", "''")
+        safe_user_id = _escape_clickhouse_string(user_id)
+        safe_occasion = _escape_clickhouse_string(occasion)
         return f"""
 SELECT value, count() AS evidence_count
 FROM creative_preferences
