@@ -29,6 +29,27 @@ describe("ProductionWizard", () => {
     vi.unstubAllGlobals();
   });
 
+  it("presents the selected album-workbench journey and keeps music visible", () => {
+    render(<ProductionWizard />);
+
+    expect(screen.getByRole("heading", { name: "Start with the moments you love." })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "1. Choose photos and videos" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "2. Tell us about it" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "3. Choose the sound" })).toBeVisible();
+    expect(screen.getByRole("radio", { name: /Original AI song/ })).toBeChecked();
+    expect(screen.getByText("Watch before you save")).toBeVisible();
+  });
+
+  it("clears a spoken or typed request with one labelled action", () => {
+    render(<ProductionWizard />);
+    const request = screen.getByRole("textbox", { name: "Your memory request", exact: true });
+
+    fireEvent.change(request, { target: { value: "Use the sunny garden photos." } });
+    fireEvent.click(screen.getByRole("button", { name: "Clear request" }));
+
+    expect(request).toHaveValue("");
+  });
+
   it("enables Make my film only after a request, selected media, and permission", () => {
     render(<ProductionWizard />);
 
@@ -106,6 +127,7 @@ describe("ProductionWizard", () => {
 
     const exportCall = fetchMock.mock.calls.find(([url]) => url === "http://localhost:8000/renders/export");
     expect(exportCall?.[1]?.body.get("media_ids")).toBe("sha256:garden");
+    expect(exportCall?.[1]?.body.get("soundtrack_mode")).toBe("original_song");
     const selectionCall = fetchMock.mock.calls.find(([url]) => url === "http://localhost:8000/media/sha256:garden/decision");
     expect(selectionCall?.[1]).toMatchObject({ method: "POST" });
     expect(JSON.parse(selectionCall?.[1]?.body as string)).toEqual({ status: "selected", reason: "Chosen for this film" });

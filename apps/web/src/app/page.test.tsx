@@ -8,6 +8,7 @@ describe("HomePage", () => {
     render(<HomePage />);
 
     expect(screen.getByRole("heading", { name: "Memory Director" })).toBeVisible();
-    expect(screen.getByText(/turn phone moments into a short film/i)).toBeVisible();
+    expect(screen.getByText("Your moments, made simply.")).toBeVisible();
+    expect(screen.queryByText(/turn phone moments into a short film/i)).not.toBeInTheDocument();
   });
 });

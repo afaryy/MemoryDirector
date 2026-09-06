@@ -1,6 +1,7 @@
 "use client";
 
 import { unzipSync } from "fflate";
+import { CircleCheck, Images, Mic, Play, Sparkles, X } from "lucide-react";
 import { useRef, useState } from "react";
 
 type Storyboard = {
@@ -44,7 +45,7 @@ export function ProductionWizard() {
   const [memoryRequest, setMemoryRequest] = useState("");
   const [mediaFiles, setMediaFiles] = useState<File[]>([]);
   const [hasMediaPermission, setHasMediaPermission] = useState(false);
-  const [soundtrackMode, setSoundtrackMode] = useState<SoundtrackMode>("instrumental");
+  const [soundtrackMode, setSoundtrackMode] = useState<SoundtrackMode>("original_song");
   const [productionState, setProductionState] = useState<ProductionState>("ready");
   const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -241,55 +242,84 @@ export function ProductionWizard() {
   }
 
   return (
-    <section aria-labelledby="production-title" className="wizard">
-      <header className="wizard__header">
-        <h2 id="production-title">Make a memory film</h2>
-        <p>Describe the moment, choose photos and videos, then save your film.</p>
-      </header>
-
+    <section aria-label="Memory film creator" className="wizard">
       {(productionState === "ready" || productionState === "error") && (
-        <section aria-label="Make your film" className="wizard__stage wizard__stage--request">
-          <label className="wizard__request" htmlFor="memory-request">
-            <span>Your memory request</span>
-            <div className="wizard__input-wrap">
-              <textarea id="memory-request" onChange={(event) => updateRequest(event.target.value)} placeholder="For example: a happy afternoon with the grandchildren." rows={2} value={memoryRequest} />
-              <button aria-label="Voice input" aria-pressed={isListening} className={`button button--voice${isListening ? " is-listening" : ""}`} onClick={startVoiceRequest} type="button">
-                <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 14.5a3.5 3.5 0 0 0 3.5-3.5V6a3.5 3.5 0 1 0-7 0v5a3.5 3.5 0 0 0 3.5 3.5Zm6-3.5a1 1 0 0 0-2 0 4 4 0 0 1-8 0 1 1 0 0 0-2 0 6 6 0 0 0 5 5.91V19H8a1 1 0 0 0 0 2h8a1 1 0 0 0 0-2h-3v-2.09A6 6 0 0 0 18 11Z" /></svg>
-              </button>
+        <>
+          <section aria-label="Make your memory film" className="wizard__stage wizard__stage--request">
+            <header className="wizard__header">
+              <div>
+                <p className="wizard__eyebrow">A short film, made for you</p>
+                <h2 id="production-title">Start with the moments you love.</h2>
+              </div>
+              <p>Choose photos or videos from your phone.</p>
+            </header>
+
+            <section className="wizard__step" aria-labelledby="choose-title">
+              <div className="wizard__step-heading">
+                <h3 id="choose-title">1. Choose photos and videos</h3>
+                <span>Up to 15</span>
+              </div>
+              <label className="wizard__media" htmlFor="memory-media">
+                <span className="wizard__media-icon" aria-hidden="true"><Images /></span>
+                <strong>Choose from this device</strong>
+                <small>Photos and videos stay under your control.</small>
+                <input accept="image/*,video/*" aria-label="Choose photos and videos" id="memory-media" multiple onChange={(event) => selectMedia(event.target.files)} type="file" />
+              </label>
+
+              {mediaFiles.length > 0 ? (
+                <ul aria-label="Selected media" className="wizard__selected-files">
+                  {mediaFiles.map((file, index) => (
+                    <li key={`${file.name}-${index}`}><span>{file.name}</span><button className="button button--remove" onClick={() => removeMediaFile(index)} type="button"><X aria-hidden="true" />Remove {file.name}</button></li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="wizard__media-help"><CircleCheck aria-hidden="true" /><span>Your selected moments will appear here. Remove any one before you make the film.</span></div>
+              )}
+            </section>
+
+            <section className="wizard__step" aria-labelledby="story-title">
+              <div className="wizard__step-heading"><h3 id="story-title">2. Tell us about it</h3><span className="wizard__step-note">Type or speak</span></div>
+              <label className="wizard__request" htmlFor="memory-request">
+                <span className="sr-only">Your memory request</span>
+                <div className="wizard__input-wrap">
+                  <textarea aria-label="Your memory request" id="memory-request" onChange={(event) => updateRequest(event.target.value)} placeholder="For example: a happy afternoon with the grandchildren." rows={2} value={memoryRequest} />
+                  <div className="wizard__input-actions">
+                    <button aria-label="Clear request" className="button button--clear" onClick={() => updateRequest("")} type="button"><X aria-hidden="true" />Clear</button>
+                    <button aria-label="Voice input" aria-pressed={isListening} className={`button button--voice${isListening ? " is-listening" : ""}`} onClick={startVoiceRequest} type="button"><Mic aria-hidden="true" /></button>
+                  </div>
+                </div>
+              </label>
+              <p className="wizard__request-help">Please check your words before making the film.</p>
+            </section>
+
+            <section className="wizard__step" aria-labelledby="music-title">
+              <div className="wizard__step-heading"><h3 id="music-title">3. Choose the sound</h3><span className="wizard__music-note">Part of the story</span></div>
+              <p className="wizard__music-intro">We can make a new little song for this memory, or choose a gentle background sound.</p>
+              <fieldset className="wizard__soundtrack">
+                <legend className="sr-only">Sound</legend>
+                <label className={soundtrackMode === "original_song" ? "is-selected" : ""}><span><input aria-label="Original AI song" checked={soundtrackMode === "original_song"} name="soundtrack" onChange={() => setSoundtrackMode("original_song")} type="radio" /><strong>Original AI song</strong></span><small>A new song for this memory</small></label>
+                <label className={soundtrackMode === "instrumental" ? "is-selected" : ""}><span><input aria-label="Gentle instrumental" checked={soundtrackMode === "instrumental"} name="soundtrack" onChange={() => setSoundtrackMode("instrumental")} type="radio" /><strong>Gentle instrumental</strong></span><small>Warm background music</small></label>
+                <label className={soundtrackMode === "no_sound" ? "is-selected" : ""}><span><input aria-label="No music" checked={soundtrackMode === "no_sound"} name="soundtrack" onChange={() => setSoundtrackMode("no_sound")} type="radio" /><strong>No music</strong></span><small>Silent film</small></label>
+              </fieldset>
+            </section>
+
+            <label className="wizard__consent" htmlFor="media-permission">
+              <input aria-label="I have permission to use these media." checked={hasMediaPermission} id="media-permission" onChange={(event) => { consentRef.current = event.target.checked; setHasMediaPermission(event.target.checked); }} type="checkbox" />
+              <span>I have permission to use these photos and videos.</span>
+            </label>
+          </section>
+
+          <section aria-label="Preview information" className="wizard__preview-callout">
+            <div className="wizard__preview-copy"><span aria-hidden="true"><Play /></span><div><h3>Watch before you save</h3><p>Your 60-second film appears here after it is made.</p></div></div>
+            <span className="wizard__preview-badge">Preview first</span>
+          </section>
+
+          <div className="wizard__action-bar">
+            <div>
+              <button className="button button--primary" disabled={!canMakeFilm} onClick={makeFilm} type="button">{productionState === "error" ? "Try again" : "Make my film"}<Sparkles aria-hidden="true" /></button>
             </div>
-          </label>
-
-          <label className="wizard__media" htmlFor="memory-media">
-            <span>Choose photos and videos</span>
-            <input accept="image/*,video/*" id="memory-media" multiple onChange={(event) => selectMedia(event.target.files)} type="file" />
-          </label>
-          <p className="wizard__media-help">Choose up to 15 items from this device. You can remove anything before making the film.</p>
-
-          {mediaFiles.length > 0 && (
-            <ul aria-label="Selected media" className="wizard__selected-files">
-              {mediaFiles.map((file, index) => (
-                <li key={`${file.name}-${index}`}><span>{file.name}</span><button className="button button--remove" onClick={() => removeMediaFile(index)} type="button">Remove {file.name}</button></li>
-              ))}
-            </ul>
-          )}
-
-          <fieldset className="wizard__soundtrack">
-            <legend>Sound</legend>
-            <label><input checked={soundtrackMode === "original_song"} name="soundtrack" onChange={() => setSoundtrackMode("original_song")} type="radio" />Original AI song</label>
-            <label><input checked={soundtrackMode === "instrumental"} name="soundtrack" onChange={() => setSoundtrackMode("instrumental")} type="radio" />Gentle instrumental</label>
-            <label><input checked={soundtrackMode === "no_sound"} name="soundtrack" onChange={() => setSoundtrackMode("no_sound")} type="radio" />No music</label>
-          </fieldset>
-
-          <label className="wizard__consent" htmlFor="media-permission">
-            <input checked={hasMediaPermission} id="media-permission" onChange={(event) => { consentRef.current = event.target.checked; setHasMediaPermission(event.target.checked); }} type="checkbox" />
-            <span>I have permission to use these media.</span>
-          </label>
-          {productionState === "error" ? (
-            <button className="button button--primary" disabled={!canMakeFilm} onClick={makeFilm} type="button">Try again</button>
-          ) : (
-            <button className="button button--primary" disabled={!canMakeFilm} onClick={makeFilm} type="button">Make my film</button>
-          )}
-        </section>
+          </div>
+        </>
       )}
 
       {productionState === "preparing" && (
