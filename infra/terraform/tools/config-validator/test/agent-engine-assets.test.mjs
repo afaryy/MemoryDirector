@@ -20,6 +20,15 @@ test("Agent Engine deployment is manual, WIF-authenticated, and smoke-gated", ()
   assert.match(workflow, /terraform[^\n]*apply/);
   assert.match(workflow, /python -m scripts\.deploy_agent_engine/);
   assert.match(workflow, /python -m scripts\.smoke_agent_engine/);
+  assert.match(workflow, /agent_location="\$\(jq -er '\.agent_engine\.location'/);
+  assert.match(
+    workflow,
+    /GOOGLE_CLOUD_LOCATION: \$\{\{ steps\.config\.outputs\.agent_location \}\}/,
+  );
+  assert.doesNotMatch(
+    workflow,
+    /GOOGLE_CLOUD_LOCATION: \$\{\{ steps\.config\.outputs\.region \}\}/,
+  );
   assert.doesNotMatch(workflow, /python scripts\/(?:deploy|smoke)_agent_engine\.py/);
   assert.doesNotMatch(workflow, /secrets versions access/);
 });

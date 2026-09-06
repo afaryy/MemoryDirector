@@ -23,9 +23,10 @@
     "agent_engine": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "runtime_service_account_email", "staging_bucket_name"],
+      "required": ["enabled", "location", "runtime_service_account_email", "staging_bucket_name"],
       "properties": {
         "enabled": { "type": "boolean" },
+        "location": { "const": "australia-southeast2" },
         "runtime_service_account_email": {
           "type": "string",
           "pattern": "^memory-director-agent@[^@\\s]+\\.iam\\.gserviceaccount\\.com$"

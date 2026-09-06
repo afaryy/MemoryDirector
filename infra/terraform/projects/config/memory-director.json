@@ -10,6 +10,7 @@
   "mcp_invoker_service_account_email": "github-terraform-sandbox@memory-director-505708.iam.gserviceaccount.com",
   "agent_engine": {
     "enabled": true,
+    "location": "australia-southeast2",
     "runtime_service_account_email": "memory-director-agent@memory-director-505708.iam.gserviceaccount.com",
     "staging_bucket_name": "memory-director-505708-agent-staging"
   },
