@@ -234,6 +234,8 @@ class DeterministicVerticalRenderer:
                 current_label = next_label
             command.extend(
                 [
+                    "-filter_complex_threads",
+                    "1",
                     "-filter_complex",
                     ";".join(filters),
                     "-map",
