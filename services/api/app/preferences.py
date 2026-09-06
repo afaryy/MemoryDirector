@@ -215,7 +215,18 @@ def _extract_rows(raw: str) -> list[dict[str, Any]]:
     except json.JSONDecodeError:
         return _extract_table_rows(raw)
     if isinstance(decoded, dict) and isinstance(decoded.get("rows"), list):
-        return [row for row in decoded["rows"] if isinstance(row, dict)]
+        rows = decoded["rows"]
+        object_rows = [row for row in rows if isinstance(row, dict)]
+        if object_rows:
+            return object_rows
+        columns = decoded.get("columns")
+        if isinstance(columns, list) and all(isinstance(column, str) for column in columns):
+            return [
+                dict(zip(columns, row, strict=True))
+                for row in rows
+                if isinstance(row, list) and len(row) == len(columns)
+            ]
+        return []
     if isinstance(decoded, list):
         return [row for row in decoded if isinstance(row, dict)]
     return []
