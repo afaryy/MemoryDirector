@@ -169,6 +169,69 @@ def test_agent_engine_planner_parses_closed_production_plan() -> None:
     assert plan.title == "A sunny afternoon"
 
 
+def test_agent_engine_planner_accepts_one_json_code_fence() -> None:
+    fenced = f"```json\n{json.dumps(valid_plan_payload())}\n```"
+    plan = AgentEnginePlanner(
+        resource_name="projects/demo-project/locations/us-central1/reasoningEngines/123",
+        client=RecordingAgentEngineClient(
+            RecordingAgentEngines(
+                remote_agent=PayloadRemoteAgent({"text": fenced})
+            )
+        ),
+    ).plan(planning_request())
+
+    assert plan.title == "A sunny afternoon"
+
+
+def test_agent_engine_planner_rejects_prose_around_json_code_fence() -> None:
+    fenced = f"Here is the plan:\n```json\n{json.dumps(valid_plan_payload())}\n```"
+    planner = AgentEnginePlanner(
+        resource_name="projects/demo-project/locations/us-central1/reasoningEngines/123",
+        client=RecordingAgentEngineClient(
+            RecordingAgentEngines(
+                remote_agent=PayloadRemoteAgent({"text": fenced})
+            )
+        ),
+    )
+
+    with pytest.raises(InvalidAgentPlanError, match="schema-valid"):
+        planner.plan(planning_request())
+
+
+def test_agent_engine_planner_rejects_incomplete_json_code_fence() -> None:
+    incomplete = f"```json\n{json.dumps(valid_plan_payload())}"
+    planner = AgentEnginePlanner(
+        resource_name="projects/demo-project/locations/us-central1/reasoningEngines/123",
+        client=RecordingAgentEngineClient(
+            RecordingAgentEngines(
+                remote_agent=PayloadRemoteAgent({"text": incomplete})
+            )
+        ),
+    )
+
+    with pytest.raises(InvalidAgentPlanError, match="schema-valid"):
+        planner.plan(planning_request())
+
+
+def test_agent_engine_planner_rejects_multiple_valid_plan_candidates() -> None:
+    payload = json.dumps(valid_plan_payload())
+
+    class MultiplePlansRemoteAgent:
+        async def async_stream_query(self, *, message: str, user_id: str):
+            yield {"text": payload}
+            yield {"text": f"```json\n{payload}\n```"}
+
+    planner = AgentEnginePlanner(
+        resource_name="projects/demo-project/locations/us-central1/reasoningEngines/123",
+        client=RecordingAgentEngineClient(
+            RecordingAgentEngines(remote_agent=MultiplePlansRemoteAgent())
+        ),
+    )
+
+    with pytest.raises(InvalidAgentPlanError, match="multiple"):
+        planner.plan(planning_request())
+
+
 def test_agent_engine_uses_distinct_privacy_safe_user_partitions() -> None:
     remote_agent = RecordingRemoteAgent()
     planner = AgentEnginePlanner(
@@ -471,6 +534,77 @@ def test_smoke_rejects_plan_without_preference_tool_invocation() -> None:
     events = [{"content": {"parts": [{"text": json.dumps(valid_plan_payload())}]}}]
 
     with pytest.raises(RuntimeError, match="preference tool"):
+        smoke_agent_engine.validate_smoke_events(
+            events,
+            resource_name="projects/demo-project/locations/us-central1/reasoningEngines/123",
+            request=planning_request(),
+        )
+
+
+def test_smoke_enforces_production_event_limit() -> None:
+    events = [
+        {
+            "content": {
+                "parts": [
+                    {
+                        "function_call": {
+                            "name": "lookup_approved_music_preference",
+                            "args": {},
+                        }
+                    }
+                ]
+            }
+        }
+        for _ in range(agent_engine_module.MAX_AGENT_EVENTS + 1)
+    ]
+
+    with pytest.raises(InvalidAgentPlanError, match="event limit"):
+        smoke_agent_engine.validate_smoke_events(
+            events,
+            resource_name="projects/demo-project/locations/us-central1/reasoningEngines/123",
+            request=planning_request(),
+        )
+
+
+def test_hosted_smoke_stream_stops_at_production_event_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engines = RecordingAgentEngines(remote_agent=ExcessiveEventsRemoteAgent())
+    monkeypatch.setattr(
+        smoke_agent_engine.vertexai,
+        "Client",
+        lambda **_: RecordingAgentEngineClient(engines),
+    )
+
+    with pytest.raises(InvalidAgentPlanError, match="event limit"):
+        asyncio.run(
+            smoke_agent_engine.run_smoke(
+                "projects/demo-project/locations/us-central1/reasoningEngines/123"
+            )
+        )
+
+
+def test_smoke_enforces_production_candidate_payload_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(agent_engine_module, "MAX_PLAN_CANDIDATE_BYTES", 32)
+    events = [
+        {
+            "content": {
+                "parts": [
+                    {
+                        "function_call": {
+                            "name": "lookup_approved_music_preference",
+                            "args": {},
+                        }
+                    },
+                    {"text": json.dumps(valid_plan_payload())},
+                ]
+            }
+        }
+    ]
+
+    with pytest.raises(InvalidAgentPlanError, match="payload limit"):
         smoke_agent_engine.validate_smoke_events(
             events,
             resource_name="projects/demo-project/locations/us-central1/reasoningEngines/123",
