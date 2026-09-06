@@ -10,10 +10,14 @@ from typing import Any
 
 import vertexai
 
-from app.agent_engine import _plan_candidates, validate_resource_name
+from app.agent_engine import (
+    BoundedPlanCandidateCollector,
+    InvalidAgentPlanError,
+    _single_valid_plan,
+    validate_resource_name,
+)
 from app.agent_planner import (
     AgentPlanningRequest,
-    AgentProductionPlan,
     PlannerMedia,
     validate_agent_plan,
 )
@@ -40,6 +44,10 @@ SAFE_REMOTE_STATUSES = frozenset(
         "UNKNOWN",
     }
 )
+
+
+class SmokeValidationError(RuntimeError):
+    """A fixed, privacy-safe hosted smoke diagnostic."""
 
 
 def smoke_request() -> AgentPlanningRequest:
@@ -103,31 +111,40 @@ def validate_smoke_events(
     request: AgentPlanningRequest,
 ) -> dict[str, Any]:
     validate_resource_name(resource_name)
+    collector = BoundedPlanCandidateCollector()
+    preference_tool_invoked = False
     for event in events:
         remote_error = _remote_error_identity(event)
         if remote_error is not None:
             status, code = remote_error
             suffix = f" ({code})" if code is not None else ""
-            raise RuntimeError(f"Agent Engine runtime error: {status}{suffix}.")
-    if not any(_contains_named_function(event, PREFERENCE_TOOL_NAME) for event in events):
-        raise RuntimeError("Agent Engine did not invoke the approved preference tool.")
-
-    candidates: list[object] = []
-    for event in events:
-        candidates.extend(_plan_candidates(event))
-    plan = None
-    for candidate in reversed(candidates):
-        try:
-            plan = (
-                AgentProductionPlan.model_validate_json(candidate)
-                if isinstance(candidate, str)
-                else AgentProductionPlan.model_validate(candidate)
+            raise SmokeValidationError(
+                f"Agent Engine runtime error: {status}{suffix}."
             )
-            break
-        except (TypeError, ValueError):
-            continue
-    if plan is None:
-        raise RuntimeError("Agent Engine did not return a schema-valid production plan.")
+        preference_tool_invoked = preference_tool_invoked or _contains_named_function(
+            event, PREFERENCE_TOOL_NAME
+        )
+        collector.add_event(event)
+    return _validate_smoke_collection(
+        collector,
+        preference_tool_invoked=preference_tool_invoked,
+        resource_name=resource_name,
+        request=request,
+    )
+
+
+def _validate_smoke_collection(
+    collector: BoundedPlanCandidateCollector,
+    *,
+    preference_tool_invoked: bool,
+    resource_name: str,
+    request: AgentPlanningRequest,
+) -> dict[str, Any]:
+    if not preference_tool_invoked:
+        raise SmokeValidationError(
+            "Agent Engine did not invoke the approved preference tool."
+        )
+    plan = _single_valid_plan(collector.candidates)
     validate_agent_plan(request, plan)
     return {
         "agent_engine_resource": resource_name,
@@ -144,19 +161,36 @@ def validate_smoke_events(
 async def run_smoke(resource_name: str) -> dict[str, Any]:
     match = validate_resource_name(resource_name)
     request = smoke_request()
+    collector = BoundedPlanCandidateCollector()
+    preference_tool_invoked = False
     try:
         client = vertexai.Client(project=match["project"], location=match["location"])
         remote_agent = client.agent_engines.get(name=resource_name)
-        events = [
-            event
-            async for event in remote_agent.async_stream_query(
-                message=request.model_dump_json(),
-                user_id=request.user_id,
+        async for event in remote_agent.async_stream_query(
+            message=request.model_dump_json(),
+            user_id=request.user_id,
+        ):
+            remote_error = _remote_error_identity(event)
+            if remote_error is not None:
+                status, code = remote_error
+                suffix = f" ({code})" if code is not None else ""
+                raise SmokeValidationError(
+                    f"Agent Engine runtime error: {status}{suffix}."
+                )
+            preference_tool_invoked = preference_tool_invoked or _contains_named_function(
+                event, PREFERENCE_TOOL_NAME
             )
-        ]
+            collector.add_event(event)
+    except (SmokeValidationError, InvalidAgentPlanError):
+        raise
     except Exception:
         raise RuntimeError("Agent Engine request failed before smoke evidence.") from None
-    return validate_smoke_events(events, resource_name=resource_name, request=request)
+    return _validate_smoke_collection(
+        collector,
+        preference_tool_invoked=preference_tool_invoked,
+        resource_name=resource_name,
+        request=request,
+    )
 
 
 def main() -> None:

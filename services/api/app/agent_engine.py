@@ -18,6 +18,10 @@ RESOURCE_NAME_PATTERN = re.compile(
     r"locations/(?P<location>[a-z]+(?:-[a-z0-9]+)*)/"
     r"reasoningEngines/(?P<id>[0-9]+)$"
 )
+_JSON_CODE_FENCE = re.compile(
+    r"\A```(?:json)?[ \t]*\r?\n(?P<body>.*)\r?\n```[ \t]*\Z",
+    re.DOTALL | re.IGNORECASE,
+)
 AGENT_TIMEOUT_SECONDS = 30.0
 MAX_AGENT_EVENTS = 128
 MAX_PLAN_CANDIDATES = 128
@@ -42,6 +46,29 @@ class AgentPlannerUnavailable(RuntimeError):
 
 class InvalidAgentPlanError(ValueError):
     """The Agent Engine response was not a closed production-plan payload."""
+
+
+class BoundedPlanCandidateCollector:
+    """Collect plan candidates using the same limits in production and smoke."""
+
+    def __init__(self) -> None:
+        self.event_count = 0
+        self.candidates: list[object] = []
+
+    def add_event(self, event: object) -> None:
+        self.event_count += 1
+        if self.event_count > MAX_AGENT_EVENTS:
+            raise InvalidAgentPlanError("Agent Engine response exceeded the event limit.")
+        for candidate in _plan_candidates(event):
+            if len(self.candidates) >= MAX_PLAN_CANDIDATES:
+                raise InvalidAgentPlanError(
+                    "Agent Engine response exceeded the candidate limit."
+                )
+            if _candidate_size_bytes(candidate) > MAX_PLAN_CANDIDATE_BYTES:
+                raise InvalidAgentPlanError(
+                    "Agent Engine response exceeded the payload limit."
+                )
+            self.candidates.append(candidate)
 
 
 def validate_resource_name(resource_name: str) -> re.Match[str]:
@@ -84,39 +111,37 @@ class AgentEnginePlanner:
     async def _request_plan(
         self, remote_agent: RemoteAgent, request: AgentPlanningRequest
     ) -> AgentProductionPlan:
-        candidates: list[object] = []
+        collector = BoundedPlanCandidateCollector()
         try:
             async with asyncio.timeout(AGENT_TIMEOUT_SECONDS):
-                event_count = 0
                 async for event in remote_agent.async_stream_query(
                     message=request.model_dump_json(),
                     user_id=_privacy_safe_user_partition(request.user_id),
                 ):
-                    event_count += 1
-                    if event_count > MAX_AGENT_EVENTS:
-                        raise InvalidAgentPlanError(
-                            "Agent Engine response exceeded the event limit."
-                        )
-                    for candidate in _plan_candidates(event):
-                        if len(candidates) >= MAX_PLAN_CANDIDATES:
-                            raise InvalidAgentPlanError(
-                                "Agent Engine response exceeded the candidate limit."
-                            )
-                        if _candidate_size_bytes(candidate) > MAX_PLAN_CANDIDATE_BYTES:
-                            raise InvalidAgentPlanError(
-                                "Agent Engine response exceeded the payload limit."
-                            )
-                        candidates.append(candidate)
+                    collector.add_event(event)
         except InvalidAgentPlanError:
             raise
         except Exception as error:
             raise AgentPlannerUnavailable("Agent Engine planning is unavailable.") from error
-        for candidate in reversed(candidates):
-            try:
-                return _parse_plan(candidate)
-            except (TypeError, ValueError):
-                continue
-        raise InvalidAgentPlanError("Agent Engine did not return a schema-valid production plan.")
+        return _single_valid_plan(collector.candidates)
+
+
+def _single_valid_plan(candidates: list[object]) -> AgentProductionPlan:
+    plans: list[AgentProductionPlan] = []
+    for candidate in candidates:
+        try:
+            plans.append(_parse_plan(candidate))
+        except (TypeError, ValueError):
+            continue
+    if not plans:
+        raise InvalidAgentPlanError(
+            "Agent Engine did not return a schema-valid production plan."
+        )
+    if len(plans) > 1:
+        raise InvalidAgentPlanError(
+            "Agent Engine returned multiple schema-valid production plans."
+        )
+    return plans[0]
 
 
 def _plan_candidates(event: object) -> list[object]:
@@ -145,7 +170,10 @@ def _plan_candidates(event: object) -> list[object]:
 
 def _parse_plan(candidate: object) -> AgentProductionPlan:
     if isinstance(candidate, str):
-        return AgentProductionPlan.model_validate_json(candidate)
+        stripped = candidate.strip()
+        fenced = _JSON_CODE_FENCE.fullmatch(stripped)
+        payload = fenced.group("body") if fenced is not None else stripped
+        return AgentProductionPlan.model_validate_json(payload)
     if isinstance(candidate, Mapping):
         return AgentProductionPlan.model_validate(dict(candidate))
     raise TypeError("Agent Engine plan response was not JSON.")

@@ -40,7 +40,9 @@ browser.
   schema is included in the instruction and enforced by the
   API instead of ADK `output_schema`: Google documents that combining
   `output_schema` and tools is not reliable for Gemini 2.5. Export remains
-  behind the separate approval and Consent Guardian gate.
+  behind the separate approval and Consent Guardian gate. The response parser
+  accepts either raw JSON or one complete `json` code fence; surrounding prose,
+  multiple blocks, and non-JSON content remain invalid.
 
 References: [ADK structured input and output](https://adk.dev/agents/llm-agents/#structure-data-input-and-output),
 [supported Agent Runtime locations](https://docs.cloud.google.com/gemini-enterprise-agent-platform/resources/agent-locations),
