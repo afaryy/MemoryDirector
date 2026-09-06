@@ -34,7 +34,9 @@ from app.soundtrack import SoundtrackConfigurationError, resolve_instrumental_tr
 from app.render import (
     ApprovalRequired,
     DeterministicVerticalRenderer,
+    RenderExecutionError,
     RenderRequest,
+    RenderVerificationError,
     SubprocessRenderExecutor,
     SubprocessVideoDurationProbe,
     create_render_request,
@@ -339,11 +341,18 @@ async def export_render(
                     detail="Instrumental music is not configured; choose original song or no sound.",
                 ) from error
         output_directory = temporary_root / "exports"
-        artifact = get_renderer().render_many(
-            RenderRequest(title=title, caption=caption, audio_path=audio_path),
-            source_paths,
-            output_directory,
-        )
+        try:
+            artifact = get_renderer().render_many(
+                RenderRequest(title=title, caption=caption, audio_path=audio_path),
+                source_paths,
+                output_directory,
+            )
+        except (RenderExecutionError, RenderVerificationError) as error:
+            logger.warning("Video rendering failed: %s", type(error).__name__)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Video rendering is temporarily unavailable; please try again.",
+            ) from None
 
         if requested_media_ids:
             try:

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from hashlib import sha256
+import logging
 from pathlib import Path
 import subprocess
 from typing import Literal, Protocol
@@ -9,6 +10,7 @@ from app.models import Storyboard
 TARGET_VIDEO_SECONDS = 60
 TRANSITION_SECONDS = 1
 PHOTO_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp"}
+logger = logging.getLogger(__name__)
 
 
 class ApprovalRequired(Exception):
@@ -17,6 +19,10 @@ class ApprovalRequired(Exception):
 
 class RenderVerificationError(Exception):
     """Raised when the encoded video does not satisfy the output contract."""
+
+
+class RenderExecutionError(RuntimeError):
+    """Raised without media-derived details when ffmpeg cannot render."""
 
 
 @dataclass(frozen=True)
@@ -72,27 +78,41 @@ class SubprocessRenderExecutor:
         # A fixed 60-second 1080x1920 render can take longer than two minutes on
         # the smallest Cloud Run instance. Keep the request bounded, but allow
         # enough time for the user-approved export to complete.
-        subprocess.run(command, check=True, capture_output=True, text=True, timeout=300)
+        try:
+            subprocess.run(command, check=True, capture_output=True, text=True, timeout=300)
+        except subprocess.CalledProcessError as error:
+            logger.error("ffmpeg exited %s (%s)", error.returncode, _ffmpeg_diagnostic_codes(error.stderr))
+            raise RenderExecutionError("Video rendering failed.") from None
+        except subprocess.TimeoutExpired:
+            logger.error("ffmpeg failed (timeout)")
+            raise RenderExecutionError("Video rendering failed.") from None
+        except OSError:
+            logger.error("ffmpeg failed (process-launch-failed)")
+            raise RenderExecutionError("Video rendering failed.") from None
 
 
 class SubprocessVideoDurationProbe:
     def duration_seconds_for(self, video_path: Path) -> float:
-        result = subprocess.run(
-            [
-                "ffprobe",
-                "-v",
-                "error",
-                "-show_entries",
-                "format=duration",
-                "-of",
-                "default=noprint_wrappers=1:nokey=1",
-                str(video_path),
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
+        try:
+            result = subprocess.run(
+                [
+                    "ffprobe",
+                    "-v",
+                    "error",
+                    "-show_entries",
+                    "format=duration",
+                    "-of",
+                    "default=noprint_wrappers=1:nokey=1",
+                    str(video_path),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+            logger.error("ffprobe failed (duration-probe-failed)")
+            raise RenderVerificationError("The finished video duration could not be verified.") from None
         try:
             return float(result.stdout.strip())
         except ValueError as error:
@@ -280,3 +300,18 @@ def _source_digest(source_path: Path) -> str:
         for chunk in iter(lambda: source.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _ffmpeg_diagnostic_codes(stderr: str | None) -> str:
+    normalized = (stderr or "").lower()
+    patterns = (
+        ("timebase", "input-timebase-mismatch"),
+        ("failed to configure output pad", "filter-output-configuration"),
+        ("error reinitializing filters", "filter-reinitialization"),
+        ("resource temporarily unavailable", "resource-unavailable"),
+        ("invalid argument", "invalid-argument"),
+        ("conversion failed", "conversion-failed"),
+        ("nothing was written", "no-output"),
+    )
+    codes = [code for marker, code in patterns if marker in normalized]
+    return ",".join(codes) or "unclassified"
