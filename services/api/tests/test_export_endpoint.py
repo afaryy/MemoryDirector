@@ -23,6 +23,15 @@ class RecordingExecutor:
                 cover.write(b"fake-cover")
 
 
+class RecordingHeifConverter:
+    def __init__(self) -> None:
+        self.calls = []
+
+    def convert(self, source_path, output_path) -> None:
+        self.calls.append((source_path, output_path))
+        output_path.write_bytes(b"converted-jpeg")
+
+
 @pytest.mark.anyio
 async def test_export_returns_mp4_cover_and_caption_bundle(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(main_module, "get_renderer", lambda: DeterministicVerticalRenderer(RecordingExecutor()))
@@ -48,7 +57,12 @@ async def test_direct_upload_prefers_recognized_mime_type_over_misleading_filena
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     executor = RecordingExecutor()
-    monkeypatch.setattr(main_module, "get_renderer", lambda: DeterministicVerticalRenderer(executor))
+    converter = RecordingHeifConverter()
+    monkeypatch.setattr(
+        main_module,
+        "get_renderer",
+        lambda: DeterministicVerticalRenderer(executor, heif_converter=converter),
+    )
 
     async with AsyncClient(transport=ASGITransport(app=main_module.app), base_url="http://test") as client:
         response = await client.post(
@@ -58,7 +72,8 @@ async def test_direct_upload_prefers_recognized_mime_type_over_misleading_filena
         )
 
     assert response.status_code == 200
-    assert any(argument.endswith("source-0.heic") for argument in executor.commands[0])
+    assert converter.calls[0][0].name == "source-0.heic"
+    assert any(argument.endswith("converted-source-0.jpg") for argument in executor.commands[0])
 
 
 @pytest.mark.anyio

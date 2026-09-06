@@ -10,6 +10,7 @@ from app.models import Storyboard
 TARGET_VIDEO_SECONDS = 60
 TRANSITION_SECONDS = 1
 PHOTO_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}
+HEIF_SUFFIXES = {".heic", ".heif"}
 logger = logging.getLogger(__name__)
 
 
@@ -67,6 +68,10 @@ class RenderExecutor(Protocol):
     def run(self, command: list[str]) -> None: ...
 
 
+class HeifConverter(Protocol):
+    def convert(self, source_path: Path, output_path: Path) -> None: ...
+
+
 class VideoDurationProbe(Protocol):
     def duration_seconds_for(self, video_path: Path) -> float: ...
 
@@ -89,6 +94,41 @@ class SubprocessRenderExecutor:
         except OSError:
             logger.error("ffmpeg failed (process-launch-failed)")
             raise RenderExecutionError("Video rendering failed.") from None
+
+
+class SubprocessHeifConverter:
+    """Convert phone-native HEIF photos without exposing media-derived diagnostics."""
+
+    def convert(self, source_path: Path, output_path: Path) -> None:
+        try:
+            subprocess.run(
+                ["heif-convert", str(source_path), str(output_path)],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        except subprocess.CalledProcessError as error:
+            logger.error("heif-convert failed (exit-%s)", error.returncode)
+            raise RenderExecutionError("Phone photo conversion failed.") from None
+        except subprocess.TimeoutExpired:
+            logger.error("heif-convert failed (timeout)")
+            raise RenderExecutionError("Phone photo conversion failed.") from None
+        except OSError:
+            logger.error("heif-convert failed (process-launch-failed)")
+            raise RenderExecutionError("Phone photo conversion failed.") from None
+        if output_path.is_file() and output_path.stat().st_size > 0:
+            return
+        numbered_outputs = sorted(
+            candidate
+            for candidate in output_path.parent.glob(f"{output_path.stem}-*{output_path.suffix}")
+            if candidate.is_file() and candidate.stat().st_size > 0
+        )
+        if numbered_outputs:
+            numbered_outputs[0].replace(output_path)
+            return
+        logger.error("heif-convert failed (missing-output)")
+        raise RenderExecutionError("Phone photo conversion failed.")
 
 
 class SubprocessVideoDurationProbe:
@@ -147,9 +187,16 @@ def allocate_timeline(source_paths: list[Path]) -> RenderTimeline:
 
 
 class DeterministicVerticalRenderer:
-    def __init__(self, executor: RenderExecutor, *, duration_probe: VideoDurationProbe | None = None) -> None:
+    def __init__(
+        self,
+        executor: RenderExecutor,
+        *,
+        duration_probe: VideoDurationProbe | None = None,
+        heif_converter: HeifConverter | None = None,
+    ) -> None:
         self._executor = executor
         self._duration_probe = duration_probe
+        self._heif_converter = heif_converter
 
     def render(self, request: RenderRequest, source_path: Path, output_directory: Path) -> RenderArtifact:
         return self.render_many(request, [source_path], output_directory)
@@ -164,16 +211,15 @@ class DeterministicVerticalRenderer:
         cover_path = output_directory / f"{render_id}.jpg"
         caption_path = output_directory / f"{render_id}.txt"
         caption_path.write_text(f"{request.title}\n\n{request.caption}\n")
+        source_paths = self._convert_heif_sources(source_paths, output_directory)
 
         if len(source_paths) == 1:
-            command = [
-                "ffmpeg",
-                "-y",
-                "-stream_loop",
-                "-1",
-                "-i",
-                str(source_paths[0]),
-            ]
+            command = ["ffmpeg", "-y"]
+            if source_paths[0].suffix.lower() in PHOTO_SUFFIXES:
+                command.extend(["-loop", "1"])
+            else:
+                command.extend(["-stream_loop", "-1"])
+            command.extend(["-i", str(source_paths[0])])
             if request.audio_path is not None:
                 command.extend(["-stream_loop", "-1", "-i", str(request.audio_path), "-map", "0:v:0", "-map", "1:a:0"])
             command.extend(
@@ -284,6 +330,19 @@ class DeterministicVerticalRenderer:
             cover_path=cover_path,
             caption_path=caption_path,
         )
+
+    def _convert_heif_sources(self, source_paths: list[Path], output_directory: Path) -> list[Path]:
+        converted_sources: list[Path] = []
+        for index, source_path in enumerate(source_paths):
+            if source_path.suffix.lower() not in HEIF_SUFFIXES:
+                converted_sources.append(source_path)
+                continue
+            if self._heif_converter is None:
+                raise RenderExecutionError("Phone photo conversion failed.")
+            converted_path = output_directory / f"converted-source-{index}.jpg"
+            self._heif_converter.convert(source_path, converted_path)
+            converted_sources.append(converted_path)
+        return converted_sources
 
     def _verify_duration(self, video_path: Path) -> None:
         if self._duration_probe is None:
