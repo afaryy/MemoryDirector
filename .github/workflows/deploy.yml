@@ -106,7 +106,7 @@ jobs:
               --project "${{ steps.config.outputs.project_id }}" \
               --region "${{ steps.config.outputs.region }}" \
               --format="value(metadata.annotations.'run.googleapis.com/ingress')" 2>&1)"; then
-              if [[ "$ingress" == *"NOT_FOUND"* ]]; then
+              if [[ "$ingress" == *"NOT_FOUND"* || "$ingress" == *"Cannot find service"* ]]; then
                 continue
               fi
               printf '%s\n' "$ingress" >&2
