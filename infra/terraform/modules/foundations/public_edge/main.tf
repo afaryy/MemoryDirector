@@ -68,7 +68,11 @@ resource "google_compute_security_policy" "edge" {
     description = "Bound costly film export and original-song requests."
     match {
       expr {
-        expression = "request.path.matches('/api/(usage/admissions|renders/export|memory-songs).*')"
+        expression = join(" || ", [
+          "request.path.startsWith('/api/usage/admissions')",
+          "request.path.startsWith('/api/renders/export')",
+          "request.path.startsWith('/api/memory-songs')",
+        ])
       }
     }
     rate_limit_options {
