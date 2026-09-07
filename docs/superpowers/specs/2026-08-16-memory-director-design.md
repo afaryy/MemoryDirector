@@ -78,7 +78,7 @@ Use a consented synthetic or team-owned 15–25 asset travel album. The demo mus
 - Runtime evidence of Gemini/Google Cloud and `mcp-clickhouse`.
 - English Devpost description covering features, technologies, data sources, and learnings.
 - Public YouTube/Vimeo video no longer than three minutes, with working product footage and English subtitles.
-- Submit before the earlier rules deadline: 2026-09-07 14:00 PT, unless the organiser provides a written correction.
+- Submit before the current official deadline: 2026-09-09 14:00 PDT (2026-09-10 07:00 AEST in Melbourne). Recheck the live rules immediately before submission.
 
 ## Test strategy
 
