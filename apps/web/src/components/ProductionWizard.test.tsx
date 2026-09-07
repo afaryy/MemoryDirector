@@ -207,6 +207,47 @@ describe("ProductionWizard", () => {
     expect(screen.queryByRole("button", { name: /Move .* (?:left|right)/ })).not.toBeInTheDocument();
   });
 
+  it("locks mouse and touch reordering while film generation is pending", async () => {
+    let analyzeSignal: AbortSignal | undefined;
+    const fetchMock = vi.fn((_url: string, options?: RequestInit) => {
+      analyzeSignal = options?.signal as AbortSignal | undefined;
+      return new Promise<Response>(() => undefined);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ProductionWizard />);
+    fireEvent.change(screen.getByLabelText("Your memory request"), {
+      target: { value: "Make a gentle film from these moments." },
+    });
+    fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
+      target: {
+        files: [
+          new File(["first"], "first.jpg", { type: "image/jpeg" }),
+          new File(["second"], "second.jpg", { type: "image/jpeg" }),
+        ],
+      },
+    });
+    fireEvent.click(screen.getByLabelText("I have permission to use these media."));
+    fireEvent.click(screen.getByRole("button", { name: "Make my film" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const reorderSecond = screen.getByRole("button", { name: "Reorder second.jpg" });
+    expect(reorderSecond).toBeDisabled();
+
+    const secondCard = reorderSecond.closest("li");
+    expect(secondCard).not.toBeNull();
+    fireEvent.mouseDown(secondCard!, { button: 0, clientX: 240, clientY: 100 });
+    fireEvent.mouseMove(document, { clientX: 40, clientY: 100 });
+    fireEvent.mouseUp(document, { clientX: 40, clientY: 100 });
+    fireEvent.touchStart(secondCard!, { touches: [{ clientX: 240, clientY: 100 }] });
+    fireEvent.touchMove(document, { touches: [{ clientX: 40, clientY: 100 }] });
+    fireEvent.touchEnd(document);
+
+    const cards = within(screen.getByRole("list", { name: "Selected media" })).getAllByRole("listitem");
+    expect(cards.map((card) => within(card).getByText(/\.jpg$/).textContent)).toEqual(["first.jpg", "second.jpg"]);
+    expect(analyzeSignal?.aborted).toBe(false);
+    expect(screen.getByText("Making your film…")).toBeVisible();
+  });
+
   it("removes a selected thumbnail without asking for permission again", async () => {
     render(<ProductionWizard />);
     fireEvent.change(screen.getByLabelText("Choose photos and videos"), {

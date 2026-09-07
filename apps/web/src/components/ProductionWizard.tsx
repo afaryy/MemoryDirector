@@ -49,6 +49,7 @@ type ProductionState = "ready" | "preparing" | "preview" | "error" | "saved";
 type SoundtrackMode = "original_song" | "instrumental" | "no_sound";
 
 type SortableMediaCardProps = {
+  isPreparing: boolean;
   isKeyboardGrabbed: boolean;
   item: SelectedMedia;
   onKeyboardReorder: (event: ReactKeyboardEvent<HTMLButtonElement>, itemId: number) => void;
@@ -59,6 +60,7 @@ type SortableMediaCardProps = {
 };
 
 function SortableMediaCard({
+  isPreparing,
   isKeyboardGrabbed,
   item,
   onKeyboardReorder,
@@ -67,11 +69,15 @@ function SortableMediaCard({
   registerRemoveButton,
   total,
 }: SortableMediaCardProps) {
-  const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({ id: item.id });
+  const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({
+    disabled: isPreparing,
+    id: item.id,
+  });
 
   return (
     <li
       className={`wizard__media-card${isDragging ? " is-dragging" : ""}`}
+      aria-disabled={isPreparing}
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       {...listeners}
@@ -108,6 +114,7 @@ function SortableMediaCard({
           aria-label={`Reorder ${item.file.name}`}
           aria-pressed={isKeyboardGrabbed}
           className="button wizard__drag-handle"
+          disabled={isPreparing}
           onKeyDown={(event) => onKeyboardReorder(event, item.id)}
           title={`Drag to reorder. Position ${position} of ${total}.`}
           type="button"
@@ -367,6 +374,7 @@ export function ProductionWizard() {
   }
 
   function finishPointerReorder(event: DragEndEvent) {
+    if (productionStateRef.current === "preparing") return;
     if (event.over && event.active.id !== event.over.id) {
       const destination = mediaItemsRef.current.findIndex((item) => item.id === event.over?.id);
       reorderMediaFile(Number(event.active.id), destination);
@@ -626,6 +634,7 @@ export function ProductionWizard() {
                       <ul aria-describedby="media-reorder-help" aria-label="Selected media" className="wizard__media-strip">
                         {mediaItems.map((item, index) => (
                           <SortableMediaCard
+                            isPreparing={isPreparing}
                             isKeyboardGrabbed={keyboardDragId === item.id}
                             item={item}
                             key={item.id}
