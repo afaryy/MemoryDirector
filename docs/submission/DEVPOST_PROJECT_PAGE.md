@@ -68,6 +68,32 @@ hosted proof remain release gates in the checklist.
 - Terraform modules and GitHub Actions with OIDC/WIF for repeatable sandbox
   infrastructure and deployments.
 
+## Data sources
+
+- Photos and videos deliberately selected by the user; the app does not scan
+  the wider device library.
+- The user's typed or spoken production request.
+- Anonymised consent, render, and accepted/rejected preference events in
+  ClickHouse. ClickHouse stores no raw photos or videos.
+- Gemini and Lyria outputs derived from approved request and media context.
+- For the public demonstration, only assets approved in the media rights
+  register.
+
+## What we learned
+
+- A useful older-adult workflow needs fewer decisions, not a smaller version
+  of a professional timeline editor. One request, deliberate media selection,
+  one permission gate, preview, and manual save/share proved clearer.
+- Agent output becomes production-safe only after deterministic validation.
+  The API accepts known media IDs, a closed music choice, and exactly 60
+  seconds; it rejects private URIs and malformed plans.
+- Partner integration is strongest when it controls a real decision. The
+  official ClickHouse MCP tool supplies a bounded preference lookup and consent
+  evidence instead of acting as a decorative analytics dashboard.
+- Hosted evidence needs stricter wording than local tests. We keep code-level,
+  deployed-runtime, and final recorded proof separate in the
+  [`ST-33 evidence package`](EVIDENCE_PACKAGE.md).
+
 ## Proof of a working deployment
 
 - Hosted web app:
@@ -101,3 +127,6 @@ memory, but the user decides what leaves the phone.
 
 - Source: https://github.com/afaryy/MemoryDirector
 - Licence: MIT ([`LICENSE`](../../LICENSE))
+
+Video Intelligence is not part of the submitted build and must not be listed
+as a technology or claimed in the recording.
