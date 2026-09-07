@@ -59,4 +59,16 @@ run "attaches_one_rate_limit_policy_to_both_public_backends" {
     condition     = output.rate_limit_priorities == { film = 100, api = 200, edge = 300, allow = 2147483647 }
     error_message = "Costly routes must be evaluated before broader API and edge limits."
   }
+
+  assert {
+    condition = one([
+      for rule in google_compute_security_policy.edge.rule : one(one(rule.match).expr).expression
+      if rule.priority == 100
+      ]) == join(" || ", [
+      "request.path.startsWith('/api/usage/admissions')",
+      "request.path.startsWith('/api/renders/export')",
+      "request.path.startsWith('/api/memory-songs')",
+    ])
+    error_message = "Costly-route matching must use Cloud Armor-compatible path predicates without regex capture groups."
+  }
 }
