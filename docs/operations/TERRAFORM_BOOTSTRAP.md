@@ -100,3 +100,8 @@ The operator receives `roles/datastore.owner` because the platform root owns
 the Firestore database lifecycle and therefore requires
 `datastore.databases.create`. The application runtime does not receive this
 role; it is limited to `roles/datastore.user` for quota-document operations.
+
+The operator also receives `roles/compute.securityAdmin` because the public-edge
+root owns the Cloud Armor security policy. `roles/compute.networkAdmin` remains
+responsible for attaching that policy to the load-balancer backend services;
+application runtime identities receive neither role.
