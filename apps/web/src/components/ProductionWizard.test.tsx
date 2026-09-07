@@ -160,6 +160,27 @@ describe("ProductionWizard", () => {
     expect(within(strip).getByText("Video")).toBeVisible();
   });
 
+  it("keeps reorder guidance outside the horizontal scrollbar region", () => {
+    render(<ProductionWizard />);
+    fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
+      target: {
+        files: [
+          new File(["first"], "first.jpg", { type: "image/jpeg" }),
+          new File(["second"], "second.jpg", { type: "image/jpeg" }),
+        ],
+      },
+    });
+
+    const strip = screen.getByRole("list", { name: "Selected media" });
+    const scrollRegion = strip.parentElement;
+    const guidance = screen.getByText("Drag to change the order. On a phone, press and hold, then move.");
+
+    expect(scrollRegion).toHaveClass("wizard__media-scroll");
+    expect(scrollRegion).not.toContainElement(guidance);
+    expect(scrollRegion?.parentElement).toBe(guidance.parentElement);
+    expect(scrollRegion?.compareDocumentPosition(guidance) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("recognizes a phone video by extension when the browser omits its MIME type", () => {
     render(<ProductionWizard />);
     fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
