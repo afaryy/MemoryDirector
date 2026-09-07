@@ -39,9 +39,9 @@ Create a brief for an original AI memory song using only approved details from t
 
 Create an exactly 60-second vertical short-film plan from user-selected media and a safe sound direction. Return JSON: `opening_hook`, `beats` (each with media IDs, start/end, narration or on-screen text, transition, and reason), `title`, `caption`, `accessibility`, and `privacy_checks`. The beats must sum to 60 seconds and may only reference supplied media IDs. Keep captions large, high-contrast, and short. The title and caption must be in the user's requested language and must not contain unconfirmed locations. You do not render the video; return only the constrained storyboard.
 
-## Save confirmation prompt
+## Preview completion prompt
 
-After the preview is available, summarize it in no more than two short sentences. Ask exactly one question: “Would you like to save and share this film?” The answer does not bypass the consent/export gate.
+After the preview is available, summarize it in no more than two short sentences. Tell the user that **Save video** downloads the MP4 and **Share video** opens the device share sheet when supported. If native file sharing is unavailable, advise the user to save first and then send the file from their chosen app. Neither action bypasses the consent/export gate, and the product never claims to post directly to a social network.
 
 ## Edit-by-voice prompt
 
