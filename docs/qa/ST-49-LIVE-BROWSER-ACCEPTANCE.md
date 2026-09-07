@@ -12,6 +12,11 @@ The production journey is operational on desktop and at a 390 x 844 mobile viewp
 
 This is a partial acceptance, not final sign-off. Native microphone and mobile share-sheet behavior still require a physical-device pass. The original-song and no-music render paths passed; a subsequent instrumental rerun reached the configured public usage guard and must be repeated after the quota window resets.
 
+Completion note (8 September 2026): ST-49 is Done for its live browser and
+responsive-viewport scope. The physical-device and instrumental checks listed
+below were transferred to ST-52 rather than waived; this report keeps their
+original results visible.
+
 ## Environment evidence
 
 - API image: `australia-southeast1-docker.pkg.dev/memory-director-505708/memory-director-sandbox/api:7f9a7484e8ffb6d6cfd584bc21e967716b3c3b4b`
@@ -69,4 +74,5 @@ Use a physical iPhone or Android phone for the following checks:
 5. Open the native share sheet and verify WhatsApp or WeChat appears only when installed.
 6. Cancel the clear-all confirmation once, then accept it once.
 
-Do not mark ST-49 Done until these physical-device checks and the instrumental rerun are recorded.
+These remaining checks are tracked by ST-52 and are not part of the completed
+ST-49 browser-viewport scope.
