@@ -18,10 +18,11 @@ once. A family member becomes the editor by default.
 Memory Director is a mobile-first web app and Google Cloud API. The target
 journey is deliberately simple: the person speaks or types a request, chooses
 their own photos and videos through the device picker, presses **Make my
-film**, watches a portrait preview, then chooses **Save & share**. The
-submission recording will show only capabilities that are working through this
-visible flow; a synthetic API fixture export is not presented as a complete
-hosted-UI journey.
+film**, watches a 60-second portrait preview, then chooses **Save video** or
+**Share video**. Desktop and mobile-emulated production journeys have verified
+the original-song and no-music paths through visible preview and Save. The
+submission recording will show only capabilities that pass the final approved-
+fixture rehearsal; browser emulation is not presented as physical-device proof.
 
 The agent is deliberately bounded:
 
@@ -45,13 +46,14 @@ instead of applying a single opaque filter:
 3. The production flow omits an uncertain place or fact until the user confirms it.
 4. The official `mcp-clickhouse` server is the runtime integration for
    anonymised preferences and the required consent/export decision.
-5. A deterministic renderer makes the approximately-one-minute portrait film
+5. A deterministic renderer makes the 60-second portrait film
    from a constrained storyboard; the model never directly encodes video.
 
-The repository contains the simplified UI, consent and privacy boundaries,
-automatic film preview/export path, Agent Engine planner, and ClickHouse MCP
-preference and export gates. The approved-media register and final recorded
-hosted proof remain release gates in the checklist.
+The public deployment contains the simplified UI, consent and privacy
+boundaries, automatic film preview/export path, Agent Engine planner, and
+ClickHouse MCP preference and export gates. The approved-media register,
+physical-device follow-up, and final recorded hosted proof remain separate
+release gates in the checklist and [capability evidence matrix](../CAPABILITY_EVIDENCE.md).
 
 ## Technology
 
@@ -108,13 +110,12 @@ hosted proof remain release gates in the checklist.
 - Three-minute recording plan: [`docs/demo/DEMO_RUNBOOK.md`](../demo/DEMO_RUNBOOK.md)
 - Rights gate: [`docs/demo/MEDIA_RIGHTS_REGISTER.md`](../demo/MEDIA_RIGHTS_REGISTER.md)
 
-The hosted sandbox has been smoke-tested with non-sensitive synthetic input:
-the API returned health 200, the web page returned 200, and the export API
-returned a valid ZIP containing an MP4, JPG cover, and TXT caption. The current
-Web source drives the consented analysis, Agent Engine planning, export,
-preview, download, and share path. The final submission recording must still
-prove that complete hosted journey using only assets approved in the rights
-register.
+The hosted product has passed desktop and mobile-emulated browser journeys with
+non-sensitive fixtures, including consented analysis, Agent Engine planning,
+export, a real 60-second preview, playback, Make again, and Save. Original-song
+and no-music paths passed; the instrumental rerun and native-device actions are
+tracked in ST-52. The final submission recording must still prove the chosen
+journey using only assets approved in the rights register.
 
 ## What we would do next
 

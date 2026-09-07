@@ -57,3 +57,23 @@ test("the capability matrix separates evidence levels", () => {
     assert.match(matrix, new RegExp(`\\b${heading}\\b`));
   }
 });
+
+test("current journey documents use the deployed action labels and evidence boundary", () => {
+  const currentJourneyDocuments = [
+    "README.md",
+    "docs/ABOUT.md",
+    "docs/PROJECT_BRIEF.md",
+    "docs/ARCHITECTURE.md",
+    "docs/ux/MOBILE_PRODUCTION_FLOW.md",
+    "docs/demo/DEMO_RUNBOOK.md",
+    "docs/submission/DEVPOST_PROJECT_PAGE.md",
+    "docs/submission/DEMO_SCRIPT.md",
+  ].map((path) => readFileSync(resolve(repositoryRoot, path), "utf8"));
+  const currentJourney = currentJourneyDocuments.join("\n");
+
+  assert.doesNotMatch(currentJourney, /Save\s*&\s*share/i);
+  assert.match(currentJourney, /Save video/);
+  assert.match(currentJourney, /Share video/);
+  assert.match(currentJourney, /ST-52/);
+  assert.match(currentJourney, /memorydirector\.com/);
+});

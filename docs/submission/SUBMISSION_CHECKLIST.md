@@ -1,7 +1,7 @@
 # ST-32 competition compliance checklist
 
-Last revalidated: **7 September 2026 (AEST)** against repository commit
-`1d2947154bfe523139d837070f63b1af5afb4e71` and the live Devpost pages.
+Last revalidated: **8 September 2026 (AEST)** against repository commit
+`64ee654a999549322dbeea22f9ffc2b8b29acdaf` and the live Devpost pages.
 
 Status meanings:
 
@@ -37,14 +37,14 @@ the live rules immediately before the final Devpost submission.
 | Functional production-ready agent powered by Gemini and Google Cloud Agent Builder | [Rules, section 7.A](https://agentic-cinema.devpost.com/rules) | Hosted flow in the demo; source paths for ADK/Agent Engine and Gemini; successful [Agent Engine deployment and smoke run](https://github.com/afaryy/MemoryDirector/actions/runs/34024861486) | Verified | Engineering | The run proves the hosted Agent Engine plan and tool invocation; the final video must show the user-facing workflow. |
 | Active ClickHouse use at runtime through official `mcp-clickhouse`, connected to Cloud or self-hosted ClickHouse | [Rules, section 7.B](https://agentic-cinema.devpost.com/rules); [ClickHouse track resources](https://agentic-cinema.devpost.com/details/clickhouse-resources) | `mcp-clickhouse` image/config in source; runtime call shown in the final demo; successful Agent Engine smoke step named “Prove Agent Engine plan and ClickHouse preference-tool invocation” | Verified | Engineering / demo recorder | Keep the MCP call visible and explain its actual preference/consent role; a README mention alone is insufficient. |
 | Only Google Cloud AI and the chosen partner's built-in AI features are used by the submitted product | [Rules, section 7.B](https://agentic-cinema.devpost.com/rules) | Runtime dependency and architecture review; final copy contains no unsupported AI claim | Verified | Engineering / submission editor | Current runtime code uses Google ADK, Vertex AI/Gemini and ClickHouse; re-scan dependencies and submission copy after later merges. |
-| Project runs on web, Android or iOS | [Rules, section 7.B](https://agentic-cinema.devpost.com/rules) | Public web URL and demo footage | Verified | Engineering | [Hosted web app](https://memorydirector.com/) returned HTTP 200 on 7 Sep 2026. |
+| Project runs on web, Android or iOS | [Rules, section 7.B](https://agentic-cinema.devpost.com/rules) | Public web URL and demo footage | Verified | Engineering | [Hosted web app](https://memorydirector.com/) and same-origin health route passed production checks on the audited commit. |
 | Project is new, original work created during the contest period | [Rules, section 7.B](https://agentic-cinema.devpost.com/rules) | Repository creation history plus entrant attestation that this is not an extension of earlier work | Attestation required | Devpost representative | Public repository metadata shows creation on 16 Aug 2026, but originality and prior-work status require human confirmation. |
-| Hosted project URL is supplied for judging and testing | [Rules, section 7.B](https://agentic-cinema.devpost.com/rules); [overview](https://agentic-cinema.devpost.com/) | `https://memorydirector.com/` in Devpost and an incognito check | Verified | Engineering / Devpost representative | Apex and `/api/health` returned HTTP 200 on 7 Sep 2026. Direct `run.app` URLs return 404 by design after ingress lockdown and must not be submitted. |
+| Hosted project URL is supplied for judging and testing | [Rules, section 7.B](https://agentic-cinema.devpost.com/rules); [overview](https://agentic-cinema.devpost.com/) | `https://memorydirector.com/` in Devpost and an incognito check | Verified | Engineering / Devpost representative | Apex and `/api/health` passed production checks on 8 Sep 2026. Direct `run.app` URLs return 404 by design after ingress lockdown and must not be submitted. |
 | English text description covers features, functionality, technologies, data sources, findings and learnings | [Rules, section 7.B](https://agentic-cinema.devpost.com/rules) | Finalised [`DEVPOST_PROJECT_PAGE.md`](DEVPOST_PROJECT_PAGE.md) copied to Devpost | Ready | Submission editor | Refresh the draft after the final demo so it describes only reproducibly demonstrated capabilities. |
 | Public source repository includes all source, assets and run instructions and demonstrates Google Cloud and partner runtime calls | [Rules, section 7.B](https://agentic-cinema.devpost.com/rules) | [Public repository](https://github.com/afaryy/MemoryDirector), root README, source, Terraform, workflows and operations docs | Verified | Engineering | GitHub reports the repository as public. Perform one final clean-clone instructions check after the last merge. |
 | Public repository has a visible OSI-approved licence permitting commercial use | [Rules, sections 7.B and 12](https://agentic-cinema.devpost.com/rules); [overview](https://agentic-cinema.devpost.com/) | Root [`LICENSE`](../../LICENSE) and GitHub licence detection | Verified | Engineering | GitHub detects the root file as MIT. Confirm it remains visible at the top of the repository page. |
 | ClickHouse partner track is selected | [Overview submission requirements](https://agentic-cinema.devpost.com/) | Final Devpost track field set to ClickHouse | Blocked | Devpost representative | Must be selected in the Devpost form; repository metadata cannot prove the form value. |
-| Public demo shows the project functioning as built | [Rules, section 7.B](https://agentic-cinema.devpost.com/rules); [overview](https://agentic-cinema.devpost.com/) | Final hosted-product recording following [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md) | Blocked | Demo recorder | Record the actual flow after final production smoke checks; do not substitute slides or an API-only test. |
+| Public demo shows the project functioning as built | [Rules, section 7.B](https://agentic-cinema.devpost.com/rules); [overview](https://agentic-cinema.devpost.com/) | Final hosted-product recording following [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md) | Blocked | Demo recorder | Browser acceptance is complete; record the approved-fixture flow after ST-52 and rights approval. Do not substitute slides or an API-only test. |
 | Demo is no longer than three minutes, public on YouTube or Vimeo, and English or English-subtitled | [Rules, section 7.B](https://agentic-cinema.devpost.com/rules) | Public YouTube/Vimeo URL, duration at or below 3:00, captions checked | Blocked | Demo editor / Devpost representative | Video has not been recorded and published. Aim below 2:55 to leave margin. |
 | Written submission is English and product supports English | [Rules, section 7.B](https://agentic-cinema.devpost.com/rules) | English Devpost page, English demo/captions and English product path | Ready | Submission editor / QA | The repository and UI support English; verify the final deployed path and all form fields. |
 | Third-party SDKs, APIs and data are authorised under their terms | [Rules, section 7.B](https://agentic-cinema.devpost.com/rules) | Dependency inventory and evidence that team accounts/assets may be used in the submission | Attestation required | Engineering lead / Devpost representative | Confirm account terms and any non-code data sources before submission. |
@@ -57,8 +57,10 @@ the live rules immediately before the final Devpost submission.
   <https://github.com/afaryy/MemoryDirector>
 - Hosted product: <https://memorydirector.com/>
 - Hosted health route: <https://memorydirector.com/api/health>
-- Latest `main` test run at audit time:
-  <https://github.com/afaryy/MemoryDirector/actions/runs/34119555723>
+- Current `main` test run:
+  <https://github.com/afaryy/MemoryDirector/actions/runs/34132016535>
+- Current Web deployment:
+  <https://github.com/afaryy/MemoryDirector/actions/runs/34132225436>
 - Hosted Agent Engine and ClickHouse preference-tool smoke:
   <https://github.com/afaryy/MemoryDirector/actions/runs/34024861486>
 - Public-edge deployment and HTTPS verification:
@@ -67,6 +69,8 @@ the live rules immediately before the final Devpost submission.
   [`docs/operations/AGENT_ENGINE.md`](../operations/AGENT_ENGINE.md)
 - ClickHouse MCP boundary:
   [`docs/clickhouse-mcp-proof.md`](../clickhouse-mcp-proof.md)
+- Current implementation, deployment, device, and submission status:
+  [`docs/CAPABILITY_EVIDENCE.md`](../CAPABILITY_EVIDENCE.md)
 
 ## Final release sequence
 

@@ -37,7 +37,7 @@ flowchart LR
 4. The API sends only consented media metadata to the bounded ADK planner on Vertex AI Agent Engine. The planner calls the approved ClickHouse preference tool once and returns a typed, exactly 60-second plan. The API rejects unknown media IDs, private URIs, invalid durations and unsafe music directions. It may hold back a redundant or low-quality item but never deletes the original. Any low-confidence place is omitted until confirmed.
 5. When the user chooses an original AI song, the API derives its prompt from approved request facts only, rejects artist/song/voice imitation requests, and keeps generated audio only in the render's temporary working directory. The deterministic renderer receives the constrained storyboard and optional temporary audio; the agent never encodes the video itself.
 6. Immediately before rendering and export, the Consent Guardian calls the official ClickHouse MCP path to check consent, selected-media status, and soundtrack safety.
-7. A passing check permits a 9:16 approximately-one-minute MP4 for manual saving and sharing. A denied or unavailable required check blocks export.
+7. A passing check permits a 60-second 9:16 MP4 for manual saving and sharing. A denied or unavailable required check blocks export.
 
 ## Data and privacy boundaries
 
