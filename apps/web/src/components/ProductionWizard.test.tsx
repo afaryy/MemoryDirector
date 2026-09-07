@@ -1,7 +1,7 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Blob as NodeBlob } from "node:buffer";
 import { strToU8, zipSync } from "fflate";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ProductionWizard } from "./ProductionWizard";
 
@@ -56,9 +56,11 @@ function renderSuccessfulProduction() {
     })
     .mockResolvedValueOnce({ ok: true })
     .mockResolvedValueOnce({ ok: true, blob: async () => exportZip() });
-  const createObjectURL = vi.fn((file: File) =>
-    file.type === "video/mp4" ? "blob:memory-director-video" : "blob:memory-director-cover",
-  );
+  const createObjectURL = vi.fn((file: File) => {
+    if (file.name.endsWith("-cover.jpg")) return "blob:memory-director-cover";
+    if (file.type === "video/mp4") return "blob:memory-director-video";
+    return `blob:selected-${file.name}`;
+  });
   vi.stubGlobal("fetch", fetchMock);
   const revokeObjectURL = vi.fn();
   vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
@@ -69,6 +71,13 @@ function renderSuccessfulProduction() {
 }
 
 describe("ProductionWizard", () => {
+  beforeEach(() => {
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn((file: File) => `blob:selected-${file.name}`),
+      revokeObjectURL: vi.fn(),
+    });
+  });
+
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
@@ -121,6 +130,126 @@ describe("ProductionWizard", () => {
     expect(screen.getByText("second.jpg")).toBeVisible();
   });
 
+  it("shows real photo and video previews in an ordered horizontal media strip", () => {
+    render(<ProductionWizard />);
+    fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
+      target: {
+        files: [
+          new File(["photo"], "birthday.jpg", { type: "image/jpeg" }),
+          new File(["video"], "candles.mp4", { type: "video/mp4" }),
+        ],
+      },
+    });
+
+    const strip = screen.getByRole("list", { name: "Selected media" });
+    expect(within(strip).getByRole("img", { name: "Preview birthday.jpg" })).toHaveAttribute(
+      "src",
+      "blob:selected-birthday.jpg",
+    );
+    expect(within(strip).getByLabelText("Preview candles.mp4")).toHaveAttribute(
+      "src",
+      "blob:selected-candles.mp4",
+    );
+    expect(within(strip).getByText("Photo")).toBeVisible();
+    expect(within(strip).getByText("Video")).toBeVisible();
+  });
+
+  it("recognizes a phone video by extension when the browser omits its MIME type", () => {
+    render(<ProductionWizard />);
+    fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
+      target: { files: [new File(["video"], "IMG_3352.MOV")] },
+    });
+
+    const strip = screen.getByRole("list", { name: "Selected media" });
+    expect(within(strip).getByLabelText("Preview IMG_3352.MOV")).toHaveAttribute(
+      "src",
+      "blob:selected-IMG_3352.MOV",
+    );
+    expect(within(strip).getByText("Video")).toBeVisible();
+  });
+
+  it("moves selected media with labelled controls without revoking consent", () => {
+    render(<ProductionWizard />);
+    fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
+      target: {
+        files: [
+          new File(["first"], "first.jpg", { type: "image/jpeg" }),
+          new File(["second"], "second.mp4", { type: "video/mp4" }),
+          new File(["third"], "third.jpg", { type: "image/jpeg" }),
+        ],
+      },
+    });
+    fireEvent.click(screen.getByLabelText("I have permission to use these media."));
+
+    const moveThirdLeft = screen.getByRole("button", { name: "Move third.jpg left" });
+    moveThirdLeft.focus();
+    fireEvent.click(moveThirdLeft);
+
+    const cards = within(screen.getByRole("list", { name: "Selected media" })).getAllByRole("listitem");
+    expect(cards.map((card) => within(card).getByText(/\.(?:jpg|mp4)$/).textContent)).toEqual([
+      "first.jpg",
+      "third.jpg",
+      "second.mp4",
+    ]);
+    expect(screen.getByLabelText("I have permission to use these media.")).toBeChecked();
+    expect(screen.getByRole("status")).toHaveTextContent("Moved third.jpg to position 2 of 3.");
+    expect(screen.getByRole("button", { name: "Move third.jpg left" })).toHaveFocus();
+  });
+
+  it("removes a selected thumbnail without asking for permission again", async () => {
+    render(<ProductionWizard />);
+    fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
+      target: {
+        files: [
+          new File(["first"], "first.jpg", { type: "image/jpeg" }),
+          new File(["second"], "second.jpg", { type: "image/jpeg" }),
+        ],
+      },
+    });
+    fireEvent.click(screen.getByLabelText("I have permission to use these media."));
+
+    const removeFirst = screen.getByRole("button", { name: "Remove first.jpg" });
+    removeFirst.focus();
+    fireEvent.click(removeFirst);
+
+    expect(screen.queryByText("first.jpg")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("I have permission to use these media.")).toBeChecked();
+    expect(screen.getByRole("status")).toHaveTextContent("Removed first.jpg; 1 item remains.");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Remove second.jpg" })).toHaveFocus());
+  });
+
+  it("returns focus to the file chooser after removing the final item", async () => {
+    render(<ProductionWizard />);
+    selectOnePhoto();
+
+    const removeOnlyItem = screen.getByRole("button", { name: "Remove garden.jpg" });
+    removeOnlyItem.focus();
+    fireEvent.click(removeOnlyItem);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Removed garden.jpg; 0 items remain.");
+    await waitFor(() => expect(screen.getByLabelText("Choose photos and videos")).toHaveFocus());
+  });
+
+  it("keeps focus on an enabled reorder control when an item reaches either end", async () => {
+    render(<ProductionWizard />);
+    fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
+      target: {
+        files: [
+          new File(["first"], "first.jpg", { type: "image/jpeg" }),
+          new File(["second"], "second.jpg", { type: "image/jpeg" }),
+        ],
+      },
+    });
+
+    const moveSecondLeft = screen.getByRole("button", { name: "Move second.jpg left" });
+    moveSecondLeft.focus();
+    fireEvent.click(moveSecondLeft);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Move second.jpg right" })).toHaveFocus());
+
+    fireEvent.click(screen.getByRole("button", { name: "Move second.jpg right" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Move second.jpg left" })).toHaveFocus());
+  });
+
   it("explains the 15-item limit instead of silently dropping selected media", () => {
     render(<ProductionWizard />);
     fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
@@ -169,6 +298,8 @@ describe("ProductionWizard", () => {
     expect(screen.getByRole("button", { name: "Share video" })).toBeEnabled();
     expect(screen.getByLabelText("Your memory film preview")).toBeVisible();
     expect(screen.getByText("Garden afternoon")).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Your memory request", exact: true })).toBeVisible();
+    expect(screen.getByLabelText("Choose photos and videos")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Approve plan" })).not.toBeInTheDocument();
 
     const exportCall = fetchMock.mock.calls.find(([url]) => url === "http://localhost:8000/renders/export");
@@ -177,6 +308,41 @@ describe("ProductionWizard", () => {
     const selectionCall = fetchMock.mock.calls.find(([url]) => url === "http://localhost:8000/media/sha256:garden/decision");
     expect(selectionCall?.[1]).toMatchObject({ method: "POST" });
     expect(JSON.parse(selectionCall?.[1]?.body as string)).toEqual({ status: "selected", reason: "Chosen for this film" });
+  });
+
+  it("keeps the last successful film visible while a revised film is prepared", async () => {
+    const { fetchMock } = renderSuccessfulProduction();
+    const firstPreview = await screen.findByLabelText("Your memory film preview");
+    expect(firstPreview).toHaveAttribute("src", "blob:memory-director-video");
+
+    fetchMock.mockImplementation(() => new Promise<Response>(() => undefined));
+    fireEvent.change(screen.getByLabelText("Your memory request"), {
+      target: { value: "Make the birthday version more cheerful." },
+    });
+
+    expect(screen.getByLabelText("Your memory film preview")).toHaveAttribute(
+      "src",
+      "blob:memory-director-video",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Make again" }));
+
+    expect(screen.getByLabelText("Your memory film preview")).toHaveAttribute(
+      "src",
+      "blob:memory-director-video",
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Making your film…");
+  });
+
+  it("brings the completed preview into view without leaving the editor", async () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(Element.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView });
+    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true })));
+
+    renderSuccessfulProduction();
+    await screen.findByLabelText("Your memory film preview");
+
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "auto", block: "start" }));
+    expect(screen.getByRole("textbox", { name: "Your memory request", exact: true })).toBeVisible();
   });
 
   it("starts no more than two media analyses at once", async () => {
@@ -254,8 +420,8 @@ describe("ProductionWizard", () => {
     const video = await screen.findByLabelText("Your memory film preview");
 
     expect(video).toHaveAttribute("poster", "blob:memory-director-cover");
-    expect(createObjectURL).toHaveBeenCalledTimes(2);
-    expect(createObjectURL.mock.calls.map(([file]) => file.type)).toEqual(["video/mp4", "image/jpeg"]);
+    expect(createObjectURL.mock.calls.map(([file]) => file.name)).toContain("Garden afternoon-cover.jpg");
+    expect(createObjectURL.mock.calls.map(([file]) => file.type)).toContain("video/mp4");
     fireEvent.ended(video);
     expect(load).toHaveBeenCalledTimes(1);
   });
@@ -308,9 +474,9 @@ describe("ProductionWizard", () => {
 
     view.unmount();
 
-    expect(revokeObjectURL).toHaveBeenCalledTimes(2);
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:memory-director-video");
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:memory-director-cover");
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:selected-garden.jpg");
   });
 
   it("cancels the failed generation before a retry starts new analysis workers", async () => {
