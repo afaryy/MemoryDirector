@@ -23,7 +23,7 @@ Original-song work has tighter limits: three attempts per visitor and twenty glo
 
 Firestore Native mode is the authoritative transactional quota store shared by every Cloud Run instance. Identifiers are hashed before document keys are written. ClickHouse receives bounded decision and outcome telemetry for cost analysis, but it is not used as an atomic admission counter.
 
-The browser reserves one short-lived admission before it uploads media or invokes Gemini. The same opaque admission ID is required for media analysis, storyboard planning, Lyria, and ffmpeg, then released when the workflow succeeds or fails. Expired leases are reclaimed so a terminated Cloud Run instance cannot hold capacity for the rest of the day. Rejected requests return HTTP 429 before a costly provider call starts.
+The browser reserves one short-lived admission before it uploads media or invokes Gemini. The same opaque admission ID is required for the bounded workflow: at most fifteen media analyses, one planning operation, one export, and—only when the admission reserved an original song—one song generation. Stage use is consumed atomically in Firestore, an export is terminal, and a no-sound or instrumental admission cannot be upgraded to an original song. The lease is released when the workflow succeeds or fails. Expired leases are reclaimed so a terminated Cloud Run instance cannot hold capacity for the rest of the day. Rejected or replayed requests return HTTP 429 before a costly provider call starts.
 
 ## Layer 2: edge and compute protection
 

@@ -119,6 +119,9 @@ class DenyingQuotaStore:
     def validate(self, admission_id, request):
         raise QuotaExceeded("ip")
 
+    def consume(self, admission_id, request, stage):
+        raise QuotaExceeded("ip")
+
 
 class CapturingQuotaStore:
     def __init__(self) -> None:
@@ -131,6 +134,9 @@ class CapturingQuotaStore:
         return QuotaLease(lambda: None)
 
     def validate(self, admission_id, request):
+        self.request = request
+
+    def consume(self, admission_id, request, stage):
         self.request = request
 
 

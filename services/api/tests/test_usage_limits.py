@@ -109,6 +109,43 @@ def test_original_song_limits_are_checked_atomically_with_film_limits() -> None:
     assert store.snapshot(request())["visitor_film_admitted"] == 1
 
 
+def test_no_sound_admission_cannot_be_upgraded_to_original_song() -> None:
+    store = InMemoryQuotaStore(policy())
+    lease = store.acquire(request(song=False))
+
+    with pytest.raises(QuotaExceeded) as error:
+        store.consume(lease.admission_id, request(song=True), "export")
+
+    assert error.value.scope == "admission_soundtrack"
+
+
+def test_admission_has_bounded_stage_uses() -> None:
+    store = InMemoryQuotaStore(policy())
+    lease = store.acquire(request(song=True))
+
+    for _ in range(15):
+        store.consume(lease.admission_id, request(song=True), "media_analysis")
+    with pytest.raises(QuotaExceeded, match="already been used"):
+        store.consume(lease.admission_id, request(song=True), "media_analysis")
+
+    store.consume(lease.admission_id, request(song=True), "planning")
+    with pytest.raises(QuotaExceeded, match="already been used"):
+        store.consume(lease.admission_id, request(song=True), "planning")
+
+    store.consume(lease.admission_id, request(song=True), "export")
+    with pytest.raises(QuotaExceeded, match="already been used"):
+        store.consume(lease.admission_id, request(song=True), "export")
+
+
+def test_original_song_can_only_be_consumed_once_across_song_and_export() -> None:
+    store = InMemoryQuotaStore(policy())
+    lease = store.acquire(request(song=True))
+    store.consume(lease.admission_id, request(song=True), "song")
+
+    with pytest.raises(QuotaExceeded, match="already been used"):
+        store.consume(lease.admission_id, request(song=True), "export")
+
+
 def test_utc_day_boundary_starts_new_counters() -> None:
     store = InMemoryQuotaStore(policy(visitor_daily_film_limit=1))
     before_midnight = datetime(2026, 9, 7, 23, 59, tzinfo=UTC)

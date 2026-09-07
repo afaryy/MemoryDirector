@@ -5,7 +5,7 @@ from hashlib import sha256
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from threading import RLock
-from typing import Callable, Protocol
+from typing import Callable, Literal, Protocol
 from uuid import uuid4
 
 
@@ -13,6 +13,15 @@ class QuotaExceeded(RuntimeError):
     def __init__(self, scope: str, message: str = "This usage limit has been reached. Please try again tomorrow.") -> None:
         super().__init__(message)
         self.scope = scope
+
+
+AdmissionStage = Literal["media_analysis", "planning", "song", "export"]
+STAGE_LIMITS: dict[AdmissionStage, int] = {
+    "media_analysis": 15,
+    "planning": 1,
+    "song": 1,
+    "export": 1,
+}
 
 
 @dataclass(frozen=True)
@@ -98,6 +107,7 @@ class QuotaLease:
 class QuotaStore(Protocol):
     def acquire(self, request: QuotaRequest) -> QuotaLease: ...
     def validate(self, admission_id: str, request: QuotaRequest) -> None: ...
+    def consume(self, admission_id: str, request: QuotaRequest, stage: AdmissionStage) -> None: ...
     def release(self, admission_id: str) -> None: ...
 
 
@@ -109,7 +119,7 @@ class InMemoryQuotaStore:
         self._clock = clock or (lambda: datetime.now(UTC))
         self._lock = RLock()
         self._daily: dict[str, dict[str, int]] = {}
-        self._leases: dict[str, tuple[QuotaRequest, datetime, bool]] = {}
+        self._leases: dict[str, tuple[QuotaRequest, datetime, bool, dict[str, int]]] = {}
 
     def _key(self, day: str, scope: str, identifier: str = "all") -> str:
         return f"{day}:{scope}:{identifier}"
@@ -119,14 +129,14 @@ class InMemoryQuotaStore:
 
     def _reap_expired_leases(self) -> None:
         now = self._clock()
-        for admission_id, (request, expires_at, released) in list(self._leases.items()):
+        for admission_id, (request, expires_at, released, stage_uses) in list(self._leases.items()):
             if released or expires_at > now:
                 continue
             ip = self._counter(self._key(request.utc_day, "ip", request.client_ip))
             global_counter = self._counter(self._key(request.utc_day, "global"))
             ip["in_flight"] = max(0, ip["in_flight"] - 1)
             global_counter["in_flight"] = max(0, global_counter["in_flight"] - 1)
-            self._leases[admission_id] = (request, expires_at, True)
+            self._leases[admission_id] = (request, expires_at, True, stage_uses)
 
     def acquire(self, request: QuotaRequest) -> QuotaLease:
         if not self.policy.enabled:
@@ -163,7 +173,7 @@ class InMemoryQuotaStore:
             if request.includes_original_song:
                 visitor["song"] += 1
                 global_counter["song"] += 1
-            self._leases[admission_id] = (request, self._clock() + timedelta(minutes=16), False)
+            self._leases[admission_id] = (request, self._clock() + timedelta(minutes=16), False, {})
 
         def release() -> None:
             self.release(admission_id)
@@ -181,6 +191,29 @@ class InMemoryQuotaStore:
             if original.visitor_id != request.visitor_id or original.client_ip != request.client_ip:
                 raise QuotaExceeded("admission", "This film request is not valid for this device.")
 
+    def consume(self, admission_id: str, request: QuotaRequest, stage: AdmissionStage) -> None:
+        if not self.policy.enabled:
+            return
+        with self._lock:
+            self.validate(admission_id, request)
+            lease = self._leases[admission_id]
+            original, expires_at, released, stage_uses = lease
+            if request.includes_original_song and not original.includes_original_song:
+                raise QuotaExceeded("admission_soundtrack", "Start a new film request with an original song.")
+            if stage_uses.get("export", 0) > 0:
+                raise QuotaExceeded("admission_stage", "This film request has already been used.")
+            required_stages = [stage]
+            if stage == "export" and request.includes_original_song:
+                required_stages.append("song")
+            for required_stage in required_stages:
+                limit = STAGE_LIMITS[required_stage]
+                if stage_uses.get(required_stage, 0) >= limit:
+                    raise QuotaExceeded("admission_stage", "This film request has already been used.")
+            updated = dict(stage_uses)
+            for required_stage in required_stages:
+                updated[required_stage] = updated.get(required_stage, 0) + 1
+            self._leases[admission_id] = (original, expires_at, released, updated)
+
     def release(self, admission_id: str) -> None:
         if not self.policy.enabled:
             return
@@ -193,7 +226,7 @@ class InMemoryQuotaStore:
             global_counter = self._counter(self._key(request.utc_day, "global"))
             ip["in_flight"] = max(0, ip["in_flight"] - 1)
             global_counter["in_flight"] = max(0, global_counter["in_flight"] - 1)
-            self._leases[admission_id] = (lease[0], lease[1], True)
+            self._leases[admission_id] = (lease[0], lease[1], True, lease[3])
 
     def snapshot(self, request: QuotaRequest) -> dict[str, int]:
         day = request.utc_day
@@ -260,7 +293,7 @@ class FirestoreQuotaStore:
             quota_document_id(day, "ip", request.client_ip)
         )
         global_ref = self.client.collection("quota_counters").document(f"{day}-global")
-        lease_ref = self.client.collection("quota_leases").document(uuid4().hex)
+        lease_ref = self.client.collection("quota_leases").document(admission_id)
 
         @firestore.transactional
         def admit(transaction) -> None:
@@ -310,6 +343,8 @@ class FirestoreQuotaStore:
                     "day": day,
                     "visitor_hash": sha256(request.visitor_id.encode()).hexdigest(),
                     "ip_hash": sha256(request.client_ip.encode()).hexdigest(),
+                    "includes_original_song": request.includes_original_song,
+                    "stage_uses": {},
                     "expires_at": expires_at,
                 },
             )
@@ -333,6 +368,44 @@ class FirestoreQuotaStore:
             or values.get("ip_hash") != sha256(request.client_ip.encode()).hexdigest()
         ):
             raise QuotaExceeded("admission", "Start a new film request and try again.")
+
+    def consume(self, admission_id: str, request: QuotaRequest, stage: AdmissionStage) -> None:
+        if not self.policy.enabled:
+            return
+        from google.cloud import firestore
+
+        lease_ref = self.client.collection("quota_leases").document(admission_id)
+
+        @firestore.transactional
+        def consume_transaction(transaction) -> None:
+            snapshot = lease_ref.get(transaction=transaction)
+            values = snapshot.to_dict() if snapshot.exists else {}
+            expires_at = values.get("expires_at")
+            if (
+                not snapshot.exists
+                or values.get("released") is True
+                or not isinstance(expires_at, datetime)
+                or expires_at <= datetime.now(UTC)
+                or values.get("visitor_hash") != sha256(request.visitor_id.encode()).hexdigest()
+                or values.get("ip_hash") != sha256(request.client_ip.encode()).hexdigest()
+            ):
+                raise QuotaExceeded("admission", "Start a new film request and try again.")
+            if request.includes_original_song and values.get("includes_original_song") is not True:
+                raise QuotaExceeded("admission_soundtrack", "Start a new film request with an original song.")
+            stage_uses = {key: int(value) for key, value in values.get("stage_uses", {}).items()}
+            if stage_uses.get("export", 0) > 0:
+                raise QuotaExceeded("admission_stage", "This film request has already been used.")
+            required_stages = [stage]
+            if stage == "export" and request.includes_original_song:
+                required_stages.append("song")
+            for required_stage in required_stages:
+                if stage_uses.get(required_stage, 0) >= STAGE_LIMITS[required_stage]:
+                    raise QuotaExceeded("admission_stage", "This film request has already been used.")
+            for required_stage in required_stages:
+                stage_uses[required_stage] = stage_uses.get(required_stage, 0) + 1
+            transaction.update(lease_ref, {"stage_uses": stage_uses})
+
+        consume_transaction(self.client.transaction())
 
     def release(self, admission_id: str) -> None:
         if not self.policy.enabled:

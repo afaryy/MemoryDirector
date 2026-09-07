@@ -35,7 +35,7 @@ from app.models import PlaceCandidate, ProductionBrief, ProductionProposal, Stor
 from app.preferences import preference_repository_from_environment
 from app.production import ProductionOrchestrator
 from app.soundtrack import SoundtrackConfigurationError, resolve_instrumental_track
-from app.usage_limits import QuotaExceeded, QuotaRequest, QuotaStore, quota_store_from_environment
+from app.usage_limits import AdmissionStage, QuotaExceeded, QuotaRequest, QuotaStore, quota_store_from_environment
 from app.render import (
     ApprovalRequired,
     DeterministicVerticalRenderer,
@@ -241,16 +241,22 @@ def acquire_quota(request: Request, *, includes_original_song: bool):
         ) from error
 
 
-def require_admission(request: Request, *, includes_original_song: bool = False) -> str | None:
+def require_admission(
+    request: Request,
+    stage: AdmissionStage,
+    *,
+    includes_original_song: bool = False,
+) -> str | None:
     if os.environ.get("QUOTA_ENABLED", "false").lower() != "true":
         return None
     admission_id = request.headers.get("x-memory-director-admission", "").strip()
     if not admission_id:
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Start a new film request and try again.", headers={"Retry-After": "60"})
     try:
-        get_quota_store().validate(
+        get_quota_store().consume(
             admission_id,
             quota_request_from_http(request, includes_original_song=includes_original_song),
+            stage,
         )
     except QuotaExceeded as error:
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(error), headers={"Retry-After": "86400"}) from error
@@ -289,7 +295,7 @@ def generate_memory_song(payload: MemorySongBriefPayload, request: Request) -> d
         brief = build_memory_song_brief(memory_details=payload.memory_details, requested_style=payload.requested_style)
     except UnsafeSongRequest as error:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
-    require_admission(request, includes_original_song=True)
+    require_admission(request, "song", includes_original_song=True)
     try:
         song = get_lyria_client().generate(brief.prompt)
     except (KeyError, RuntimeError) as error:
@@ -318,12 +324,12 @@ async def analyze_media(
     if not (normalized_content_type.startswith("video/") or normalized_content_type.startswith("image/")):
         raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Upload a photo or video file.")
 
-    require_admission(request)
-
     upload_limit = max_upload_bytes()
     contents = await media.read(upload_limit + 1)
     if len(contents) > upload_limit:
         raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail="That file is too large to use.")
+
+    require_admission(request, "media_analysis")
 
     media_id = media_id_for_bytes(contents)
     try:
@@ -391,7 +397,7 @@ async def export_render(
     media_id: str | None = Form(None),
     media_ids: list[str] | None = Form(None),
 ) -> StreamingResponse:
-    require_admission(request, includes_original_song=soundtrack_mode == "original_song")
+    require_admission(request, "export", includes_original_song=soundtrack_mode == "original_song")
     return await _export_render_admitted(
         title=title,
         caption=caption,
@@ -561,7 +567,7 @@ def create_storyboard(
 ) -> Storyboard:
     if len(payload.occasion) > max_request_text_chars() or payload.media_count > max_media_items():
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Shorten the request or choose fewer moments.")
-    require_admission(request)
+    require_admission(request, "planning")
     storyboard = get_production_planner().plan(payload.occasion, payload.moods)
     try:
         repository = get_preference_repository()
@@ -583,13 +589,14 @@ def create_storyboard(
 
 
 @app.post("/production-proposals", response_model=ProductionProposal, status_code=status.HTTP_201_CREATED)
-def create_production_proposal(payload: ProductionProposalPayload) -> ProductionProposal:
+def create_production_proposal(payload: ProductionProposalPayload, request: Request) -> ProductionProposal:
     agent_planner = get_agent_planner()
     if agent_planner is None:
+        require_admission(request, "planning")
         return ProductionOrchestrator(get_production_planner()).produce(payload.brief, payload.places)
 
     try:
-        request = AgentPlanningRequest.from_brief(
+        planning_request = AgentPlanningRequest.from_brief(
             payload.brief, user_id=payload.user_id
         )
     except ValidationError as error:
@@ -597,9 +604,10 @@ def create_production_proposal(payload: ProductionProposalPayload) -> Production
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Production request is outside the bounded agent contract.",
         ) from error
+    require_admission(request, "planning")
     try:
-        plan = agent_planner.plan(request)
-        return AgentPlanAdapter.to_proposal(request, plan)
+        plan = agent_planner.plan(planning_request)
+        return AgentPlanAdapter.to_proposal(planning_request, plan)
     except AgentPlannerUnavailable as error:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

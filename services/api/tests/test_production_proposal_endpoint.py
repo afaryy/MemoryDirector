@@ -143,3 +143,30 @@ async def test_configured_agent_rejects_request_outside_bounded_contract(
 
     assert response.status_code == 422
     assert planner.requests == []
+
+
+@pytest.mark.anyio
+async def test_production_proposal_quota_rejection_does_not_call_a_planner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    planner = FakeAgentPlanner()
+
+    class DenyingQuotaStore:
+        def consume(self, admission_id, request, stage):
+            from app.usage_limits import QuotaExceeded
+
+            raise QuotaExceeded("admission")
+
+    monkeypatch.setattr(main_module, "get_agent_planner", lambda: planner)
+    monkeypatch.setattr(main_module, "get_quota_store", lambda: DenyingQuotaStore())
+    monkeypatch.setenv("QUOTA_ENABLED", "true")
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/production-proposals",
+            headers={"X-Memory-Director-Admission": "denied"},
+            json=proposal_payload(),
+        )
+
+    assert response.status_code == 429
+    assert planner.requests == []
