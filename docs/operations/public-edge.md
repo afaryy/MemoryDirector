@@ -32,6 +32,19 @@ If the registered zone already contains the intended apex A or `www` CNAME,
 the workflow imports that single matching record into the isolated Terraform
 state before applying. Multiple matching records fail closed for manual review.
 
+The provisioned Cloud Armor policy applies the sandbox thresholds in
+`infra/terraform/projects/config/sandbox.json`: five costly generation requests
+per IP per ten minutes, thirty other API requests per IP per minute, and 120
+general requests per IP per minute. Exceeded limits return HTTP 429 and apply a
+one-hour rate-limit ban. Costly paths use explicit `startsWith` predicates;
+Cloud Armor matchers must not use regular-expression capture groups.
+
+The latest verified provision is workflow run
+[34118291595](https://github.com/afaryy/MemoryDirector/actions/runs/34118291595):
+one Cloud Armor policy added, two backend services updated in place, and zero
+resources destroyed. Both backends were read back with the same policy attached,
+and the homepage and API health checks returned HTTP 200.
+
 Run these checks after it becomes active:
 
 ```bash
