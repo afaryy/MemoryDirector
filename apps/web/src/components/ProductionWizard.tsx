@@ -1,11 +1,26 @@
 "use client";
 
+import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  horizontalListSortingStrategy,
+  SortableContext,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { unzipSync } from "fflate";
 import {
-  ChevronLeft,
-  ChevronRight,
   CircleCheck,
   Download,
+  GripVertical,
   ImageIcon,
   Images,
   Mic,
@@ -15,7 +30,7 @@ import {
   Video,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from "react";
 
 type Storyboard = {
   title: string;
@@ -32,6 +47,85 @@ type SelectedMedia = {
 };
 type ProductionState = "ready" | "preparing" | "preview" | "error" | "saved";
 type SoundtrackMode = "original_song" | "instrumental" | "no_sound";
+
+type SortableMediaCardProps = {
+  isPreparing: boolean;
+  isKeyboardGrabbed: boolean;
+  item: SelectedMedia;
+  onKeyboardReorder: (event: ReactKeyboardEvent<HTMLButtonElement>, itemId: number) => void;
+  onRemove: () => void;
+  position: number;
+  registerRemoveButton: (element: HTMLButtonElement | null) => void;
+  total: number;
+};
+
+function SortableMediaCard({
+  isPreparing,
+  isKeyboardGrabbed,
+  item,
+  onKeyboardReorder,
+  onRemove,
+  position,
+  registerRemoveButton,
+  total,
+}: SortableMediaCardProps) {
+  const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({
+    disabled: isPreparing,
+    id: item.id,
+  });
+
+  return (
+    <li
+      className={`wizard__media-card${isDragging ? " is-dragging" : ""}`}
+      aria-disabled={isPreparing}
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      {...listeners}
+    >
+      <div className="wizard__thumbnail">
+        {item.kind === "photo" ? (
+          // Local blob URLs are browser-owned previews and cannot use the Next image optimizer.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img alt={`Preview ${item.file.name}`} src={item.previewUrl} />
+        ) : (
+          <video aria-label={`Preview ${item.file.name}`} muted playsInline preload="metadata" src={item.previewUrl} />
+        )}
+        <span className="wizard__media-kind">
+          {item.kind === "photo" ? <ImageIcon aria-hidden="true" /> : <Video aria-hidden="true" />}
+          {item.kind === "photo" ? "Photo" : "Video"}
+        </span>
+        <button
+          aria-label={`Remove ${item.file.name}`}
+          className="button wizard__thumbnail-remove"
+          onClick={onRemove}
+          onMouseDown={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+          onTouchStart={(event) => event.stopPropagation()}
+          ref={registerRemoveButton}
+          type="button"
+        >
+          <X aria-hidden="true" />
+        </button>
+      </div>
+      <div className="wizard__media-meta">
+        <span className="wizard__media-name" title={item.file.name}>{item.file.name}</span>
+        <button
+          {...attributes}
+          aria-label={`Reorder ${item.file.name}`}
+          aria-pressed={isKeyboardGrabbed}
+          className="button wizard__drag-handle"
+          disabled={isPreparing}
+          onKeyDown={(event) => onKeyboardReorder(event, item.id)}
+          title={`Drag to reorder. Position ${position} of ${total}.`}
+          type="button"
+        >
+          <GripVertical aria-hidden="true" />
+          <span>{position}</span>
+        </button>
+      </div>
+    </li>
+  );
+}
 
 const phoneVideoExtension = /\.(?:3g2|3gp|avi|m4v|mkv|mov|mp4|mpeg|mpg|webm)$/i;
 
@@ -144,6 +238,7 @@ export function ProductionWizard() {
   const [progressMessage, setProgressMessage] = useState("");
   const [completionMessage, setCompletionMessage] = useState("");
   const [mediaUpdateMessage, setMediaUpdateMessage] = useState("");
+  const [keyboardDragId, setKeyboardDragId] = useState<number | null>(null);
   const generationRef = useRef(0);
   const consentRef = useRef(false);
   const activeRequestRef = useRef<AbortController | null>(null);
@@ -154,9 +249,12 @@ export function ProductionWizard() {
   const nextMediaIdRef = useRef(1);
   const previewSectionRef = useRef<HTMLElement | null>(null);
   const removeButtonRefs = useRef(new Map<number, HTMLButtonElement>());
-  const moveLeftButtonRefs = useRef(new Map<number, HTMLButtonElement>());
-  const moveRightButtonRefs = useRef(new Map<number, HTMLButtonElement>());
+  const keyboardDragOriginRef = useRef<SelectedMedia[] | null>(null);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+  );
 
   const mediaFiles = mediaItems.map((item) => item.file);
   const canMakeFilm = memoryRequest.trim().length > 0 && mediaFiles.length > 0 && hasMediaPermission && productionState !== "preparing";
@@ -236,6 +334,8 @@ export function ProductionWizard() {
     }));
     mediaItemsRef.current = nextItems;
     setMediaItems(nextItems);
+    setKeyboardDragId(null);
+    keyboardDragOriginRef.current = null;
     consentRef.current = false;
     setHasMediaPermission(false);
     setErrorMessage("");
@@ -253,6 +353,8 @@ export function ProductionWizard() {
     const nextFocusItem = nextItems[Math.min(index, nextItems.length - 1)];
     mediaItemsRef.current = nextItems;
     setMediaItems(nextItems);
+    setKeyboardDragId(null);
+    keyboardDragOriginRef.current = null;
     setMediaUpdateMessage(`Removed ${removed.file.name}; ${nextItems.length} ${nextItems.length === 1 ? "item remains" : "items remain"}.`);
     markRevision();
     window.setTimeout(() => {
@@ -261,19 +363,63 @@ export function ProductionWizard() {
     }, 0);
   }
 
-  function moveMediaFile(index: number, offset: -1 | 1) {
-    const destination = index + offset;
-    if (destination < 0 || destination >= mediaItemsRef.current.length) return;
-    const nextItems = [...mediaItemsRef.current];
-    [nextItems[index], nextItems[destination]] = [nextItems[destination], nextItems[index]];
+  function reorderMediaFile(itemId: number, destination: number) {
+    const source = mediaItemsRef.current.findIndex((item) => item.id === itemId);
+    if (source < 0 || destination < 0 || destination >= mediaItemsRef.current.length || source === destination) return;
+    const nextItems = arrayMove(mediaItemsRef.current, source, destination);
     mediaItemsRef.current = nextItems;
     setMediaItems(nextItems);
     setMediaUpdateMessage(`Moved ${nextItems[destination].file.name} to position ${destination + 1} of ${nextItems.length}.`);
     markRevision();
-    window.setTimeout(() => {
-      if (destination === 0) moveRightButtonRefs.current.get(nextItems[destination].id)?.focus();
-      else if (destination === nextItems.length - 1) moveLeftButtonRefs.current.get(nextItems[destination].id)?.focus();
-    }, 0);
+  }
+
+  function finishPointerReorder(event: DragEndEvent) {
+    if (productionStateRef.current === "preparing") return;
+    if (event.over && event.active.id !== event.over.id) {
+      const destination = mediaItemsRef.current.findIndex((item) => item.id === event.over?.id);
+      reorderMediaFile(Number(event.active.id), destination);
+    }
+  }
+
+  function handleKeyboardReorder(event: ReactKeyboardEvent<HTMLButtonElement>, itemId: number) {
+    if (event.key === " " || event.key === "Enter") {
+      event.preventDefault();
+      if (keyboardDragId === itemId) {
+        const position = mediaItemsRef.current.findIndex((item) => item.id === itemId) + 1;
+        setKeyboardDragId(null);
+        keyboardDragOriginRef.current = null;
+        setMediaUpdateMessage(`Placed ${mediaItemsRef.current[position - 1].file.name} at position ${position} of ${mediaItemsRef.current.length}.`);
+      } else {
+        keyboardDragOriginRef.current = [...mediaItemsRef.current];
+        setKeyboardDragId(itemId);
+        const position = mediaItemsRef.current.findIndex((item) => item.id === itemId) + 1;
+        setMediaUpdateMessage(`Picked up ${mediaItemsRef.current[position - 1].file.name} at position ${position} of ${mediaItemsRef.current.length}. Use left and right arrow keys to move it.`);
+      }
+      return;
+    }
+
+    if (event.key === "Escape" && keyboardDragId === itemId) {
+      event.preventDefault();
+      const originalItems = keyboardDragOriginRef.current;
+      if (originalItems) {
+        mediaItemsRef.current = originalItems;
+        setMediaItems(originalItems);
+      }
+      setKeyboardDragId(null);
+      keyboardDragOriginRef.current = null;
+      setMediaUpdateMessage("Reordering canceled.");
+      return;
+    }
+
+    if (keyboardDragId !== itemId || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
+    event.preventDefault();
+    const source = mediaItemsRef.current.findIndex((item) => item.id === itemId);
+    const destination = source + (event.key === "ArrowLeft" ? -1 : 1);
+    if (destination < 0 || destination >= mediaItemsRef.current.length) {
+      setMediaUpdateMessage(`${mediaItemsRef.current[source].file.name} is already ${destination < 0 ? "first" : "last"}.`);
+      return;
+    }
+    reorderMediaFile(itemId, destination);
   }
 
   function updateSoundtrackMode(mode: SoundtrackMode) {
@@ -482,32 +628,31 @@ export function ProductionWizard() {
               </label>
 
               {mediaItems.length > 0 ? (
-                <ul aria-label="Selected media" className="wizard__media-strip">
-                  {mediaItems.map((item, index) => (
-                    <li className="wizard__media-card" key={item.id}>
-                      <div className="wizard__thumbnail">
-                        {item.kind === "photo" ? (
-                          // Local blob URLs are browser-owned previews and cannot use the Next image optimizer.
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img alt={`Preview ${item.file.name}`} src={item.previewUrl} />
-                        ) : (
-                          <video aria-label={`Preview ${item.file.name}`} muted playsInline preload="metadata" src={item.previewUrl} />
-                        )}
-                        <span className="wizard__media-kind">
-                          {item.kind === "photo" ? <ImageIcon aria-hidden="true" /> : <Video aria-hidden="true" />}
-                          {item.kind === "photo" ? "Photo" : "Video"}
-                        </span>
-                        <button aria-label={`Remove ${item.file.name}`} className="button wizard__thumbnail-remove" onClick={() => removeMediaFile(index)} ref={(element) => { if (element) removeButtonRefs.current.set(item.id, element); else removeButtonRefs.current.delete(item.id); }} type="button"><X aria-hidden="true" /></button>
-                      </div>
-                      <span className="wizard__media-name" title={item.file.name}>{item.file.name}</span>
-                      <div className="wizard__reorder-actions">
-                        <button aria-label={`Move ${item.file.name} left`} className="button" disabled={index === 0} onClick={() => moveMediaFile(index, -1)} ref={(element) => { if (element) moveLeftButtonRefs.current.set(item.id, element); else moveLeftButtonRefs.current.delete(item.id); }} type="button"><ChevronLeft aria-hidden="true" /></button>
-                        <span>{index + 1}</span>
-                        <button aria-label={`Move ${item.file.name} right`} className="button" disabled={index === mediaItems.length - 1} onClick={() => moveMediaFile(index, 1)} ref={(element) => { if (element) moveRightButtonRefs.current.set(item.id, element); else moveRightButtonRefs.current.delete(item.id); }} type="button"><ChevronRight aria-hidden="true" /></button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <DndContext collisionDetection={closestCenter} onDragEnd={finishPointerReorder} sensors={sensors}>
+                    <SortableContext items={mediaItems.map((item) => item.id)} strategy={horizontalListSortingStrategy}>
+                      <ul aria-describedby="media-reorder-help" aria-label="Selected media" className="wizard__media-strip">
+                        {mediaItems.map((item, index) => (
+                          <SortableMediaCard
+                            isPreparing={isPreparing}
+                            isKeyboardGrabbed={keyboardDragId === item.id}
+                            item={item}
+                            key={item.id}
+                            onKeyboardReorder={handleKeyboardReorder}
+                            onRemove={() => removeMediaFile(index)}
+                            position={index + 1}
+                            registerRemoveButton={(element) => {
+                              if (element) removeButtonRefs.current.set(item.id, element);
+                              else removeButtonRefs.current.delete(item.id);
+                            }}
+                            total={mediaItems.length}
+                          />
+                        ))}
+                      </ul>
+                    </SortableContext>
+                  </DndContext>
+                  <p className="wizard__media-reorder-help" id="media-reorder-help">Drag to change the order. On a phone, press and hold, then move.</p>
+                </>
               ) : (
                 <div className="wizard__media-help"><CircleCheck aria-hidden="true" /><span>Your selected moments will appear here. Remove any one before you make the film.</span></div>
               )}

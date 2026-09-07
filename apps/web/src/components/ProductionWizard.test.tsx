@@ -38,6 +38,12 @@ function completeReadyState() {
   fireEvent.click(screen.getByLabelText("I have permission to use these media."));
 }
 
+function statusWithText(text: string) {
+  const status = screen.getAllByRole("status").find((element) => element.textContent?.includes(text));
+  expect(status).toBeDefined();
+  return status as HTMLElement;
+}
+
 function exportZip() {
   return new NodeBlob(
     [zipSync({ "garden.mp4": strToU8("fixture-mp4"), "garden.jpg": strToU8("fixture-cover") })],
@@ -168,7 +174,7 @@ describe("ProductionWizard", () => {
     expect(within(strip).getByText("Video")).toBeVisible();
   });
 
-  it("moves selected media with labelled controls without revoking consent", () => {
+  it("reorders selected media with the keyboard drag control without revoking consent", () => {
     render(<ProductionWizard />);
     fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
       target: {
@@ -181,9 +187,13 @@ describe("ProductionWizard", () => {
     });
     fireEvent.click(screen.getByLabelText("I have permission to use these media."));
 
-    const moveThirdLeft = screen.getByRole("button", { name: "Move third.jpg left" });
-    moveThirdLeft.focus();
-    fireEvent.click(moveThirdLeft);
+    const reorderThird = screen.getByRole("button", { name: "Reorder third.jpg" });
+    reorderThird.focus();
+    fireEvent.keyDown(reorderThird, { key: " " });
+    expect(reorderThird).toHaveAttribute("aria-pressed", "true");
+    fireEvent.keyDown(reorderThird, { key: "ArrowLeft" });
+    expect(statusWithText("Moved third.jpg to position 2 of 3.")).toHaveTextContent("Moved third.jpg to position 2 of 3.");
+    fireEvent.keyDown(reorderThird, { key: " " });
 
     const cards = within(screen.getByRole("list", { name: "Selected media" })).getAllByRole("listitem");
     expect(cards.map((card) => within(card).getByText(/\.(?:jpg|mp4)$/).textContent)).toEqual([
@@ -192,8 +202,50 @@ describe("ProductionWizard", () => {
       "second.mp4",
     ]);
     expect(screen.getByLabelText("I have permission to use these media.")).toBeChecked();
-    expect(screen.getByRole("status")).toHaveTextContent("Moved third.jpg to position 2 of 3.");
-    expect(screen.getByRole("button", { name: "Move third.jpg left" })).toHaveFocus();
+    expect(statusWithText("Placed third.jpg at position 2 of 3.")).toHaveTextContent("Placed third.jpg at position 2 of 3.");
+    expect(screen.getByRole("button", { name: "Reorder third.jpg" })).toHaveFocus();
+    expect(screen.queryByRole("button", { name: /Move .* (?:left|right)/ })).not.toBeInTheDocument();
+  });
+
+  it("locks mouse and touch reordering while film generation is pending", async () => {
+    let analyzeSignal: AbortSignal | undefined;
+    const fetchMock = vi.fn((_url: string, options?: RequestInit) => {
+      analyzeSignal = options?.signal as AbortSignal | undefined;
+      return new Promise<Response>(() => undefined);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ProductionWizard />);
+    fireEvent.change(screen.getByLabelText("Your memory request"), {
+      target: { value: "Make a gentle film from these moments." },
+    });
+    fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
+      target: {
+        files: [
+          new File(["first"], "first.jpg", { type: "image/jpeg" }),
+          new File(["second"], "second.jpg", { type: "image/jpeg" }),
+        ],
+      },
+    });
+    fireEvent.click(screen.getByLabelText("I have permission to use these media."));
+    fireEvent.click(screen.getByRole("button", { name: "Make my film" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const reorderSecond = screen.getByRole("button", { name: "Reorder second.jpg" });
+    expect(reorderSecond).toBeDisabled();
+
+    const secondCard = reorderSecond.closest("li");
+    expect(secondCard).not.toBeNull();
+    fireEvent.mouseDown(secondCard!, { button: 0, clientX: 240, clientY: 100 });
+    fireEvent.mouseMove(document, { clientX: 40, clientY: 100 });
+    fireEvent.mouseUp(document, { clientX: 40, clientY: 100 });
+    fireEvent.touchStart(secondCard!, { touches: [{ clientX: 240, clientY: 100 }] });
+    fireEvent.touchMove(document, { touches: [{ clientX: 40, clientY: 100 }] });
+    fireEvent.touchEnd(document);
+
+    const cards = within(screen.getByRole("list", { name: "Selected media" })).getAllByRole("listitem");
+    expect(cards.map((card) => within(card).getByText(/\.jpg$/).textContent)).toEqual(["first.jpg", "second.jpg"]);
+    expect(analyzeSignal?.aborted).toBe(false);
+    expect(screen.getByText("Making your film…")).toBeVisible();
   });
 
   it("removes a selected thumbnail without asking for permission again", async () => {
@@ -214,7 +266,7 @@ describe("ProductionWizard", () => {
 
     expect(screen.queryByText("first.jpg")).not.toBeInTheDocument();
     expect(screen.getByLabelText("I have permission to use these media.")).toBeChecked();
-    expect(screen.getByRole("status")).toHaveTextContent("Removed first.jpg; 1 item remains.");
+    expect(statusWithText("Removed first.jpg; 1 item remains.")).toHaveTextContent("Removed first.jpg; 1 item remains.");
     await waitFor(() => expect(screen.getByRole("button", { name: "Remove second.jpg" })).toHaveFocus());
   });
 
@@ -226,11 +278,11 @@ describe("ProductionWizard", () => {
     removeOnlyItem.focus();
     fireEvent.click(removeOnlyItem);
 
-    expect(screen.getByRole("status")).toHaveTextContent("Removed garden.jpg; 0 items remain.");
+    expect(statusWithText("Removed garden.jpg; 0 items remain.")).toHaveTextContent("Removed garden.jpg; 0 items remain.");
     await waitFor(() => expect(screen.getByLabelText("Choose photos and videos")).toHaveFocus());
   });
 
-  it("keeps focus on an enabled reorder control when an item reaches either end", async () => {
+  it("announces keyboard drag boundaries and lets the user cancel without reordering", () => {
     render(<ProductionWizard />);
     fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
       target: {
@@ -241,13 +293,17 @@ describe("ProductionWizard", () => {
       },
     });
 
-    const moveSecondLeft = screen.getByRole("button", { name: "Move second.jpg left" });
-    moveSecondLeft.focus();
-    fireEvent.click(moveSecondLeft);
-    await waitFor(() => expect(screen.getByRole("button", { name: "Move second.jpg right" })).toHaveFocus());
+    const reorderSecond = screen.getByRole("button", { name: "Reorder second.jpg" });
+    reorderSecond.focus();
+    fireEvent.keyDown(reorderSecond, { key: " " });
+    fireEvent.keyDown(reorderSecond, { key: "ArrowRight" });
+    expect(statusWithText("second.jpg is already last.")).toHaveTextContent("second.jpg is already last.");
+    fireEvent.keyDown(reorderSecond, { key: "Escape" });
 
-    fireEvent.click(screen.getByRole("button", { name: "Move second.jpg right" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Move second.jpg left" })).toHaveFocus());
+    const cards = within(screen.getByRole("list", { name: "Selected media" })).getAllByRole("listitem");
+    expect(cards.map((card) => within(card).getByText(/\.jpg$/).textContent)).toEqual(["first.jpg", "second.jpg"]);
+    expect(reorderSecond).toHaveAttribute("aria-pressed", "false");
+    expect(statusWithText("Reordering canceled.")).toHaveTextContent("Reordering canceled.");
   });
 
   it("explains the 15-item limit instead of silently dropping selected media", () => {
@@ -258,7 +314,7 @@ describe("ProductionWizard", () => {
       },
     });
 
-    expect(screen.getByRole("status")).toHaveTextContent("Choose up to 15 photos and videos for one film.");
+    expect(statusWithText("Choose up to 15 photos and videos for one film.")).toHaveTextContent("Choose up to 15 photos and videos for one film.");
   });
 
   it("creates a preview without a blocking plan review", async () => {
@@ -292,7 +348,7 @@ describe("ProductionWizard", () => {
 
     completeReadyState();
     fireEvent.click(screen.getByRole("button", { name: "Make my film" }));
-    expect(screen.getByRole("status")).toHaveTextContent("Making your film…");
+    expect(statusWithText("Making your film…")).toHaveTextContent("Making your film…");
 
     expect(await screen.findByRole("button", { name: "Save video" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Share video" })).toBeEnabled();
@@ -330,7 +386,7 @@ describe("ProductionWizard", () => {
       "src",
       "blob:memory-director-video",
     );
-    expect(screen.getByRole("status")).toHaveTextContent("Making your film…");
+    expect(statusWithText("Making your film…")).toHaveTextContent("Making your film…");
   });
 
   it("brings the completed preview into view without leaving the editor", async () => {
@@ -368,7 +424,7 @@ describe("ProductionWizard", () => {
     expect(screen.getByRole("textbox", { name: "Your memory request", exact: true })).toBeDisabled();
     expect(screen.getByText("garden.jpg")).toBeVisible();
     expect(screen.getByRole("radio", { name: /Original AI song/ })).toBeDisabled();
-    expect(screen.getByRole("status")).toHaveTextContent("Making your film…");
+    expect(statusWithText("Making your film…")).toHaveTextContent("Making your film…");
     expect(screen.getAllByText("Making your film…")).toHaveLength(1);
   });
 
