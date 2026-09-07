@@ -10,6 +10,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Memory Director",
   description: "A voice-led memory film producer for older adults.",
+  icons: {
+    icon: [{ type: "image/svg+xml", url: "/icon.svg" }],
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
