@@ -110,5 +110,10 @@ from a successful manual workflow run:
 - a subsequent API request using that configured resource;
 - no credentials, personal media or private GCS URI in logs or artifacts.
 
-Until that run succeeds, submission copy must describe Agent Engine as
-implemented and deployment-ready, not hosted or verified.
+The latest qualifying deployment and smoke is workflow run
+[34024861486](https://github.com/afaryy/MemoryDirector/actions/runs/34024861486).
+It completed the schema-valid 60-second plan and approved ClickHouse preference
+tool proof before switching the API to the smoke-tested resource. Submission copy
+may therefore describe this bounded planner and tool invocation as deployed and
+verified. It must not turn that workflow proof into a claim about private-media
+access, rendering inside Agent Engine, physical-device QA, or final submission.

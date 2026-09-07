@@ -60,12 +60,12 @@ MP4, JPG cover, and TXT caption. Local container metadata inspection confirmed
 an exact 60-second MP4 with H.264 video and an AAC audio track.
 
 This verifies the deployed API render path, including generated-audio mixing.
-It is not evidence of a complete hosted Web journey, a user-facing song
-preview/regeneration experience, or a production guarantee for a preview
-model. Keep those claims and the final recording gate separate.
+Later ST-49 browser evidence verifies the original-song and no-music Web
+journeys. Neither result is a production guarantee for a preview model or proof
+of the final submission recording.
 
 `POST /media/analyze` requires `consent=true`, accepts only image/video MIME
-types, and limits uploads to 50 MiB. It stores originals privately and returns
+types, and uses the deployed configuration's 250 MiB per-file ceiling. It stores originals privately and returns
 schema-validated metadata without exposing a GCS URI. A selected or held-back
 decision never deletes the original. Use a non-sensitive fixture for hosted
 verification; do not place real personal media in CI.
@@ -79,16 +79,25 @@ after confirming that application data is disposable.
 
 ## Hosted sandbox verification
 
-The latest successful `Deploy application` run is [32362975036](https://github.com/afaryy/MemoryDirector/actions/runs/32362975036).
-It authenticated with GitHub OIDC/WIF, built immutable API and web images, and applied both Cloud Run
-services through the Terraform `app` component.
+The public application is <https://memorydirector.com/>. The current audited Web
+release is commit `64ee654a999549322dbeea22f9ffc2b8b29acdaf`, deployed by workflow
+run [34132225436](https://github.com/afaryy/MemoryDirector/actions/runs/34132225436).
+That manual web-only run authenticated with GitHub OIDC/WIF, built the immutable
+image, and updated the existing Cloud Run Web service through its isolated state.
+The same commit passed the complete Tests workflow in run
+[34132016535](https://github.com/afaryy/MemoryDirector/actions/runs/34132016535).
 
 The run was verified with a non-sensitive fixture:
 
-- API health: `200` from `https://memory-director-sandbox-api-c3dzm7e76a-ts.a.run.app/health`.
-- Web home: `200` from `https://memory-director-sandbox-web-c3dzm7e76a-ts.a.run.app/`.
+- API health: `200` from `https://memorydirector.com/api/health`.
+- Web home: `200` from `https://memorydirector.com/`.
 - Approved export: `200` from `POST /renders/export`; the returned ZIP contained one MP4, one JPG
   cover, and one TXT caption, and passed `unzip -t`.
 
-Do not treat the fixture result as approval to upload personal media. Hosted media analysis still
-requires explicit consent and an approved rights-register fixture.
+After public-edge lockdown, direct `.run.app` origins are not public verification
+URLs; HTTP 404 there is expected. Operators can restore direct ingress through the
+documented rollback if the public edge fails.
+
+Do not treat a synthetic fixture result as approval to upload personal media.
+Hosted media analysis still requires explicit consent, and final demo media must
+be recorded in the rights register.

@@ -65,9 +65,14 @@ Cloud Load Balancing, while `memorydirector.com` remains the public origin.
 If the custom domain is unavailable, do not run lockdown. Before lockdown,
 direct `.run.app` URLs stay available for safe recovery.
 
+Lockdown has completed for the current public deployment. The supported public
+routes are <https://memorydirector.com/> and
+<https://memorydirector.com/api/health>; direct `.run.app` requests return HTTP
+404 by design. This is not an outage while the load-balancer routes are healthy.
+
 ## Rollback
 
-To restore direct Cloud Run ingress after a failed lockdown, run the normal
+To restore direct Cloud Run ingress after a failed lockdown or public-edge outage, run the normal
 Terraform workflow for each app state root with `public_ingress=true`, retaining
 the existing immutable image references. Do not destroy bootstrap state,
 identity, or application components as a substitute for rollback.
