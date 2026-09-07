@@ -64,6 +64,7 @@ Post-fix browser-computed ratios are:
 | Muted on paper | 5.78:1 |
 | Terracotta on white | 5.49:1 |
 | Moss on sand | 4.65:1 |
+| Moss on paper (media-picker hover) | 5.78:1 |
 | Sand on composited preview badge | 5.81:1 |
 
 A regression test enforces the palette threshold and the two component-level
@@ -71,9 +72,12 @@ style connections.
 
 ## Automated verification
 
-- `npm test -- --run`: 46 tests passed across five files.
+- `npm test -- --run`: 47 tests passed across five files.
 - `npm run build`: production build, lint, and type checking passed.
 - Post-fix Chromium console: no errors.
+
+QA found one Medium accessibility issue and fixed it locally. Under the QA
+health rubric, the inspected page improves from 98.8 to 100 after the fix.
 
 ## Remaining before ST-31 can be Done
 
