@@ -154,6 +154,15 @@ const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:800
 const mediaAnalysisConcurrency = 2;
 const mediaAnalysisAttempts = 2;
 const mediaAnalysisRetryDelayMs = 250;
+const visitorStorageKey = "memory-director-visitor";
+
+function memoryDirectorVisitorId(): string {
+  const existing = window.localStorage.getItem(visitorStorageKey);
+  if (existing) return existing;
+  const generated = globalThis.crypto?.randomUUID?.() ?? `visitor-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  window.localStorage.setItem(visitorStorageKey, generated);
+  return generated;
+}
 
 function wait(milliseconds: number) {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
@@ -539,6 +548,7 @@ export function ProductionWizard() {
       }
       const exportResponse = await fetch(`${apiBaseUrl}/renders/export`, {
         method: "POST",
+        headers: { "X-Memory-Director-Visitor": memoryDirectorVisitorId() },
         body: exportForm,
         signal: requestController.signal,
       });

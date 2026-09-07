@@ -21,10 +21,12 @@ resource "google_cloud_run_v2_service" "this" {
   }
 
   template {
-    service_account = var.service_account_email
-    timeout         = var.timeout
+    service_account                  = var.service_account_email
+    timeout                          = var.timeout
+    max_instance_request_concurrency = var.container_concurrency
 
     scaling {
+      min_instance_count = var.min_instance_count
       max_instance_count = var.max_instance_count
     }
 

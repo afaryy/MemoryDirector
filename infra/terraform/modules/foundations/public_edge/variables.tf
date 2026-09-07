@@ -36,3 +36,20 @@ variable "web_service_name" {
   type    = string
   default = null
 }
+
+variable "rate_limits" {
+  type = object({
+    edge_requests_per_minute_per_ip      = number
+    api_requests_per_minute_per_ip       = number
+    film_requests_per_ten_minutes_per_ip = number
+    ban_seconds                          = number
+    exceed_status_code                   = number
+  })
+  default = {
+    edge_requests_per_minute_per_ip      = 120
+    api_requests_per_minute_per_ip       = 30
+    film_requests_per_ten_minutes_per_ip = 5
+    ban_seconds                          = 3600
+    exceed_status_code                   = 429
+  }
+}

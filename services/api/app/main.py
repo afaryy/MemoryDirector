@@ -4,10 +4,12 @@ import base64
 import logging
 import tempfile
 import zipfile
+from functools import lru_cache
+from hashlib import sha256
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, ValidationError
@@ -33,6 +35,7 @@ from app.models import PlaceCandidate, ProductionBrief, ProductionProposal, Stor
 from app.preferences import preference_repository_from_environment
 from app.production import ProductionOrchestrator
 from app.soundtrack import SoundtrackConfigurationError, resolve_instrumental_track
+from app.usage_limits import QuotaExceeded, QuotaRequest, QuotaStore, quota_store_from_environment
 from app.render import (
     ApprovalRequired,
     DeterministicVerticalRenderer,
@@ -52,7 +55,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_methods=["POST"],
-    allow_headers=["Content-Type"],
+    allow_headers=["Content-Type", "X-Memory-Director-Visitor"],
 )
 
 
@@ -184,6 +187,43 @@ def get_lyria_client() -> GoogleLyriaClient:
     return GoogleLyriaClient()
 
 
+@lru_cache(maxsize=1)
+def get_quota_store() -> QuotaStore:
+    return quota_store_from_environment()
+
+
+def quota_request_from_http(request: Request, *, includes_original_song: bool) -> QuotaRequest:
+    trust_proxy_headers = os.environ.get("TRUST_PROXY_HEADERS", "false").lower() == "true"
+    forwarded_for = (
+        request.headers.get("x-forwarded-for", "").split(",", 1)[0].strip()
+        if trust_proxy_headers
+        else ""
+    )
+    client_ip = forwarded_for or (request.client.host if request.client else "unknown")
+    visitor_id = request.headers.get("x-memory-director-visitor", "").strip()
+    if not visitor_id or len(visitor_id) > 128:
+        user_agent = request.headers.get("user-agent", "unknown")
+        visitor_id = sha256(f"{client_ip}\0{user_agent}".encode()).hexdigest()
+    return QuotaRequest(
+        visitor_id=visitor_id,
+        client_ip=client_ip,
+        includes_original_song=includes_original_song,
+    )
+
+
+def acquire_quota(request: Request, *, includes_original_song: bool):
+    try:
+        return get_quota_store().acquire(
+            quota_request_from_http(request, includes_original_song=includes_original_song)
+        )
+    except QuotaExceeded as error:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=str(error),
+            headers={"Retry-After": "86400"},
+        ) from error
+
+
 @app.post("/memory-songs/brief", status_code=status.HTTP_201_CREATED)
 def create_memory_song_brief(payload: MemorySongBriefPayload) -> dict[str, str]:
     try:
@@ -197,15 +237,16 @@ def create_memory_song_brief(payload: MemorySongBriefPayload) -> dict[str, str]:
 
 
 @app.post("/memory-songs", status_code=status.HTTP_201_CREATED)
-def generate_memory_song(payload: MemorySongBriefPayload) -> dict[str, str]:
-    try:
-        brief = build_memory_song_brief(memory_details=payload.memory_details, requested_style=payload.requested_style)
-        song = get_lyria_client().generate(brief.prompt)
-    except UnsafeSongRequest as error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
-    except (KeyError, RuntimeError) as error:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Original song is unavailable; choose instrumental or no sound.") from error
-    return {"audio_base64": base64.b64encode(song.audio).decode(), "lyrics": song.lyrics, "model": song.model, "fallback": brief.fallback}
+def generate_memory_song(payload: MemorySongBriefPayload, request: Request) -> dict[str, str]:
+    with acquire_quota(request, includes_original_song=True):
+        try:
+            brief = build_memory_song_brief(memory_details=payload.memory_details, requested_style=payload.requested_style)
+            song = get_lyria_client().generate(brief.prompt)
+        except UnsafeSongRequest as error:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
+        except (KeyError, RuntimeError) as error:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Original song is unavailable; choose instrumental or no sound.") from error
+        return {"audio_base64": base64.b64encode(song.audio).decode(), "lyrics": song.lyrics, "model": song.model, "fallback": brief.fallback}
 
 
 def _contains_private_uri(analysis: MediaAnalysis) -> bool:
@@ -287,6 +328,7 @@ def request_render(payload: RenderPayload) -> RenderRequest:
 
 @app.post("/renders/export", status_code=status.HTTP_200_OK)
 async def export_render(
+    request: Request,
     title: str = Form(..., min_length=1, max_length=120),
     caption: str = Form(..., min_length=1, max_length=500),
     approved: bool = Form(...),
@@ -296,6 +338,35 @@ async def export_render(
     media: UploadFile | None = File(None),
     media_id: str | None = Form(None),
     media_ids: list[str] | None = Form(None),
+) -> StreamingResponse:
+    lease = acquire_quota(request, includes_original_song=soundtrack_mode == "original_song")
+    try:
+        return await _export_render_admitted(
+            title=title,
+            caption=caption,
+            approved=approved,
+            soundtrack_mode=soundtrack_mode,
+            memory_details=memory_details,
+            requested_style=requested_style,
+            media=media,
+            media_id=media_id,
+            media_ids=media_ids,
+        )
+    finally:
+        lease.release()
+
+
+async def _export_render_admitted(
+    *,
+    title: str,
+    caption: str,
+    approved: bool,
+    soundtrack_mode: Literal["original_song", "instrumental", "no_sound"],
+    memory_details: list[str] | None,
+    requested_style: str,
+    media: UploadFile | None,
+    media_id: str | None,
+    media_ids: list[str] | None,
 ) -> StreamingResponse:
     """Render approved media and return an MP4, cover, and caption as a zip."""
     if not approved:

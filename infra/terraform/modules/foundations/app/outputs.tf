@@ -9,3 +9,6 @@ output "runtime_service_account_email" { value = "memory-director-runtime@${var.
 output "service" { value = var.service }
 output "api_image" { value = var.api_image }
 output "web_image" { value = var.web_image }
+output "api_max_instances" { value = try(module.api[0].max_instance_count, null) }
+output "api_concurrency" { value = try(module.api[0].container_concurrency, null) }
+output "web_max_instances" { value = try(module.web[0].max_instance_count, null) }

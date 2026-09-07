@@ -53,6 +53,7 @@ module "public_edge" {
   apex_domain        = local.public_edge.apex_domain
   cloudflare_zone_id = local.public_edge.cloudflare_zone_id
   api_path_prefix    = local.public_edge.api_path_prefix
+  rate_limits        = local.environment.rate_limits
 }
 
 output "configuration_summary" {

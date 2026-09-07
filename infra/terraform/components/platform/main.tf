@@ -53,6 +53,8 @@ module "platform" {
   ) : null
   mcp_secret_project_id             = local.mcp_secret_project
   mcp_invoker_service_account_email = try(local.project.mcp_invoker_service_account_email, null)
+  media_upload_days                 = local.environment.retention.upload_days
+  media_export_days                 = local.environment.retention.export_days
 }
 
 output "configuration_summary" {

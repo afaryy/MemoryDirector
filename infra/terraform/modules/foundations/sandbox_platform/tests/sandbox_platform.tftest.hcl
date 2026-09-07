@@ -80,3 +80,39 @@ run "plans_cross_project_mcp_secret_reference" {
     error_message = "Cross-project MCP secrets must still use the platform runtime identity."
   }
 }
+
+run "creates_shared_quota_state_and_prefix_scoped_media_retention" {
+  command = plan
+
+  variables {
+    project_id        = "memory-director-505708"
+    project_number    = "192915586401"
+    region            = "australia-southeast1"
+    resource_name     = "memory-director-sandbox"
+    media_upload_days = 1
+    media_export_days = 3
+  }
+
+  assert {
+    condition     = output.quota_firestore_database == "(default)"
+    error_message = "A shared Firestore Native database must back quota transactions."
+  }
+
+  assert {
+    condition = (
+      length(output.media_lifecycle_rules) == 2 &&
+      output.media_lifecycle_rules[0].action == "Delete" &&
+      output.media_lifecycle_rules[0].age_days == 1 &&
+      output.media_lifecycle_rules[0].prefix == "media/" &&
+      output.media_lifecycle_rules[1].action == "Delete" &&
+      output.media_lifecycle_rules[1].age_days == 3 &&
+      output.media_lifecycle_rules[1].prefix == "exports/"
+    )
+    error_message = "Only application media and export prefixes may receive lifecycle deletion."
+  }
+
+  assert {
+    condition     = contains(output.runtime_project_roles, "roles/datastore.user")
+    error_message = "The runtime identity needs least-privilege Firestore transaction access."
+  }
+}

@@ -51,3 +51,68 @@ variable "agent_engine_resource" {
     error_message = "agent_engine_resource must be a full reasoningEngines resource name."
   }
 }
+
+variable "runtime_limits" {
+  type = object({
+    api_min_instances   = number
+    api_max_instances   = number
+    api_concurrency     = number
+    api_timeout_seconds = number
+    web_min_instances   = number
+    web_max_instances   = number
+    web_concurrency     = number
+  })
+  default = {
+    api_min_instances   = 0
+    api_max_instances   = 3
+    api_concurrency     = 4
+    api_timeout_seconds = 900
+    web_min_instances   = 0
+    web_max_instances   = 2
+    web_concurrency     = 80
+  }
+}
+
+variable "application_limits" {
+  type = object({
+    max_film_duration_seconds       = number
+    max_media_items                 = number
+    max_upload_file_mb              = number
+    max_upload_total_mb             = number
+    max_request_text_chars          = number
+    global_daily_film_hard_max      = number
+    upload_signed_url_ttl_minutes   = number
+    download_signed_url_ttl_minutes = number
+  })
+  default = {
+    max_film_duration_seconds       = 60
+    max_media_items                 = 15
+    max_upload_file_mb              = 250
+    max_upload_total_mb             = 1000
+    max_request_text_chars          = 2000
+    global_daily_film_hard_max      = 100
+    upload_signed_url_ttl_minutes   = 15
+    download_signed_url_ttl_minutes = 30
+  }
+}
+
+variable "quotas" {
+  type = object({
+    visitor_daily_film_limit          = number
+    ip_daily_film_limit               = number
+    ip_max_concurrent_films           = number
+    global_daily_film_limit           = number
+    global_max_concurrent_films       = number
+    visitor_daily_original_song_limit = number
+    global_daily_original_song_limit  = number
+  })
+  default = {
+    visitor_daily_film_limit          = 5
+    ip_daily_film_limit               = 10
+    ip_max_concurrent_films           = 2
+    global_daily_film_limit           = 30
+    global_max_concurrent_films       = 6
+    visitor_daily_original_song_limit = 3
+    global_daily_original_song_limit  = 20
+  }
+}

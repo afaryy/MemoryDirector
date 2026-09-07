@@ -78,6 +78,7 @@ function renderSuccessfulProduction() {
 
 describe("ProductionWizard", () => {
   beforeEach(() => {
+    window.localStorage.clear();
     vi.stubGlobal("URL", {
       createObjectURL: vi.fn((file: File) => `blob:selected-${file.name}`),
       revokeObjectURL: vi.fn(),
@@ -339,6 +340,7 @@ describe("ProductionWizard", () => {
   });
 
   it("creates a preview without a blocking plan review", async () => {
+    window.localStorage.setItem("memory-director-visitor", "visitor-test-123");
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({
@@ -382,6 +384,7 @@ describe("ProductionWizard", () => {
     const exportCall = fetchMock.mock.calls.find(([url]) => url === "http://localhost:8000/renders/export");
     expect(exportCall?.[1]?.body.get("media_ids")).toBe("sha256:garden");
     expect(exportCall?.[1]?.body.get("soundtrack_mode")).toBe("original_song");
+    expect(exportCall?.[1]?.headers).toEqual({ "X-Memory-Director-Visitor": "visitor-test-123" });
     const selectionCall = fetchMock.mock.calls.find(([url]) => url === "http://localhost:8000/media/sha256:garden/decision");
     expect(selectionCall?.[1]).toMatchObject({ method: "POST" });
     expect(JSON.parse(selectionCall?.[1]?.body as string)).toEqual({ status: "selected", reason: "Chosen for this film" });

@@ -92,6 +92,9 @@ module "app" {
   mcp_secret_project_id         = local.mcp_secret_project
   consent_event_writer_endpoint = var.consent_event_writer_endpoint
   agent_engine_resource         = var.agent_engine_resource
+  runtime_limits                = local.environment.cloud_run
+  application_limits            = local.common.application_limits
+  quotas                        = local.environment.quotas
 }
 
 output "configuration_summary" {

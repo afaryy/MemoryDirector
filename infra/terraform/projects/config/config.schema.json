@@ -12,6 +12,113 @@
     "default_region": { "type": "string", "minLength": 1 },
     "region": { "type": "string", "minLength": 1 },
     "allow_destroy": { "type": "boolean" },
+    "application_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_film_duration_seconds",
+        "max_media_items",
+        "max_upload_file_mb",
+        "max_upload_total_mb",
+        "max_request_text_chars",
+        "global_daily_film_hard_max",
+        "upload_signed_url_ttl_minutes",
+        "download_signed_url_ttl_minutes"
+      ],
+      "properties": {
+        "max_film_duration_seconds": { "type": "integer", "const": 60 },
+        "max_media_items": { "type": "integer", "minimum": 1, "maximum": 15 },
+        "max_upload_file_mb": { "type": "integer", "minimum": 1, "maximum": 250 },
+        "max_upload_total_mb": { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "max_request_text_chars": { "type": "integer", "minimum": 1, "maximum": 2000 },
+        "global_daily_film_hard_max": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "upload_signed_url_ttl_minutes": { "type": "integer", "minimum": 1, "maximum": 60 },
+        "download_signed_url_ttl_minutes": { "type": "integer", "minimum": 1, "maximum": 60 }
+      }
+    },
+    "quotas": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "visitor_daily_film_limit",
+        "ip_daily_film_limit",
+        "ip_max_concurrent_films",
+        "global_daily_film_limit",
+        "global_max_concurrent_films",
+        "visitor_daily_original_song_limit",
+        "global_daily_original_song_limit"
+      ],
+      "properties": {
+        "visitor_daily_film_limit": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "ip_daily_film_limit": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "ip_max_concurrent_films": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "global_daily_film_limit": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "global_max_concurrent_films": { "type": "integer", "minimum": 1, "maximum": 30 },
+        "visitor_daily_original_song_limit": { "type": "integer", "minimum": 1, "maximum": 20 },
+        "global_daily_original_song_limit": { "type": "integer", "minimum": 1, "maximum": 100 }
+      }
+    },
+    "rate_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "edge_requests_per_minute_per_ip",
+        "api_requests_per_minute_per_ip",
+        "film_requests_per_ten_minutes_per_ip",
+        "ban_seconds",
+        "exceed_status_code"
+      ],
+      "properties": {
+        "edge_requests_per_minute_per_ip": { "type": "integer", "minimum": 1, "maximum": 10000 },
+        "api_requests_per_minute_per_ip": { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "film_requests_per_ten_minutes_per_ip": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "ban_seconds": { "type": "integer", "minimum": 60, "maximum": 86400 },
+        "exceed_status_code": { "type": "integer", "const": 429 }
+      }
+    },
+    "retention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["upload_days", "export_days"],
+      "properties": {
+        "upload_days": { "type": "integer", "minimum": 1, "maximum": 7 },
+        "export_days": { "type": "integer", "minimum": 1, "maximum": 30 }
+      }
+    },
+    "cloud_run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "api_min_instances",
+        "api_max_instances",
+        "api_concurrency",
+        "api_timeout_seconds",
+        "web_min_instances",
+        "web_max_instances",
+        "web_concurrency"
+      ],
+      "properties": {
+        "api_min_instances": { "type": "integer", "const": 0 },
+        "api_max_instances": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "api_concurrency": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "api_timeout_seconds": { "type": "integer", "minimum": 60, "maximum": 900 },
+        "web_min_instances": { "type": "integer", "const": 0 },
+        "web_max_instances": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "web_concurrency": { "type": "integer", "minimum": 1, "maximum": 80 }
+      }
+    },
+    "budgets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["currency", "monthly_cost_tolerance", "project_alert_budget", "vertex_ai_spend_cap", "cloud_run_spend_cap"],
+      "properties": {
+        "currency": { "type": "string", "const": "USD" },
+        "monthly_cost_tolerance": { "type": "number", "exclusiveMinimum": 0, "maximum": 200 },
+        "project_alert_budget": { "type": "number", "exclusiveMinimum": 0, "maximum": 150 },
+        "vertex_ai_spend_cap": { "type": "number", "exclusiveMinimum": 0, "maximum": 110 },
+        "cloud_run_spend_cap": { "type": "number", "exclusiveMinimum": 0, "maximum": 25 }
+      }
+    },
     "state_bucket_name": { "type": "string", "minLength": 3 },
     "github_repository": { "type": "string", "pattern": "^[^/]+/[^/]+$" },
     "mcp_image": { "type": "string", "minLength": 1 },
