@@ -59,9 +59,22 @@ h2, h3, h4, p { margin-top: 0; }
 .wizard__media input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .wizard__media-help { display: flex; align-items: center; gap: .75rem; margin: .75rem 0 0; padding: .75rem 1rem; border-radius: 16px; background: var(--paper); color: var(--muted); font-size: .875rem; line-height: 1.45; }
 .wizard__media-help svg { width: 1.25rem; min-width: 1.25rem; color: var(--sage); }
-.wizard__selected-files { display: grid; gap: .5rem; padding: 0; margin: .75rem 0 0; list-style: none; }
-.wizard__selected-files li { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: .75rem; padding: .75rem 1rem; border-radius: 16px; background: var(--paper); font-size: .875rem; }
-.wizard__selected-files li > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wizard__media-strip { display: flex; gap: .75rem; padding: .25rem .125rem 1rem; margin: .75rem 0 0; overflow-x: auto; list-style: none; scroll-padding-inline: .125rem; scroll-snap-type: x proximity; scrollbar-color: var(--sage) var(--paper); }
+.wizard__media-card { width: 9rem; min-width: 9rem; padding: .5rem; border: 1px solid var(--oat); border-radius: 18px; background: var(--paper); scroll-snap-align: start; }
+.wizard__thumbnail { position: relative; height: 6.5rem; overflow: hidden; border-radius: 13px; background: var(--sand); }
+.wizard__thumbnail > img, .wizard__thumbnail > video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.wizard__thumbnail > video { pointer-events: none; }
+.wizard__media-kind { position: absolute; left: .4rem; bottom: .4rem; display: inline-flex; padding: .25rem .45rem; align-items: center; gap: .25rem; border-radius: 999px; background: rgba(49, 64, 44, .9); color: white; font-size: .625rem; font-weight: 700; }
+.wizard__media-kind svg { width: .75rem; height: .75rem; }
+.wizard__thumbnail-remove { position: absolute; top: .35rem; right: .35rem; display: grid; width: 2.75rem; height: 2.75rem; padding: 0; place-items: center; border-radius: 50%; background: rgba(247, 245, 238, .94); color: var(--terracotta-dark); box-shadow: 0 2px 8px rgba(49, 64, 44, .18); }
+.wizard__thumbnail-remove svg { width: 1rem; height: 1rem; }
+.wizard__media-name { display: block; margin: .5rem .125rem .4rem; overflow: hidden; color: var(--ink); font-size: .75rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.wizard__reorder-actions { display: grid; grid-template-columns: 2.75rem 1fr 2.75rem; align-items: center; text-align: center; }
+.wizard__reorder-actions button { display: grid; width: 2.75rem; height: 2.75rem; padding: 0; place-items: center; border: 1px solid var(--oat); border-radius: 50%; background: var(--sand); color: var(--moss); }
+.wizard__reorder-actions button:disabled { cursor: default; opacity: .35; }
+.wizard__reorder-actions button:not(:disabled):hover { background: var(--oat); }
+.wizard__reorder-actions svg { width: 1rem; height: 1rem; }
+.wizard__reorder-actions span { color: var(--muted); font-size: .6875rem; font-variant-numeric: tabular-nums; }
 
 .wizard__request { display: block; }
 .wizard__input-wrap { position: relative; margin-top: .75rem; }
@@ -108,7 +121,7 @@ h2, h3, h4, p { margin-top: 0; }
 
 @keyframes gentle-pulse { 50% { transform: scale(.92); opacity: .72; } }
 @media (prefers-reduced-motion: reduce) { .wizard__preview-callout.is-preparing .wizard__preview-copy > span { animation: none; } }
-.wizard__preview { max-width: 34rem; margin-inline: auto; text-align: left; }
+.wizard__preview { max-width: 34rem; margin: 1.5rem auto 0; scroll-margin-top: 1rem; text-align: left; }
 .wizard__preview video { display: block; width: min(100%, 20rem); height: auto; max-height: none; margin: .9rem auto; border-radius: 18px; background: #111; aspect-ratio: 9 / 16; object-fit: cover; }
 .wizard__preview > p { color: var(--muted); }
 .wizard__preview-actions { display: grid; margin-top: 1rem; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
@@ -131,8 +144,7 @@ h2, h3, h4, p { margin-top: 0; }
   .wizard__preview-callout { display: block; padding: 1.25rem; }
   .wizard__preview-badge { display: inline-flex; margin-top: 1rem; }
   .wizard__preview-actions { grid-template-columns: 1fr; }
-  .wizard__selected-files li { align-items: flex-start; flex-direction: column; }
-  .button--remove { width: 100%; justify-content: center; }
+  .wizard__media-card { width: 8.5rem; min-width: 8.5rem; }
 }
 
 @media (max-width: 24rem) {

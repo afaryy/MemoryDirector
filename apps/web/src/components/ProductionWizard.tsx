@@ -1,7 +1,20 @@
 "use client";
 
 import { unzipSync } from "fflate";
-import { CircleCheck, Download, Images, Mic, Play, Share2, Sparkles, X } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  CircleCheck,
+  Download,
+  ImageIcon,
+  Images,
+  Mic,
+  Play,
+  Share2,
+  Sparkles,
+  Video,
+  X,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 type Storyboard = {
@@ -11,8 +24,22 @@ type Storyboard = {
 };
 
 type MediaReview = { media_id: string };
+type SelectedMedia = {
+  file: File;
+  id: number;
+  kind: "photo" | "video";
+  previewUrl: string;
+};
 type ProductionState = "ready" | "preparing" | "preview" | "error" | "saved";
 type SoundtrackMode = "original_song" | "instrumental" | "no_sound";
+
+const phoneVideoExtension = /\.(?:3g2|3gp|avi|m4v|mkv|mov|mp4|mpeg|mpg|webm)$/i;
+
+function selectedMediaKind(file: File): SelectedMedia["kind"] {
+  return file.type.startsWith("video/") || (!file.type && phoneVideoExtension.test(file.name))
+    ? "video"
+    : "photo";
+}
 
 class UserFacingExportError extends Error {}
 
@@ -102,7 +129,7 @@ async function extractPreview(blob: Blob, title: string) {
 
 export function ProductionWizard() {
   const [memoryRequest, setMemoryRequest] = useState("");
-  const [mediaFiles, setMediaFiles] = useState<File[]>([]);
+  const [mediaItems, setMediaItems] = useState<SelectedMedia[]>([]);
   const [hasMediaPermission, setHasMediaPermission] = useState(false);
   const [soundtrackMode, setSoundtrackMode] = useState<SoundtrackMode>("original_song");
   const [productionState, setProductionState] = useState<ProductionState>("ready");
@@ -116,13 +143,22 @@ export function ProductionWizard() {
   const [selectionNotice, setSelectionNotice] = useState("");
   const [progressMessage, setProgressMessage] = useState("");
   const [completionMessage, setCompletionMessage] = useState("");
+  const [mediaUpdateMessage, setMediaUpdateMessage] = useState("");
   const generationRef = useRef(0);
   const consentRef = useRef(false);
   const activeRequestRef = useRef<AbortController | null>(null);
   const productionStateRef = useRef<ProductionState>("ready");
   const previewUrlRef = useRef<string | null>(null);
   const posterUrlRef = useRef<string | null>(null);
+  const mediaItemsRef = useRef<SelectedMedia[]>([]);
+  const nextMediaIdRef = useRef(1);
+  const previewSectionRef = useRef<HTMLElement | null>(null);
+  const removeButtonRefs = useRef(new Map<number, HTMLButtonElement>());
+  const moveLeftButtonRefs = useRef(new Map<number, HTMLButtonElement>());
+  const moveRightButtonRefs = useRef(new Map<number, HTMLButtonElement>());
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
+  const mediaFiles = mediaItems.map((item) => item.file);
   const canMakeFilm = memoryRequest.trim().length > 0 && mediaFiles.length > 0 && hasMediaPermission && productionState !== "preparing";
   const isPreparing = productionState === "preparing";
 
@@ -133,11 +169,22 @@ export function ProductionWizard() {
       activeRequestRef.current = null;
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
       if (posterUrlRef.current) URL.revokeObjectURL(posterUrlRef.current);
+      mediaItemsRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
       previewUrlRef.current = null;
       posterUrlRef.current = null;
+      mediaItemsRef.current = [];
     },
     [],
   );
+
+  useEffect(() => {
+    if (!previewUrl) return;
+    const previewSection = previewSectionRef.current;
+    if (previewSection && typeof previewSection.scrollIntoView === "function") {
+      const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+      previewSection.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+    }
+  }, [previewUrl]);
 
   function invalidateGeneration() {
     generationRef.current += 1;
@@ -161,17 +208,16 @@ export function ProductionWizard() {
     setCompletionMessage("");
   }
 
-  function returnToReady() {
+  function markRevision() {
     invalidateGeneration();
-    clearPreview();
-    setStoryboard(null);
     setErrorMessage("");
-    changeProductionState("ready");
+    setCompletionMessage("");
+    changeProductionState(previewUrlRef.current ? "preview" : "ready");
   }
 
   function updateRequest(value: string) {
     setMemoryRequest(value);
-    if (productionStateRef.current !== "ready" || activeRequestRef.current) returnToReady();
+    markRevision();
   }
 
   function selectMedia(files: FileList | null) {
@@ -181,25 +227,58 @@ export function ProductionWizard() {
       return;
     }
     invalidateGeneration();
-    clearPreview();
-    setMediaFiles(nextFiles);
+    mediaItemsRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+    const nextItems = nextFiles.map((file) => ({
+      file,
+      id: nextMediaIdRef.current++,
+      kind: selectedMediaKind(file),
+      previewUrl: URL.createObjectURL(file),
+    }));
+    mediaItemsRef.current = nextItems;
+    setMediaItems(nextItems);
     consentRef.current = false;
     setHasMediaPermission(false);
-    setStoryboard(null);
     setErrorMessage("");
+    setCompletionMessage("");
     setSelectionNotice("");
-    changeProductionState("ready");
+    setMediaUpdateMessage("");
+    changeProductionState(previewUrlRef.current ? "preview" : "ready");
   }
 
   function removeMediaFile(index: number) {
-    invalidateGeneration();
-    clearPreview();
-    setMediaFiles((current) => current.filter((_, currentIndex) => currentIndex !== index));
-    consentRef.current = false;
-    setHasMediaPermission(false);
-    setStoryboard(null);
-    setErrorMessage("");
-    changeProductionState("ready");
+    const removed = mediaItemsRef.current[index];
+    if (!removed) return;
+    URL.revokeObjectURL(removed.previewUrl);
+    const nextItems = mediaItemsRef.current.filter((_, currentIndex) => currentIndex !== index);
+    const nextFocusItem = nextItems[Math.min(index, nextItems.length - 1)];
+    mediaItemsRef.current = nextItems;
+    setMediaItems(nextItems);
+    setMediaUpdateMessage(`Removed ${removed.file.name}; ${nextItems.length} ${nextItems.length === 1 ? "item remains" : "items remain"}.`);
+    markRevision();
+    window.setTimeout(() => {
+      if (nextFocusItem) removeButtonRefs.current.get(nextFocusItem.id)?.focus();
+      else uploadInputRef.current?.focus();
+    }, 0);
+  }
+
+  function moveMediaFile(index: number, offset: -1 | 1) {
+    const destination = index + offset;
+    if (destination < 0 || destination >= mediaItemsRef.current.length) return;
+    const nextItems = [...mediaItemsRef.current];
+    [nextItems[index], nextItems[destination]] = [nextItems[destination], nextItems[index]];
+    mediaItemsRef.current = nextItems;
+    setMediaItems(nextItems);
+    setMediaUpdateMessage(`Moved ${nextItems[destination].file.name} to position ${destination + 1} of ${nextItems.length}.`);
+    markRevision();
+    window.setTimeout(() => {
+      if (destination === 0) moveRightButtonRefs.current.get(nextItems[destination].id)?.focus();
+      else if (destination === nextItems.length - 1) moveLeftButtonRefs.current.get(nextItems[destination].id)?.focus();
+    }, 0);
+  }
+
+  function updateSoundtrackMode(mode: SoundtrackMode) {
+    setSoundtrackMode(mode);
+    markRevision();
   }
 
   function startVoiceRequest() {
@@ -269,9 +348,8 @@ export function ProductionWizard() {
     const generation = ++generationRef.current;
     const requestController = new AbortController();
     activeRequestRef.current = requestController;
-    clearPreview();
-    setStoryboard(null);
     setErrorMessage("");
+    setCompletionMessage("");
     setProgressMessage(`Checking ${mediaFiles.length} moments…`);
     changeProductionState("preparing");
 
@@ -330,6 +408,7 @@ export function ProductionWizard() {
         if (preview.posterUrl) URL.revokeObjectURL(preview.posterUrl);
         return;
       }
+      clearPreview();
       setStoryboard(nextStoryboard);
       setPreviewFile(preview.file);
       previewUrlRef.current = preview.url;
@@ -381,9 +460,7 @@ export function ProductionWizard() {
 
   return (
     <section aria-label="Memory film creator" className="wizard">
-      {(productionState === "ready" || productionState === "error" || productionState === "preparing") && (
-        <>
-          <fieldset aria-label="Make your memory film" className={`wizard__stage wizard__stage--request${isPreparing ? " is-preparing" : ""}`} disabled={isPreparing}>
+      <fieldset aria-label="Make your memory film" className={`wizard__stage wizard__stage--request${isPreparing ? " is-preparing" : ""}`} disabled={isPreparing}>
             <header className="wizard__header">
               <div>
                 <p className="wizard__eyebrow">A short film, made for you</p>
@@ -401,18 +478,40 @@ export function ProductionWizard() {
                 <span className="wizard__media-icon" aria-hidden="true"><Images /></span>
                 <strong>Choose from this device</strong>
                 <small>Photos and videos stay under your control.</small>
-                <input accept="image/*,video/*" aria-label="Choose photos and videos" id="memory-media" multiple onChange={(event) => selectMedia(event.target.files)} type="file" />
+                <input accept="image/*,video/*" aria-label="Choose photos and videos" id="memory-media" multiple onChange={(event) => selectMedia(event.target.files)} ref={uploadInputRef} type="file" />
               </label>
 
-              {mediaFiles.length > 0 ? (
-                <ul aria-label="Selected media" className="wizard__selected-files">
-                  {mediaFiles.map((file, index) => (
-                    <li key={`${file.name}-${index}`}><span>{file.name}</span><button className="button button--remove" onClick={() => removeMediaFile(index)} type="button"><X aria-hidden="true" />Remove {file.name}</button></li>
+              {mediaItems.length > 0 ? (
+                <ul aria-label="Selected media" className="wizard__media-strip">
+                  {mediaItems.map((item, index) => (
+                    <li className="wizard__media-card" key={item.id}>
+                      <div className="wizard__thumbnail">
+                        {item.kind === "photo" ? (
+                          // Local blob URLs are browser-owned previews and cannot use the Next image optimizer.
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img alt={`Preview ${item.file.name}`} src={item.previewUrl} />
+                        ) : (
+                          <video aria-label={`Preview ${item.file.name}`} muted playsInline preload="metadata" src={item.previewUrl} />
+                        )}
+                        <span className="wizard__media-kind">
+                          {item.kind === "photo" ? <ImageIcon aria-hidden="true" /> : <Video aria-hidden="true" />}
+                          {item.kind === "photo" ? "Photo" : "Video"}
+                        </span>
+                        <button aria-label={`Remove ${item.file.name}`} className="button wizard__thumbnail-remove" onClick={() => removeMediaFile(index)} ref={(element) => { if (element) removeButtonRefs.current.set(item.id, element); else removeButtonRefs.current.delete(item.id); }} type="button"><X aria-hidden="true" /></button>
+                      </div>
+                      <span className="wizard__media-name" title={item.file.name}>{item.file.name}</span>
+                      <div className="wizard__reorder-actions">
+                        <button aria-label={`Move ${item.file.name} left`} className="button" disabled={index === 0} onClick={() => moveMediaFile(index, -1)} ref={(element) => { if (element) moveLeftButtonRefs.current.set(item.id, element); else moveLeftButtonRefs.current.delete(item.id); }} type="button"><ChevronLeft aria-hidden="true" /></button>
+                        <span>{index + 1}</span>
+                        <button aria-label={`Move ${item.file.name} right`} className="button" disabled={index === mediaItems.length - 1} onClick={() => moveMediaFile(index, 1)} ref={(element) => { if (element) moveRightButtonRefs.current.set(item.id, element); else moveRightButtonRefs.current.delete(item.id); }} type="button"><ChevronRight aria-hidden="true" /></button>
+                      </div>
+                    </li>
                   ))}
                 </ul>
               ) : (
                 <div className="wizard__media-help"><CircleCheck aria-hidden="true" /><span>Your selected moments will appear here. Remove any one before you make the film.</span></div>
               )}
+              {mediaUpdateMessage && <p aria-live="polite" className="sr-only" role="status">{mediaUpdateMessage}</p>}
             </section>
 
             <section className="wizard__step" aria-labelledby="story-title">
@@ -435,9 +534,9 @@ export function ProductionWizard() {
               <p className="wizard__music-intro">We can make a new little song for this memory, or choose a gentle background sound.</p>
               <fieldset className="wizard__soundtrack">
                 <legend className="sr-only">Sound</legend>
-                <label className={soundtrackMode === "original_song" ? "is-selected" : ""}><span><input aria-label="Original AI song" checked={soundtrackMode === "original_song"} name="soundtrack" onChange={() => setSoundtrackMode("original_song")} type="radio" /><strong>Original AI song</strong></span><small>A new song for this memory</small></label>
-                <label className={soundtrackMode === "instrumental" ? "is-selected" : ""}><span><input aria-label="Gentle instrumental" checked={soundtrackMode === "instrumental"} name="soundtrack" onChange={() => setSoundtrackMode("instrumental")} type="radio" /><strong>Gentle instrumental</strong></span><small>Warm background music</small></label>
-                <label className={soundtrackMode === "no_sound" ? "is-selected" : ""}><span><input aria-label="No music" checked={soundtrackMode === "no_sound"} name="soundtrack" onChange={() => setSoundtrackMode("no_sound")} type="radio" /><strong>No music</strong></span><small>Silent film</small></label>
+                <label className={soundtrackMode === "original_song" ? "is-selected" : ""}><span><input aria-label="Original AI song" checked={soundtrackMode === "original_song"} name="soundtrack" onChange={() => updateSoundtrackMode("original_song")} type="radio" /><strong>Original AI song</strong></span><small>A new song for this memory</small></label>
+                <label className={soundtrackMode === "instrumental" ? "is-selected" : ""}><span><input aria-label="Gentle instrumental" checked={soundtrackMode === "instrumental"} name="soundtrack" onChange={() => updateSoundtrackMode("instrumental")} type="radio" /><strong>Gentle instrumental</strong></span><small>Warm background music</small></label>
+                <label className={soundtrackMode === "no_sound" ? "is-selected" : ""}><span><input aria-label="No music" checked={soundtrackMode === "no_sound"} name="soundtrack" onChange={() => updateSoundtrackMode("no_sound")} type="radio" /><strong>No music</strong></span><small>Silent film</small></label>
               </fieldset>
             </section>
 
@@ -445,23 +544,21 @@ export function ProductionWizard() {
               <input aria-label="I have permission to use these media." checked={hasMediaPermission} id="media-permission" onChange={(event) => { consentRef.current = event.target.checked; setHasMediaPermission(event.target.checked); }} type="checkbox" />
               <span>I have permission to use these photos and videos.</span>
             </label>
-          </fieldset>
+      </fieldset>
 
-          <section aria-label={isPreparing ? "Making your film" : "Preview information"} aria-live={isPreparing ? "polite" : undefined} className={`wizard__preview-callout${isPreparing ? " is-preparing" : ""}`} role={isPreparing ? "status" : undefined}>
-            <div className="wizard__preview-copy"><span aria-hidden="true"><Play /></span><div><h3>{isPreparing ? "Making your film…" : "Watch before you save"}</h3><p>{isPreparing ? progressMessage : "Your 60-second film appears here after it is made."}</p></div></div>
-            <span className="wizard__preview-badge">{isPreparing ? `${mediaFiles.length} moments` : "Preview first"}</span>
-          </section>
+      <section aria-label={isPreparing ? "Making your film" : "Preview information"} aria-live={isPreparing ? "polite" : undefined} className={`wizard__preview-callout${isPreparing ? " is-preparing" : ""}`} role={isPreparing ? "status" : undefined}>
+        <div className="wizard__preview-copy"><span aria-hidden="true"><Play /></span><div><h3>{isPreparing ? "Making your film…" : previewUrl ? "Your film is below" : "Watch before you save"}</h3><p>{isPreparing ? progressMessage : previewUrl ? "Change anything above, then choose Make again." : "Your 60-second film appears here after it is made."}</p></div></div>
+        <span className="wizard__preview-badge">{isPreparing ? `${mediaFiles.length} moments` : previewUrl ? "Ready to watch" : "Preview first"}</span>
+      </section>
 
-          <div className="wizard__action-bar">
-            <div>
-              <button className="button button--primary" disabled={!canMakeFilm} onClick={makeFilm} type="button">{isPreparing ? "Please wait…" : productionState === "error" ? "Try again" : "Make my film"}<Sparkles aria-hidden="true" /></button>
-            </div>
-          </div>
-        </>
-      )}
+      <div className="wizard__action-bar">
+        <div>
+          <button className="button button--primary" disabled={!canMakeFilm} onClick={makeFilm} type="button">{isPreparing ? "Please wait…" : productionState === "error" ? "Try again" : previewUrl ? "Make again" : "Make my film"}<Sparkles aria-hidden="true" /></button>
+        </div>
+      </div>
 
-      {(productionState === "preview" || productionState === "saved") && storyboard && previewUrl && (
-        <section aria-label="Your film preview" className="wizard__preview">
+      {storyboard && previewUrl && (
+        <section aria-label="Your film preview" className="wizard__preview" ref={previewSectionRef}>
           <h3>Your memory film</h3>
           <video
             aria-label="Your memory film preview"
