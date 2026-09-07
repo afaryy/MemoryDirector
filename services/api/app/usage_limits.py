@@ -235,7 +235,7 @@ class InMemoryQuotaStore:
             if stage == "export" and request.includes_original_song:
                 required_stages.append("song")
             for required_stage in required_stages:
-                key = operation_key if required_stage == "media_analysis" else "__once__"
+                key = operation_key if required_stage == "media_analysis" else "once"
                 used_keys = stage_uses.get(required_stage, {})
                 attempts = used_keys.get(key, 0)
                 if attempts:
@@ -246,7 +246,7 @@ class InMemoryQuotaStore:
                     raise QuotaExceeded("admission_stage", "This film request has already been used.")
             updated = {name: dict(keys) for name, keys in stage_uses.items()}
             for required_stage in required_stages:
-                key = operation_key if required_stage == "media_analysis" else "__once__"
+                key = operation_key if required_stage == "media_analysis" else "once"
                 uses = updated.setdefault(required_stage, {})
                 uses[key] = uses.get(key, 0) + 1
             self._leases[admission_id] = (original, expires_at, released, updated)
@@ -457,7 +457,7 @@ class FirestoreQuotaStore:
             if stage == "export" and request.includes_original_song:
                 required_stages.append("song")
             for required_stage in required_stages:
-                key = operation_key if required_stage == "media_analysis" else "__once__"
+                key = operation_key if required_stage == "media_analysis" else "once"
                 used_keys = stage_uses.get(required_stage, {})
                 attempts = used_keys.get(key, 0)
                 if attempts:
@@ -467,7 +467,7 @@ class FirestoreQuotaStore:
                 if len(used_keys) >= stage_limit(required_stage, max_uses):
                     raise QuotaExceeded("admission_stage", "This film request has already been used.")
             for required_stage in required_stages:
-                key = operation_key if required_stage == "media_analysis" else "__once__"
+                key = operation_key if required_stage == "media_analysis" else "once"
                 uses = stage_uses.setdefault(required_stage, {})
                 uses[key] = uses.get(key, 0) + 1
             transaction.update(lease_ref, {"stage_uses": stage_uses})
