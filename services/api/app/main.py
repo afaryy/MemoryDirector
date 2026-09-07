@@ -246,6 +246,8 @@ def require_admission(
     stage: AdmissionStage,
     *,
     includes_original_song: bool = False,
+    operation_key: str | None = None,
+    max_uses: int | None = None,
 ) -> str | None:
     if os.environ.get("QUOTA_ENABLED", "false").lower() != "true":
         return None
@@ -257,6 +259,8 @@ def require_admission(
             admission_id,
             quota_request_from_http(request, includes_original_song=includes_original_song),
             stage,
+            operation_key=operation_key,
+            max_uses=max_uses,
         )
     except QuotaExceeded as error:
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(error), headers={"Retry-After": "86400"}) from error
@@ -329,9 +333,13 @@ async def analyze_media(
     if len(contents) > upload_limit:
         raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail="That file is too large to use.")
 
-    require_admission(request, "media_analysis")
-
     media_id = media_id_for_bytes(contents)
+    require_admission(
+        request,
+        "media_analysis",
+        operation_key=media_id,
+        max_uses=max_media_items(),
+    )
     try:
         storage = get_media_storage()
         stored_media = storage.put(media_id, normalized_content_type, contents)

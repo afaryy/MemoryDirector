@@ -17,11 +17,18 @@ class QuotaExceeded(RuntimeError):
 
 AdmissionStage = Literal["media_analysis", "planning", "song", "export"]
 STAGE_LIMITS: dict[AdmissionStage, int] = {
-    "media_analysis": 15,
     "planning": 1,
     "song": 1,
     "export": 1,
 }
+
+
+def stage_limit(stage: AdmissionStage, max_uses: int | None) -> int:
+    if stage == "media_analysis":
+        if max_uses is None or max_uses < 1:
+            raise ValueError("media analysis requires its configured positive media limit")
+        return max_uses
+    return STAGE_LIMITS[stage]
 
 
 @dataclass(frozen=True)
@@ -107,7 +114,15 @@ class QuotaLease:
 class QuotaStore(Protocol):
     def acquire(self, request: QuotaRequest) -> QuotaLease: ...
     def validate(self, admission_id: str, request: QuotaRequest) -> None: ...
-    def consume(self, admission_id: str, request: QuotaRequest, stage: AdmissionStage) -> None: ...
+    def consume(
+        self,
+        admission_id: str,
+        request: QuotaRequest,
+        stage: AdmissionStage,
+        *,
+        operation_key: str | None = None,
+        max_uses: int | None = None,
+    ) -> None: ...
     def release(self, admission_id: str) -> None: ...
 
 
@@ -119,7 +134,7 @@ class InMemoryQuotaStore:
         self._clock = clock or (lambda: datetime.now(UTC))
         self._lock = RLock()
         self._daily: dict[str, dict[str, int]] = {}
-        self._leases: dict[str, tuple[QuotaRequest, datetime, bool, dict[str, int]]] = {}
+        self._leases: dict[str, tuple[QuotaRequest, datetime, bool, dict[str, set[str]]]] = {}
 
     def _key(self, day: str, scope: str, identifier: str = "all") -> str:
         return f"{day}:{scope}:{identifier}"
@@ -191,7 +206,15 @@ class InMemoryQuotaStore:
             if original.visitor_id != request.visitor_id or original.client_ip != request.client_ip:
                 raise QuotaExceeded("admission", "This film request is not valid for this device.")
 
-    def consume(self, admission_id: str, request: QuotaRequest, stage: AdmissionStage) -> None:
+    def consume(
+        self,
+        admission_id: str,
+        request: QuotaRequest,
+        stage: AdmissionStage,
+        *,
+        operation_key: str | None = None,
+        max_uses: int | None = None,
+    ) -> None:
         if not self.policy.enabled:
             return
         with self._lock:
@@ -200,18 +223,26 @@ class InMemoryQuotaStore:
             original, expires_at, released, stage_uses = lease
             if request.includes_original_song and not original.includes_original_song:
                 raise QuotaExceeded("admission_soundtrack", "Start a new film request with an original song.")
-            if stage_uses.get("export", 0) > 0:
+            if stage_uses.get("export"):
                 raise QuotaExceeded("admission_stage", "This film request has already been used.")
+            if stage == "media_analysis" and not operation_key:
+                raise ValueError("media analysis requires an operation key")
             required_stages = [stage]
             if stage == "export" and request.includes_original_song:
                 required_stages.append("song")
             for required_stage in required_stages:
-                limit = STAGE_LIMITS[required_stage]
-                if stage_uses.get(required_stage, 0) >= limit:
+                key = operation_key if required_stage == "media_analysis" else "__once__"
+                used_keys = stage_uses.get(required_stage, set())
+                if key in used_keys:
+                    if required_stage == "media_analysis":
+                        continue
                     raise QuotaExceeded("admission_stage", "This film request has already been used.")
-            updated = dict(stage_uses)
+                if len(used_keys) >= stage_limit(required_stage, max_uses):
+                    raise QuotaExceeded("admission_stage", "This film request has already been used.")
+            updated = {name: set(keys) for name, keys in stage_uses.items()}
             for required_stage in required_stages:
-                updated[required_stage] = updated.get(required_stage, 0) + 1
+                key = operation_key if required_stage == "media_analysis" else "__once__"
+                updated.setdefault(required_stage, set()).add(key)
             self._leases[admission_id] = (original, expires_at, released, updated)
 
     def release(self, admission_id: str) -> None:
@@ -369,7 +400,15 @@ class FirestoreQuotaStore:
         ):
             raise QuotaExceeded("admission", "Start a new film request and try again.")
 
-    def consume(self, admission_id: str, request: QuotaRequest, stage: AdmissionStage) -> None:
+    def consume(
+        self,
+        admission_id: str,
+        request: QuotaRequest,
+        stage: AdmissionStage,
+        *,
+        operation_key: str | None = None,
+        max_uses: int | None = None,
+    ) -> None:
         if not self.policy.enabled:
             return
         from google.cloud import firestore
@@ -392,18 +431,31 @@ class FirestoreQuotaStore:
                 raise QuotaExceeded("admission", "Start a new film request and try again.")
             if request.includes_original_song and values.get("includes_original_song") is not True:
                 raise QuotaExceeded("admission_soundtrack", "Start a new film request with an original song.")
-            stage_uses = {key: int(value) for key, value in values.get("stage_uses", {}).items()}
-            if stage_uses.get("export", 0) > 0:
+            raw_stage_uses = values.get("stage_uses", {})
+            stage_uses = {
+                key: set(value) if isinstance(value, list) else {f"__legacy_{index}" for index in range(int(value))}
+                for key, value in raw_stage_uses.items()
+            }
+            if stage_uses.get("export"):
                 raise QuotaExceeded("admission_stage", "This film request has already been used.")
+            if stage == "media_analysis" and not operation_key:
+                raise ValueError("media analysis requires an operation key")
             required_stages = [stage]
             if stage == "export" and request.includes_original_song:
                 required_stages.append("song")
             for required_stage in required_stages:
-                if stage_uses.get(required_stage, 0) >= STAGE_LIMITS[required_stage]:
+                key = operation_key if required_stage == "media_analysis" else "__once__"
+                used_keys = stage_uses.get(required_stage, set())
+                if key in used_keys:
+                    if required_stage == "media_analysis":
+                        continue
+                    raise QuotaExceeded("admission_stage", "This film request has already been used.")
+                if len(used_keys) >= stage_limit(required_stage, max_uses):
                     raise QuotaExceeded("admission_stage", "This film request has already been used.")
             for required_stage in required_stages:
-                stage_uses[required_stage] = stage_uses.get(required_stage, 0) + 1
-            transaction.update(lease_ref, {"stage_uses": stage_uses})
+                key = operation_key if required_stage == "media_analysis" else "__once__"
+                stage_uses.setdefault(required_stage, set()).add(key)
+            transaction.update(lease_ref, {"stage_uses": {key: sorted(value) for key, value in stage_uses.items()}})
 
         consume_transaction(self.client.transaction())
 

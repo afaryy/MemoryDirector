@@ -152,7 +152,7 @@ async def test_production_proposal_quota_rejection_does_not_call_a_planner(
     planner = FakeAgentPlanner()
 
     class DenyingQuotaStore:
-        def consume(self, admission_id, request, stage):
+        def consume(self, admission_id, request, stage, **kwargs):
             from app.usage_limits import QuotaExceeded
 
             raise QuotaExceeded("admission")

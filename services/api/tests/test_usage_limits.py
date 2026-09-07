@@ -123,10 +123,22 @@ def test_admission_has_bounded_stage_uses() -> None:
     store = InMemoryQuotaStore(policy())
     lease = store.acquire(request(song=True))
 
-    for _ in range(15):
-        store.consume(lease.admission_id, request(song=True), "media_analysis")
+    for index in range(15):
+        store.consume(
+            lease.admission_id,
+            request(song=True),
+            "media_analysis",
+            operation_key=f"media-{index}",
+            max_uses=15,
+        )
     with pytest.raises(QuotaExceeded, match="already been used"):
-        store.consume(lease.admission_id, request(song=True), "media_analysis")
+        store.consume(
+            lease.admission_id,
+            request(song=True),
+            "media_analysis",
+            operation_key="media-16",
+            max_uses=15,
+        )
 
     store.consume(lease.admission_id, request(song=True), "planning")
     with pytest.raises(QuotaExceeded, match="already been used"):
@@ -135,6 +147,37 @@ def test_admission_has_bounded_stage_uses() -> None:
     store.consume(lease.admission_id, request(song=True), "export")
     with pytest.raises(QuotaExceeded, match="already been used"):
         store.consume(lease.admission_id, request(song=True), "export")
+
+
+def test_media_retry_is_idempotent_at_the_configured_maximum() -> None:
+    store = InMemoryQuotaStore(policy())
+    lease = store.acquire(request())
+
+    for index in range(15):
+        store.consume(
+            lease.admission_id,
+            request(),
+            "media_analysis",
+            operation_key=f"media-{index}",
+            max_uses=15,
+        )
+
+    store.consume(
+        lease.admission_id,
+        request(),
+        "media_analysis",
+        operation_key="media-0",
+        max_uses=15,
+    )
+
+    with pytest.raises(QuotaExceeded, match="already been used"):
+        store.consume(
+            lease.admission_id,
+            request(),
+            "media_analysis",
+            operation_key="different-media",
+            max_uses=15,
+        )
 
 
 def test_original_song_can_only_be_consumed_once_across_song_and_export() -> None:

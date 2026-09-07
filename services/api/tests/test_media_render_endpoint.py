@@ -119,7 +119,7 @@ class DenyingQuotaStore:
     def validate(self, admission_id, request):
         raise QuotaExceeded("ip")
 
-    def consume(self, admission_id, request, stage):
+    def consume(self, admission_id, request, stage, **kwargs):
         raise QuotaExceeded("ip")
 
 
@@ -136,7 +136,7 @@ class CapturingQuotaStore:
     def validate(self, admission_id, request):
         self.request = request
 
-    def consume(self, admission_id, request, stage):
+    def consume(self, admission_id, request, stage, **kwargs):
         self.request = request
 
 

@@ -55,7 +55,7 @@ def test_memory_song_quota_rejection_does_not_call_lyria(monkeypatch) -> None:
         def validate(self, admission_id, request):
             raise QuotaExceeded("visitor_song")
 
-        def consume(self, admission_id, request, stage):
+        def consume(self, admission_id, request, stage, **kwargs):
             raise QuotaExceeded("visitor_song")
 
     class RecordingLyria:
