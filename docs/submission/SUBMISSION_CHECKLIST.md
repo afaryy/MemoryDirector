@@ -11,6 +11,10 @@ Status meanings:
 - **Attestation required** — the repository cannot prove the entrant's eligibility
   or authority.
 
+Use [`EVIDENCE_PACKAGE.md`](EVIDENCE_PACKAGE.md) to assemble the public proof
+and complete the final release artefact manifest without overstating unfinished
+capabilities.
+
 ## Source of truth
 
 Use the [official rules](https://agentic-cinema.devpost.com/rules) where the
