@@ -5,11 +5,11 @@
   "state_bucket_name": "memory-director-tfstate-192915586401",
   "github_repository": "afaryy/MemoryDirector",
   "budgets": {
-    "currency": "USD",
-    "monthly_cost_tolerance": 200,
-    "project_alert_budget": 150,
-    "vertex_ai_spend_cap": 110,
-    "cloud_run_spend_cap": 25
+    "currency": "AUD",
+    "monthly_cost_tolerance": 250,
+    "project_alert_budget": 200,
+    "vertex_ai_spend_cap": 150,
+    "cloud_run_spend_cap": 35
   },
   "mcp_image": "ghcr.io/clickhouse/mcp-clickhouse@sha256:f4d9f1502a14a98fd17f3ecf8654bd102ba5b1a5bde86e54a9579ed8871ef8d7",
   "enable_mcp": true,

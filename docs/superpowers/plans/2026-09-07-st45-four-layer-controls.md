@@ -19,7 +19,7 @@
 - Initial sandbox global daily admission limit is 30; JSON Schema forbids values above 100.
 - Quota admission is shared across Cloud Run instances and happens before Gemini, Lyria, or ffmpeg work.
 - Terraform state buckets are never covered by media lifecycle deletion.
-- Do not claim that a USD 200 tolerance is an instantaneous hard billing guarantee.
+- Do not claim that the A$250 tolerance is an instantaneous hard billing guarantee.
 
 ---
 
@@ -36,10 +36,10 @@
 **Interfaces:**
 - Produces: `application_limits`, `quotas`, `rate_limits`, `retention`, `cloud_run`, and `budgets` JSON objects consumed by Terraform roots.
 
-- [ ] **Step 1: Add failing validator tests.** Test checked-in configuration, reject `global_daily_film_limit` above 100, reject budgets whose tolerance exceeds USD 200, and reject retention rules that include the Terraform state bucket.
+- [ ] **Step 1: Add failing validator tests.** Test checked-in configuration, reject `global_daily_film_limit` above 100, reject budgets whose tolerance exceeds A$250, and reject retention rules that include the Terraform state bucket.
 - [ ] **Step 2: Run `cd infra/terraform/tools/config-validator && npm test -- --run`.** Expect the new cases to fail because the schema does not know the approved objects.
 - [ ] **Step 3: Add the exact approved values and schema bounds.** Keep project, environment, and common ownership separate and add semantic cross-file checks to `validate-config.mjs` only where JSON Schema cannot compare values.
-- [ ] **Step 4: Write the operations document.** Include ownership, deployment flow, alert versus spend-cap behavior, emergency shutdown, and the explicit USD 200 limitation.
+- [ ] **Step 4: Write the operations document.** Include ownership, deployment flow, alert versus spend-cap behavior, emergency shutdown, and the explicit A$250 limitation.
 - [ ] **Step 5: Re-run validator tests.** Expect all tests to pass.
 
 ### Task 2: Shared transactional quota gate
@@ -122,6 +122,6 @@
 
 - [ ] **Step 1: Add a failing static workflow test if schema validation is not already mandatory on both test and Terraform paths.**
 - [ ] **Step 2: Wire only missing CI gates.** Reuse existing actions; do not duplicate jobs.
-- [ ] **Step 3: Document billing controls.** Record USD 150 project alert budget, USD 110 Vertex spend-cap target, USD 25 Cloud Run spend-cap target, USD 200 tolerance, Preview/latency caveat, ClickHouse exclusion, and evidence commands/screenshots required before claiming active protection.
+- [ ] **Step 3: Document billing controls.** Record the A$200 project alert budget, A$150 Vertex AI / Agent Platform spend-cap target, A$35 Cloud Run spend-cap target, A$250 tolerance, Preview/latency caveat, ClickHouse exclusion, and evidence commands/screenshots required before claiming active protection.
 - [ ] **Step 4: Run fresh full verification.** API pytest, web tests/build, config validator, Terraform fmt/validate/tests, TFLint where available, Trivy/config checks, and `git diff --check` must pass.
 - [ ] **Step 5: Commit, push, open PR, wait for CI, request independent review, and merge only after every check is green.** Keep ST-45 In Progress until production apply and observable quota/rate/retention evidence exist.

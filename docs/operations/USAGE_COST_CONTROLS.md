@@ -8,7 +8,7 @@ Memory Director is intentionally available without an account during the public 
 | --- | --- | --- |
 | `infra/terraform/projects/config/common-environment.json` | Product-wide ceilings: 60-second output, 15 media items, upload/request limits, and the global daily hard maximum of 100 | Project credentials or environment-specific quotas |
 | `infra/terraform/projects/config/sandbox.json` | Sandbox quotas, Cloud Armor thresholds, Cloud Run scaling/concurrency, and application-media retention | Secrets or Terraform state retention |
-| `infra/terraform/projects/config/memory-director.json` | `memory-director-505708`, public edge, and the approved USD budget targets | Passwords, API tokens, or generated secret values |
+| `infra/terraform/projects/config/memory-director.json` | `memory-director-505708`, public edge, and the approved AUD budget targets | Passwords, API tokens, or generated secret values |
 | `infra/terraform/projects/config/config.schema.json` | Types, required fields, minimums, maximums, and closed-object validation | Runtime values that bypass reviewed JSON |
 | Google Secret Manager | Cookie/demo signing material and provider credentials | Non-sensitive quota numbers |
 | Cloud Billing | Alerts-only budget and eligible-service spend caps | Application quota state |
@@ -59,33 +59,42 @@ runtime identity received the provisioning role.
 
 ## Layer 3: billing protection
 
-The approved monthly currency is USD:
+The linked Cloud Billing account and all approved monthly controls use AUD:
 
 | Control | Amount | Enforcement |
 | --- | ---: | --- |
-| Absolute cost tolerance | 200 | Governance boundary, not an instantaneous guarantee |
-| Whole-project alert budget | 150 | Alerts only |
-| Eligible Vertex AI spend-cap target | 110 | Pauses eligible new Vertex AI usage when enforced |
-| Eligible Cloud Run spend-cap target | 25 | Pauses eligible new Cloud Run usage when enforced |
-| Reserved buffer | 50 | Storage, load balancing, logging, in-flight work, and reporting delay |
+| Absolute cost tolerance | A$250 | Governance boundary, not an instantaneous guarantee |
+| Whole-project alert budget | A$200 | Alerts only |
+| Eligible Vertex AI / Agent Platform spend-cap target | A$150 | Pauses eligible new usage when enforced |
+| Eligible Cloud Run spend-cap target | A$35 | Pauses eligible new usage when enforced |
+| Reserved buffer | A$50 | Storage, load balancing, logging, in-flight work, and reporting delay |
 
-Google Cloud spend-cap budgets are Preview, are scoped to one project and one eligible service, and are not instantaneous. In-flight work and persistent resources can continue accruing charges. For that reason the project operates below the USD 200 tolerance and relies on admission quotas as the immediate control.
+Google Cloud spend-cap budgets are Preview, are scoped to one project and one eligible service, and are not instantaneous. In-flight work and persistent resources can continue accruing charges. Spend caps must be created in the Cloud Billing console by selecting **Spend cap enforcement**; the Budget API and `gcloud billing budgets` create alerts-only budgets. For that reason the project operates below the A$250 tolerance and relies on admission quotas as the immediate control. See Google's [spend-cap documentation](https://docs.cloud.google.com/billing/docs/how-to/budgets-spend-caps).
 
-The spend caps and project budget are not considered active until an operator records the Cloud Billing budget names, scopes, status, and notification recipients. ClickHouse Cloud billing is separate and is not included in the USD 200 Google Cloud tolerance.
+Each spend cap is considered active only after an operator records its Cloud Billing name, project, service, amount, configured status, and notification recipients. ClickHouse Cloud billing is separate and is not included in the A$250 Google Cloud tolerance.
 
 As of 7 September 2026, the technical quota, Cloud Run, Cloud Armor, Firestore,
-and GCS controls are deployed. Billing protection remains unverified because
-the Cloud Billing Budget API is not enabled for the operator's quota project
-and billing-budget access could not be confirmed. ST-45 must remain In Progress
-until the three billing controls below have visible, non-sensitive evidence.
+and GCS controls are deployed. The Cloud Billing Budget API is enabled and the
+alerts-only budget below is active. The two spend-cap controls remain pending
+until their console status has been verified. ST-45 must remain In Progress
+until all three billing controls have visible, non-sensitive evidence.
+
+### Verified alerts-only budget — 7 September 2026
+
+- Name: `Memory Director project alert`
+- Resource: `billingAccounts/01ABF0-FE72D6-AD545C/budgets/fba17495-d534-4022-b5cd-2f1856afb2ec`
+- Scope: project number `192915586401` (`memory-director-505708`)
+- Amount and period: A$200 per month
+- Thresholds: 50%, 80%, and 100% of current spend
+- Credits: all credits included
 
 ### Billing-console activation evidence
 
 1. Open Cloud Billing > Budgets & alerts for the billing account linked to `memory-director-505708`.
-2. Create an alerts-only project budget for USD 150 with thresholds at 50%, 75%, 90%, and 100%.
-3. Create a spend-cap budget scoped to `memory-director-505708` and the eligible Vertex AI/Agent Platform service for USD 110.
-4. Create a spend-cap budget scoped to `memory-director-505708` and Cloud Run for USD 25.
-5. Record screenshots or exported metadata showing each name, project, service, amount, currency, and configured status; never include payment details.
+2. Confirm the existing A$200 alerts-only project budget and its notification recipients.
+3. In the console, create a spend-cap budget scoped to `memory-director-505708` and the eligible Vertex AI / Agent Platform service for A$150.
+4. In the console, create a spend-cap budget scoped to `memory-director-505708` and Cloud Run for A$35.
+5. Record screenshots or exported metadata showing each name, project, service, amount, currency, configured status, and notification recipients; never include payment details.
 6. Do not mark ST-45 complete until the controls are visible and a non-destructive verification has been recorded.
 
 ## Layer 4: private-media retention
