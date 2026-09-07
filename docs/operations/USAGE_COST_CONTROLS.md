@@ -38,6 +38,25 @@ These thresholds absorb bursts and automated abuse. Daily quotas remain applicat
 
 Cloud Run keeps zero minimum instances. The web service is limited to two instances at concurrency eighty. The rendering API is limited to three instances, concurrency four, and a 900-second request timeout. Maximum instances constrain concurrency and infrastructure expansion, not monthly model spend.
 
+### Verified sandbox state — 7 September 2026
+
+The Cloud Armor policy is active on both public load-balancer backends. The
+deployed rules match the reviewed sandbox values above, including the
+high-cost route rule, broader API rule, general public rule, HTTP 429 response,
+and one-hour ban. Public-edge workflow run
+[34118291595](https://github.com/afaryy/MemoryDirector/actions/runs/34118291595)
+completed with one resource added, two updated in place, and zero destroyed.
+Anonymous HTTPS checks returned HTTP 200 for the homepage and `/api/health`.
+
+The first production attempt exposed a missing Cloud Armor provisioning
+permission. PR
+[#109](https://github.com/afaryy/MemoryDirector/pull/109) added the documented
+operator-only role after Terraform tests and review. The next attempt exposed a
+Cloud Armor expression that used a forbidden regular-expression capture group;
+PR [#110](https://github.com/afaryy/MemoryDirector/pull/110) replaced it with
+explicit path predicates and added a regression test. Neither application
+runtime identity received the provisioning role.
+
 ## Layer 3: billing protection
 
 The approved monthly currency is USD:
@@ -53,6 +72,12 @@ The approved monthly currency is USD:
 Google Cloud spend-cap budgets are Preview, are scoped to one project and one eligible service, and are not instantaneous. In-flight work and persistent resources can continue accruing charges. For that reason the project operates below the USD 200 tolerance and relies on admission quotas as the immediate control.
 
 The spend caps and project budget are not considered active until an operator records the Cloud Billing budget names, scopes, status, and notification recipients. ClickHouse Cloud billing is separate and is not included in the USD 200 Google Cloud tolerance.
+
+As of 7 September 2026, the technical quota, Cloud Run, Cloud Armor, Firestore,
+and GCS controls are deployed. Billing protection remains unverified because
+the Cloud Billing Budget API is not enabled for the operator's quota project
+and billing-budget access could not be confirmed. ST-45 must remain In Progress
+until the three billing controls below have visible, non-sensitive evidence.
 
 ### Billing-console activation evidence
 
