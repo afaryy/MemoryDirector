@@ -631,24 +631,26 @@ export function ProductionWizard() {
                 <>
                   <DndContext collisionDetection={closestCenter} onDragEnd={finishPointerReorder} sensors={sensors}>
                     <SortableContext items={mediaItems.map((item) => item.id)} strategy={horizontalListSortingStrategy}>
-                      <ul aria-describedby="media-reorder-help" aria-label="Selected media" className="wizard__media-strip">
-                        {mediaItems.map((item, index) => (
-                          <SortableMediaCard
-                            isPreparing={isPreparing}
-                            isKeyboardGrabbed={keyboardDragId === item.id}
-                            item={item}
-                            key={item.id}
-                            onKeyboardReorder={handleKeyboardReorder}
-                            onRemove={() => removeMediaFile(index)}
-                            position={index + 1}
-                            registerRemoveButton={(element) => {
-                              if (element) removeButtonRefs.current.set(item.id, element);
-                              else removeButtonRefs.current.delete(item.id);
-                            }}
-                            total={mediaItems.length}
-                          />
-                        ))}
-                      </ul>
+                      <div className="wizard__media-scroll">
+                        <ul aria-describedby="media-reorder-help" aria-label="Selected media" className="wizard__media-strip">
+                          {mediaItems.map((item, index) => (
+                            <SortableMediaCard
+                              isPreparing={isPreparing}
+                              isKeyboardGrabbed={keyboardDragId === item.id}
+                              item={item}
+                              key={item.id}
+                              onKeyboardReorder={handleKeyboardReorder}
+                              onRemove={() => removeMediaFile(index)}
+                              position={index + 1}
+                              registerRemoveButton={(element) => {
+                                if (element) removeButtonRefs.current.set(item.id, element);
+                                else removeButtonRefs.current.delete(item.id);
+                              }}
+                              total={mediaItems.length}
+                            />
+                          ))}
+                        </ul>
+                      </div>
                     </SortableContext>
                   </DndContext>
                   <p className="wizard__media-reorder-help" id="media-reorder-help">Drag to change the order. On a phone, press and hold, then move.</p>
