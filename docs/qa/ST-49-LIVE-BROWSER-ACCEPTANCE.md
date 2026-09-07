@@ -8,14 +8,9 @@ Google Cloud project: `memory-director-505708`
 
 ## Result
 
-The production journey is operational on desktop and at a 390 x 844 mobile viewport. A user can select mixed media, describe the memory, choose a soundtrack mode, generate a 60-second vertical film without leaving the page, preview it, and save it.
+The ST-49 automated browser scope passed on desktop and at a 390 x 844 mobile viewport. A user can select mixed media, describe the memory, choose a soundtrack mode, generate a 60-second vertical film without leaving the page, preview it, and save it.
 
-This is a partial acceptance, not final sign-off. Native microphone and mobile share-sheet behavior still require a physical-device pass. The original-song and no-music render paths passed; a subsequent instrumental rerun reached the configured public usage guard and must be repeated after the quota window resets.
-
-Completion note (8 September 2026): ST-49 is Done for its live browser and
-responsive-viewport scope. The physical-device and instrumental checks listed
-below were transferred to ST-52 rather than waived; this report keeps their
-original results visible.
+ST-49 is complete for that automated scope. Native microphone, touch, device-save location, and mobile share-sheet behavior require a physical-device pass and are tracked separately in ST-52. The original-song and no-music render paths passed; ST-52 also owns the instrumental rerun after the quota window resets.
 
 ## Environment evidence
 
@@ -63,7 +58,7 @@ ST-50 added a regression test and replaced the reserved field. After PR #116 was
 
 The privacy-safe test images are intentionally synthetic marker cards with distinct colors and labels. The first marker appeared in the opening segment and the second marker appeared later in the film. That visible transition verifies that the renderer used the selected source bytes and preserved multi-source sequencing.
 
-## Remaining manual acceptance
+## ST-52 physical-device follow-up
 
 Use a physical iPhone or Android phone for the following checks:
 
@@ -74,5 +69,4 @@ Use a physical iPhone or Android phone for the following checks:
 5. Open the native share sheet and verify WhatsApp or WeChat appears only when installed.
 6. Cancel the clear-all confirmation once, then accept it once.
 
-These remaining checks are tracked by ST-52 and are not part of the completed
-ST-49 browser-viewport scope.
+Do not mark ST-52 Done until these physical-device checks and the instrumental rerun are recorded. Closing ST-49 does not claim that the physical-device scope passed.
