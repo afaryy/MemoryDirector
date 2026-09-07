@@ -50,7 +50,7 @@ h2, h3, h4, p { margin-top: 0; }
 .wizard__step-heading > .wizard__music-note { padding: 0; background: transparent; color: var(--terracotta); font-weight: 400; }
 
 .wizard__media { display: flex; min-height: 8rem; margin-top: .75rem; padding: 1.25rem; align-items: center; justify-content: center; flex-direction: column; border: 2px dashed var(--sage); border-radius: 24px; background: var(--sand); color: var(--moss); text-align: center; transition: background .2s ease, transform .2s ease; }
-.wizard__media:hover { background: var(--oat); }
+.wizard__media:hover { background: var(--paper); }
 .wizard__media:active { transform: translateY(1px); }
 .wizard__media-icon { display: grid; width: 3rem; height: 3rem; place-items: center; border-radius: 1rem; background: white; color: var(--terracotta); }
 .wizard__media-icon svg { width: 1.5rem; height: 1.5rem; }
