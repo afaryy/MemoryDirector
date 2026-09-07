@@ -88,6 +88,7 @@ module "app" {
   service                       = var.service
   api_base_url                  = var.api_base_url
   public_ingress                = var.public_ingress
+  web_origins                   = "https://${local.project.public_edge.apex_domain}"
   mcp_endpoint                  = local.mcp_endpoint
   mcp_secret_project_id         = local.mcp_secret_project
   consent_event_writer_endpoint = var.consent_event_writer_endpoint

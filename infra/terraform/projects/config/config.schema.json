@@ -19,21 +19,15 @@
         "max_film_duration_seconds",
         "max_media_items",
         "max_upload_file_mb",
-        "max_upload_total_mb",
         "max_request_text_chars",
-        "global_daily_film_hard_max",
-        "upload_signed_url_ttl_minutes",
-        "download_signed_url_ttl_minutes"
+        "global_daily_film_hard_max"
       ],
       "properties": {
         "max_film_duration_seconds": { "type": "integer", "const": 60 },
         "max_media_items": { "type": "integer", "minimum": 1, "maximum": 15 },
         "max_upload_file_mb": { "type": "integer", "minimum": 1, "maximum": 250 },
-        "max_upload_total_mb": { "type": "integer", "minimum": 1, "maximum": 1000 },
         "max_request_text_chars": { "type": "integer", "minimum": 1, "maximum": 2000 },
-        "global_daily_film_hard_max": { "type": "integer", "minimum": 1, "maximum": 100 },
-        "upload_signed_url_ttl_minutes": { "type": "integer", "minimum": 1, "maximum": 60 },
-        "download_signed_url_ttl_minutes": { "type": "integer", "minimum": 1, "maximum": 60 }
+        "global_daily_film_hard_max": { "type": "integer", "minimum": 1, "maximum": 100 }
       }
     },
     "quotas": {

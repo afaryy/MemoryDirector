@@ -6,7 +6,7 @@ Memory Director is intentionally available without an account during the public 
 
 | File or control plane | Owns | Must not contain |
 | --- | --- | --- |
-| `infra/terraform/projects/config/common-environment.json` | Product-wide ceilings: 60-second output, 15 media items, upload/request limits, signed URL lifetimes, and the global daily hard maximum of 100 | Project credentials or environment-specific quotas |
+| `infra/terraform/projects/config/common-environment.json` | Product-wide ceilings: 60-second output, 15 media items, upload/request limits, and the global daily hard maximum of 100 | Project credentials or environment-specific quotas |
 | `infra/terraform/projects/config/sandbox.json` | Sandbox quotas, Cloud Armor thresholds, Cloud Run scaling/concurrency, and application-media retention | Secrets or Terraform state retention |
 | `infra/terraform/projects/config/memory-director.json` | `memory-director-505708`, public edge, and the approved USD budget targets | Passwords, API tokens, or generated secret values |
 | `infra/terraform/projects/config/config.schema.json` | Types, required fields, minimums, maximums, and closed-object validation | Runtime values that bypass reviewed JSON |
@@ -23,7 +23,7 @@ Original-song work has tighter limits: three attempts per visitor and twenty glo
 
 Firestore Native mode is the authoritative transactional quota store shared by every Cloud Run instance. Identifiers are hashed before document keys are written. ClickHouse receives bounded decision and outcome telemetry for cost analysis, but it is not used as an atomic admission counter.
 
-Rejected film-export requests return HTTP 429 with a short user-facing explanation before Lyria or ffmpeg starts. Media analysis and storyboard planning happen earlier in the current browser workflow and remain protected by the separate API and edge rate limits; they are not represented as zero-cost work after an export rejection.
+The browser reserves one short-lived admission before it uploads media or invokes Gemini. The same opaque admission ID is required for media analysis, storyboard planning, Lyria, and ffmpeg, then released when the workflow succeeds or fails. Expired leases are reclaimed so a terminated Cloud Run instance cannot hold capacity for the rest of the day. Rejected requests return HTTP 429 before a costly provider call starts.
 
 ## Layer 2: edge and compute protection
 
@@ -70,7 +70,7 @@ The application GCS bucket enforces public access prevention and uniform bucket-
 - `media/` uploads and decisions: delete after one day;
 - `exports/` previews, videos, covers, captions, and bundles: delete after three days.
 
-Upload signed URLs expire after fifteen minutes and download signed URLs after thirty minutes. Terraform state uses its independent bootstrap bucket and is never passed to the media lifecycle module. Destroying sandbox application resources does not authorize deletion of bootstrap state.
+Terraform state uses its independent bootstrap bucket and is never passed to the media lifecycle module. Destroying sandbox application resources does not authorize deletion of bootstrap state. Signed upload/download URLs are not claimed by this control set because the current application still uses the API upload/export path.
 
 ## Change and emergency procedure
 

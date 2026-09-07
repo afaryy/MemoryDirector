@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from app.usage_limits import (
+    FirestoreQuotaStore,
     InMemoryQuotaStore,
     QuotaExceeded,
     QuotaRequest,
@@ -130,3 +131,34 @@ def test_disabled_policy_returns_a_noop_lease() -> None:
         store.acquire(request()).release()
 
     assert store.snapshot(request())["visitor_film_admitted"] == 0
+
+
+def test_expired_concurrency_lease_is_reclaimed_after_a_worker_disappears() -> None:
+    current = datetime(2026, 9, 7, 8, tzinfo=UTC)
+    store = InMemoryQuotaStore(policy(ip_max_concurrent_films=1), clock=lambda: current)
+    store.acquire(request(now=current))
+
+    current += timedelta(minutes=17)
+    replacement = store.acquire(request(visitor="visitor-b", now=current))
+
+    assert replacement.admission_id is not None
+
+
+def test_firestore_snapshots_are_resolved_by_reference_path_not_result_order() -> None:
+    class Reference:
+        def __init__(self, path: str) -> None:
+            self.path = path
+
+    class Snapshot:
+        def __init__(self, path: str) -> None:
+            self.reference = Reference(path)
+
+    visitor = Snapshot("quota/visitor")
+    ip = Snapshot("quota/ip")
+    global_counter = Snapshot("quota/global")
+
+    resolved = FirestoreQuotaStore._by_path([global_counter, visitor, ip])
+
+    assert resolved["quota/visitor"] is visitor
+    assert resolved["quota/ip"] is ip
+    assert resolved["quota/global"] is global_counter

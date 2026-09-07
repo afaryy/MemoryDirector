@@ -195,12 +195,12 @@ async function mapWithConcurrency<Item, Result>(
   return results;
 }
 
-async function analyzeMediaFile(file: File, signal: AbortSignal): Promise<MediaReview> {
+async function analyzeMediaFile(file: File, signal: AbortSignal, headers: Record<string, string>): Promise<MediaReview> {
   for (let attempt = 1; attempt <= mediaAnalysisAttempts; attempt += 1) {
     const formData = new FormData();
     formData.append("consent", "true");
     formData.append("media", file);
-    const response = await fetch(`${apiBaseUrl}/media/analyze`, { method: "POST", body: formData, signal });
+    const response = await fetch(`${apiBaseUrl}/media/analyze`, { method: "POST", body: formData, headers, signal });
     if (response.ok) return (await response.json()) as MediaReview;
     const isTransient = typeof response.status === "number" && response.status >= 500 && response.status <= 599;
     if (!isTransient || attempt === mediaAnalysisAttempts) {
@@ -461,6 +461,7 @@ export function ProductionWizard() {
   async function analyzeMedia(
     generation: number,
     signal: AbortSignal,
+    headers: Record<string, string>,
     stopActiveOperations: () => void,
   ): Promise<MediaReview[] | null> {
     if (!consentRef.current) throw new Error("Permission is required before making a film.");
@@ -469,7 +470,7 @@ export function ProductionWizard() {
       if (generation !== generationRef.current || !consentRef.current || signal.aborted) {
         throw new DOMException("Generation cancelled", "AbortError");
       }
-      const review = await analyzeMediaFile(file, signal);
+      const review = await analyzeMediaFile(file, signal, headers);
       completed += 1;
       if (generation === generationRef.current) {
         setProgressMessage(`Checked ${completed} of ${mediaFiles.length} moments…`);
@@ -507,14 +508,31 @@ export function ProductionWizard() {
     setCompletionMessage("");
     setProgressMessage(`Checking ${mediaFiles.length} moments…`);
     changeProductionState("preparing");
+    const visitorId = memoryDirectorVisitorId();
+    let admissionId: string | null = null;
 
     try {
-      const reviews = await analyzeMedia(generation, requestController.signal, () => requestController.abort());
+      const admissionResponse = await fetch(`${apiBaseUrl}/usage/admissions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Memory-Director-Visitor": visitorId },
+        body: JSON.stringify({ soundtrack_mode: soundtrackMode }),
+        signal: requestController.signal,
+      });
+      if (!admissionResponse.ok) {
+        const errorBody = (await admissionResponse.json().catch(() => null)) as { detail?: unknown } | null;
+        throw new UserFacingExportError(typeof errorBody?.detail === "string" ? errorBody.detail : "Please try again later.");
+      }
+      admissionId = ((await admissionResponse.json()) as { admission_id: string }).admission_id;
+      const admissionHeaders = {
+        "X-Memory-Director-Visitor": visitorId,
+        "X-Memory-Director-Admission": admissionId,
+      };
+      const reviews = await analyzeMedia(generation, requestController.signal, admissionHeaders, () => requestController.abort());
       if (!reviews || !consentRef.current || generation !== generationRef.current) return;
       setProgressMessage("Choosing the best moments…");
       const storyboardResponse = await fetch(`${apiBaseUrl}/storyboards`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...admissionHeaders },
         signal: requestController.signal,
         body: JSON.stringify({
           occasion: memoryRequest,
@@ -548,7 +566,7 @@ export function ProductionWizard() {
       }
       const exportResponse = await fetch(`${apiBaseUrl}/renders/export`, {
         method: "POST",
-        headers: { "X-Memory-Director-Visitor": memoryDirectorVisitorId() },
+        headers: admissionHeaders,
         body: exportForm,
         signal: requestController.signal,
       });
@@ -582,6 +600,17 @@ export function ProductionWizard() {
           error instanceof UserFacingExportError ? error.message : "We could not make your film. Please try again.",
         );
         changeProductionState("error");
+      }
+    } finally {
+      if (admissionId) {
+        void fetch(`${apiBaseUrl}/usage/admissions/${admissionId}/release`, {
+          method: "POST",
+          headers: {
+            "X-Memory-Director-Visitor": visitorId,
+            "X-Memory-Director-Admission": admissionId,
+          },
+          keepalive: true,
+        }).catch(() => undefined);
       }
     }
   }

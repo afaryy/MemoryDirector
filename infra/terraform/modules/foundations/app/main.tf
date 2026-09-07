@@ -6,7 +6,7 @@ terraform {
 locals {
   media_bucket_name = "${var.project_id}-media"
   api_environment_variables = merge({
-    WEB_ORIGINS                       = "*"
+    WEB_ORIGINS                       = var.web_origins
     GOOGLE_CLOUD_PROJECT              = var.project_id
     GOOGLE_CLOUD_LOCATION             = var.region
     MEDIA_BUCKET                      = local.media_bucket_name
@@ -24,10 +24,7 @@ locals {
     MAX_FILM_DURATION_SECONDS         = tostring(var.application_limits.max_film_duration_seconds)
     MAX_MEDIA_ITEMS                   = tostring(var.application_limits.max_media_items)
     MAX_UPLOAD_FILE_MB                = tostring(var.application_limits.max_upload_file_mb)
-    MAX_UPLOAD_TOTAL_MB               = tostring(var.application_limits.max_upload_total_mb)
     MAX_REQUEST_TEXT_CHARS            = tostring(var.application_limits.max_request_text_chars)
-    UPLOAD_SIGNED_URL_TTL_MINUTES     = tostring(var.application_limits.upload_signed_url_ttl_minutes)
-    DOWNLOAD_SIGNED_URL_TTL_MINUTES   = tostring(var.application_limits.download_signed_url_ttl_minutes)
     }, var.mcp_endpoint == null ? {} : {
     CLICKHOUSE_MCP_ENDPOINT = var.mcp_endpoint
     }, var.consent_event_writer_endpoint == null ? {} : {

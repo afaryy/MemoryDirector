@@ -21,6 +21,12 @@ variable "public_ingress" {
   default     = true
 }
 
+variable "web_origins" {
+  type        = string
+  description = "Comma-separated browser origins allowed to call the API."
+  default     = "http://localhost:3000"
+}
+
 variable "mcp_endpoint" {
   type        = string
   description = "Private Cloud Run endpoint for the official ClickHouse MCP server."
@@ -75,24 +81,18 @@ variable "runtime_limits" {
 
 variable "application_limits" {
   type = object({
-    max_film_duration_seconds       = number
-    max_media_items                 = number
-    max_upload_file_mb              = number
-    max_upload_total_mb             = number
-    max_request_text_chars          = number
-    global_daily_film_hard_max      = number
-    upload_signed_url_ttl_minutes   = number
-    download_signed_url_ttl_minutes = number
+    max_film_duration_seconds  = number
+    max_media_items            = number
+    max_upload_file_mb         = number
+    max_request_text_chars     = number
+    global_daily_film_hard_max = number
   })
   default = {
-    max_film_duration_seconds       = 60
-    max_media_items                 = 15
-    max_upload_file_mb              = 250
-    max_upload_total_mb             = 1000
-    max_request_text_chars          = 2000
-    global_daily_film_hard_max      = 100
-    upload_signed_url_ttl_minutes   = 15
-    download_signed_url_ttl_minutes = 30
+    max_film_duration_seconds  = 60
+    max_media_items            = 15
+    max_upload_file_mb         = 250
+    max_request_text_chars     = 2000
+    global_daily_film_hard_max = 100
   }
 }
 

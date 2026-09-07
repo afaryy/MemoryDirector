@@ -122,11 +122,8 @@ test("accepts the approved four-layer control configuration", () => {
     max_film_duration_seconds: 60,
     max_media_items: 15,
     max_upload_file_mb: 250,
-    max_upload_total_mb: 1000,
     max_request_text_chars: 2000,
     global_daily_film_hard_max: 100,
-    upload_signed_url_ttl_minutes: 15,
-    download_signed_url_ttl_minutes: 30,
   });
   assert.equal(sandbox.quotas.global_daily_film_limit, 30);
   assert.equal(project.budgets.monthly_cost_tolerance, 200);

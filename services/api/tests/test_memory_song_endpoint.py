@@ -52,6 +52,9 @@ def test_memory_song_quota_rejection_does_not_call_lyria(monkeypatch) -> None:
         def acquire(self, request):
             raise QuotaExceeded("visitor_song")
 
+        def validate(self, admission_id, request):
+            raise QuotaExceeded("visitor_song")
+
     class RecordingLyria:
         def generate(self, prompt: str):
             nonlocal calls
@@ -59,11 +62,12 @@ def test_memory_song_quota_rejection_does_not_call_lyria(monkeypatch) -> None:
             raise AssertionError("Lyria must not run after quota rejection")
 
     monkeypatch.setattr(main_module, "get_quota_store", lambda: DenyingQuotaStore(), raising=False)
+    monkeypatch.setenv("QUOTA_ENABLED", "true")
     monkeypatch.setattr(main_module, "get_lyria_client", lambda: RecordingLyria())
 
     response = TestClient(app).post(
         "/memory-songs",
-        headers={"X-Memory-Director-Visitor": "visitor-a", "X-Forwarded-For": "203.0.113.8"},
+        headers={"X-Memory-Director-Visitor": "visitor-a", "X-Forwarded-For": "203.0.113.8", "X-Memory-Director-Admission": "denied"},
         json={"memory_details": ["Garden"], "requested_style": "warm"},
     )
 

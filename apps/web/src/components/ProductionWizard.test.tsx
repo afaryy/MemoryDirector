@@ -51,6 +51,21 @@ function exportZip() {
   );
 }
 
+function withAdmission(fetchMock: ReturnType<typeof vi.fn>) {
+  return vi.fn((url: string, options?: RequestInit) => {
+    if (url === "http://localhost:8000/usage/admissions") {
+      return Promise.resolve(new Response(JSON.stringify({ admission_id: "admission-test" }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }));
+    }
+    if (url.includes("/usage/admissions/admission-test/release")) {
+      return Promise.resolve(new Response(null, { status: 204 }));
+    }
+    return fetchMock(url, options);
+  });
+}
+
 function renderSuccessfulProduction() {
   const fetchMock = vi
     .fn()
@@ -67,7 +82,7 @@ function renderSuccessfulProduction() {
     if (file.type === "video/mp4") return "blob:memory-director-video";
     return `blob:selected-${file.name}`;
   });
-  vi.stubGlobal("fetch", fetchMock);
+  vi.stubGlobal("fetch", withAdmission(fetchMock));
   const revokeObjectURL = vi.fn();
   vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
   const view = render(<ProductionWizard />);
@@ -235,7 +250,7 @@ describe("ProductionWizard", () => {
       analyzeSignal = options?.signal as AbortSignal | undefined;
       return new Promise<Response>(() => undefined);
     });
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", withAdmission(fetchMock));
     render(<ProductionWizard />);
     fireEvent.change(screen.getByLabelText("Your memory request"), {
       target: { value: "Make a gentle film from these moments." },
@@ -362,7 +377,7 @@ describe("ProductionWizard", () => {
       })
       .mockResolvedValueOnce({ ok: true })
       .mockResolvedValueOnce({ ok: true, blob: async () => exportZip() });
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", withAdmission(fetchMock));
     vi.stubGlobal("URL", {
       createObjectURL: vi.fn(() => "blob:memory-director-preview"),
       revokeObjectURL: vi.fn(),
@@ -384,7 +399,10 @@ describe("ProductionWizard", () => {
     const exportCall = fetchMock.mock.calls.find(([url]) => url === "http://localhost:8000/renders/export");
     expect(exportCall?.[1]?.body.get("media_ids")).toBe("sha256:garden");
     expect(exportCall?.[1]?.body.get("soundtrack_mode")).toBe("original_song");
-    expect(exportCall?.[1]?.headers).toEqual({ "X-Memory-Director-Visitor": "visitor-test-123" });
+    expect(exportCall?.[1]?.headers).toEqual({
+      "X-Memory-Director-Admission": "admission-test",
+      "X-Memory-Director-Visitor": "visitor-test-123",
+    });
     const selectionCall = fetchMock.mock.calls.find(([url]) => url === "http://localhost:8000/media/sha256:garden/decision");
     expect(selectionCall?.[1]).toMatchObject({ method: "POST" });
     expect(JSON.parse(selectionCall?.[1]?.body as string)).toEqual({ status: "selected", reason: "Chosen for this film" });
@@ -427,7 +445,7 @@ describe("ProductionWizard", () => {
 
   it("starts no more than two media analyses at once", async () => {
     const fetchMock = vi.fn(() => new Promise<Response>(() => undefined));
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", withAdmission(fetchMock));
     render(<ProductionWizard />);
 
     completeReadyStateWithPhotos(4);
@@ -438,7 +456,7 @@ describe("ProductionWizard", () => {
   });
 
   it("keeps the choices visible and disabled with progress in the preview area", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
+    vi.stubGlobal("fetch", withAdmission(vi.fn(() => new Promise<Response>(() => undefined))));
     render(<ProductionWizard />);
 
     completeReadyState();
@@ -466,7 +484,7 @@ describe("ProductionWizard", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ title: "Garden afternoon", caption: "Together.", music_direction: "gentle acoustic" }), { status: 201 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ output_format: "vertical-mp4" }), { status: 201 }))
       .mockResolvedValueOnce({ ok: true, blob: async () => exportZip() });
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", withAdmission(fetchMock));
     vi.stubGlobal("URL", {
       createObjectURL: vi.fn(() => "blob:memory-director-preview"),
       revokeObjectURL: vi.fn(),
@@ -483,7 +501,7 @@ describe("ProductionWizard", () => {
 
   it("does not retry a media-analysis validation failure", async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(new Response(null, { status: 415 }));
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", withAdmission(fetchMock));
     render(<ProductionWizard />);
 
     completeReadyState();
@@ -585,7 +603,7 @@ describe("ProductionWizard", () => {
         );
       });
     });
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", withAdmission(fetchMock));
     render(<ProductionWizard />);
 
     completeReadyStateWithPhotos(4);
@@ -617,7 +635,7 @@ describe("ProductionWizard", () => {
         );
       });
     });
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", withAdmission(fetchMock));
     const view = render(<ProductionWizard />);
 
     completeReadyStateWithPhotos(4);
@@ -652,7 +670,7 @@ describe("ProductionWizard", () => {
         );
       });
     });
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", withAdmission(fetchMock));
     render(<ProductionWizard />);
 
     completeReadyStateWithPhotos(4);
@@ -698,7 +716,7 @@ describe("ProductionWizard", () => {
       new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
     vi.stubGlobal(
       "fetch",
-      vi
+      withAdmission(vi
         .fn()
         .mockResolvedValueOnce(
           jsonResponse(
@@ -729,7 +747,7 @@ describe("ProductionWizard", () => {
         )
         .mockResolvedValueOnce(
           jsonResponse({ detail: "Instrumental music is not configured; choose original song or no sound." }, 422),
-        ),
+        )),
     );
     render(<ProductionWizard />);
 
@@ -760,7 +778,7 @@ describe("ProductionWizard", () => {
       new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
     vi.stubGlobal(
       "fetch",
-      vi
+      withAdmission(vi
         .fn()
         .mockResolvedValueOnce(
           jsonResponse(
@@ -789,7 +807,7 @@ describe("ProductionWizard", () => {
         .mockResolvedValueOnce(
           jsonResponse({ title: "Garden afternoon", caption: "A warm moment together.", output_format: "vertical-mp4" }, 201),
         )
-        .mockResolvedValueOnce(new Response("upstream gateway failure", { status: 502 })),
+        .mockResolvedValueOnce(new Response("upstream gateway failure", { status: 502 }))),
     );
     render(<ProductionWizard />);
 

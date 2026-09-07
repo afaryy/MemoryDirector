@@ -55,7 +55,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_methods=["POST"],
-    allow_headers=["Content-Type", "X-Memory-Director-Visitor"],
+    allow_headers=["Content-Type", "X-Memory-Director-Visitor", "X-Memory-Director-Admission"],
 )
 
 
@@ -92,7 +92,27 @@ class MemorySongBriefPayload(BaseModel):
     requested_style: str = Field(default="warm acoustic", max_length=300)
 
 
-MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+class AdmissionPayload(BaseModel):
+    soundtrack_mode: Literal["original_song", "instrumental", "no_sound"]
+
+
+def configured_positive_integer(name: str, default: int) -> int:
+    value = int(os.environ.get(name, str(default)))
+    if value < 1:
+        raise ValueError(f"{name} must be positive")
+    return value
+
+
+def max_upload_bytes() -> int:
+    return configured_positive_integer("MAX_UPLOAD_FILE_MB", 50) * 1024 * 1024
+
+
+def max_media_items() -> int:
+    return configured_positive_integer("MAX_MEDIA_ITEMS", 15)
+
+
+def max_request_text_chars() -> int:
+    return configured_positive_integer("MAX_REQUEST_TEXT_CHARS", 2000)
 MEDIA_SUFFIX_BY_CONTENT_TYPE = {
     "image/heic": ".heic",
     "image/heic-sequence": ".heic",
@@ -194,11 +214,8 @@ def get_quota_store() -> QuotaStore:
 
 def quota_request_from_http(request: Request, *, includes_original_song: bool) -> QuotaRequest:
     trust_proxy_headers = os.environ.get("TRUST_PROXY_HEADERS", "false").lower() == "true"
-    forwarded_for = (
-        request.headers.get("x-forwarded-for", "").split(",", 1)[0].strip()
-        if trust_proxy_headers
-        else ""
-    )
+    forwarded_values = [value.strip() for value in request.headers.get("x-forwarded-for", "").split(",") if value.strip()]
+    forwarded_for = forwarded_values[-2] if trust_proxy_headers and len(forwarded_values) >= 2 else ""
     client_ip = forwarded_for or (request.client.host if request.client else "unknown")
     visitor_id = request.headers.get("x-memory-director-visitor", "").strip()
     if not visitor_id or len(visitor_id) > 128:
@@ -224,6 +241,36 @@ def acquire_quota(request: Request, *, includes_original_song: bool):
         ) from error
 
 
+def require_admission(request: Request, *, includes_original_song: bool = False) -> str | None:
+    if os.environ.get("QUOTA_ENABLED", "false").lower() != "true":
+        return None
+    admission_id = request.headers.get("x-memory-director-admission", "").strip()
+    if not admission_id:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Start a new film request and try again.", headers={"Retry-After": "60"})
+    try:
+        get_quota_store().validate(
+            admission_id,
+            quota_request_from_http(request, includes_original_song=includes_original_song),
+        )
+    except QuotaExceeded as error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(error), headers={"Retry-After": "86400"}) from error
+    return admission_id
+
+
+@app.post("/usage/admissions", status_code=status.HTTP_201_CREATED)
+def create_usage_admission(payload: AdmissionPayload, request: Request) -> dict[str, str]:
+    lease = acquire_quota(request, includes_original_song=payload.soundtrack_mode == "original_song")
+    return {"admission_id": lease.admission_id or "quota-disabled"}
+
+
+@app.post("/usage/admissions/{admission_id}/release", status_code=status.HTTP_204_NO_CONTENT)
+def release_usage_admission(admission_id: str, request: Request) -> None:
+    if os.environ.get("QUOTA_ENABLED", "false").lower() != "true":
+        return
+    get_quota_store().validate(admission_id, quota_request_from_http(request, includes_original_song=False))
+    get_quota_store().release(admission_id)
+
+
 @app.post("/memory-songs/brief", status_code=status.HTTP_201_CREATED)
 def create_memory_song_brief(payload: MemorySongBriefPayload) -> dict[str, str]:
     try:
@@ -238,15 +285,16 @@ def create_memory_song_brief(payload: MemorySongBriefPayload) -> dict[str, str]:
 
 @app.post("/memory-songs", status_code=status.HTTP_201_CREATED)
 def generate_memory_song(payload: MemorySongBriefPayload, request: Request) -> dict[str, str]:
-    with acquire_quota(request, includes_original_song=True):
-        try:
-            brief = build_memory_song_brief(memory_details=payload.memory_details, requested_style=payload.requested_style)
-            song = get_lyria_client().generate(brief.prompt)
-        except UnsafeSongRequest as error:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
-        except (KeyError, RuntimeError) as error:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Original song is unavailable; choose instrumental or no sound.") from error
-        return {"audio_base64": base64.b64encode(song.audio).decode(), "lyrics": song.lyrics, "model": song.model, "fallback": brief.fallback}
+    try:
+        brief = build_memory_song_brief(memory_details=payload.memory_details, requested_style=payload.requested_style)
+    except UnsafeSongRequest as error:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
+    require_admission(request, includes_original_song=True)
+    try:
+        song = get_lyria_client().generate(brief.prompt)
+    except (KeyError, RuntimeError) as error:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Original song is unavailable; choose instrumental or no sound.") from error
+    return {"audio_base64": base64.b64encode(song.audio).decode(), "lyrics": song.lyrics, "model": song.model, "fallback": brief.fallback}
 
 
 def _contains_private_uri(analysis: MediaAnalysis) -> bool:
@@ -260,6 +308,7 @@ def health() -> dict[str, str]:
 
 @app.post("/media/analyze", response_model=MediaAnalysisResponse, status_code=status.HTTP_201_CREATED)
 async def analyze_media(
+    request: Request,
     consent: str = Form(...),
     media: UploadFile = File(...),
 ) -> MediaAnalysisResponse:
@@ -269,9 +318,12 @@ async def analyze_media(
     if not (normalized_content_type.startswith("video/") or normalized_content_type.startswith("image/")):
         raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Upload a photo or video file.")
 
-    contents = await media.read(MAX_UPLOAD_BYTES + 1)
-    if len(contents) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail="Media upload is limited to 50 MB.")
+    require_admission(request)
+
+    upload_limit = max_upload_bytes()
+    contents = await media.read(upload_limit + 1)
+    if len(contents) > upload_limit:
+        raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail="That file is too large to use.")
 
     media_id = media_id_for_bytes(contents)
     try:
@@ -339,21 +391,18 @@ async def export_render(
     media_id: str | None = Form(None),
     media_ids: list[str] | None = Form(None),
 ) -> StreamingResponse:
-    lease = acquire_quota(request, includes_original_song=soundtrack_mode == "original_song")
-    try:
-        return await _export_render_admitted(
-            title=title,
-            caption=caption,
-            approved=approved,
-            soundtrack_mode=soundtrack_mode,
-            memory_details=memory_details,
-            requested_style=requested_style,
-            media=media,
-            media_id=media_id,
-            media_ids=media_ids,
-        )
-    finally:
-        lease.release()
+    require_admission(request, includes_original_song=soundtrack_mode == "original_song")
+    return await _export_render_admitted(
+        title=title,
+        caption=caption,
+        approved=approved,
+        soundtrack_mode=soundtrack_mode,
+        memory_details=memory_details,
+        requested_style=requested_style,
+        media=media,
+        media_id=media_id,
+        media_ids=media_ids,
+    )
 
 
 async def _export_render_admitted(
@@ -374,6 +423,8 @@ async def _export_render_admitted(
     requested_media_ids = list(media_ids or [])
     if media_id is not None:
         requested_media_ids.insert(0, media_id)
+    if len(requested_media_ids) > max_media_items():
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Choose fewer photos and videos.")
     if requested_media_ids:
         if media is not None:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Choose media upload or media_ids, not both.")
@@ -415,9 +466,10 @@ async def _export_render_admitted(
         if not (normalized_content_type.startswith("video/") or normalized_content_type.startswith("image/")):
             raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Upload a video or image file.")
 
-        contents = await media.read(MAX_UPLOAD_BYTES + 1)
-        if len(contents) > MAX_UPLOAD_BYTES:
-            raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail="Media upload is limited to 50 MB.")
+        upload_limit = max_upload_bytes()
+        contents = await media.read(upload_limit + 1)
+        if len(contents) > upload_limit:
+            raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail="That file is too large to use.")
 
         suffix = Path(media.filename or "upload.mp4").suffix.lower()
         canonical_suffix = MEDIA_SUFFIX_BY_CONTENT_TYPE.get(normalized_content_type)
@@ -505,7 +557,11 @@ async def _export_render_admitted(
 )
 def create_storyboard(
     payload: StoryboardPayload,
+    request: Request,
 ) -> Storyboard:
+    if len(payload.occasion) > max_request_text_chars() or payload.media_count > max_media_items():
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Shorten the request or choose fewer moments.")
+    require_admission(request)
     storyboard = get_production_planner().plan(payload.occasion, payload.moods)
     try:
         repository = get_preference_repository()
