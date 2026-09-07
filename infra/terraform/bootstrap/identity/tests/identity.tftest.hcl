@@ -9,8 +9,8 @@ run "grants_public_edge_roles_to_the_terraform_operator" {
   }
 
   assert {
-    condition     = contains(var.project_roles, "roles/compute.loadBalancerAdmin") && contains(var.project_roles, "roles/compute.networkAdmin")
-    error_message = "The Terraform operator needs dedicated load-balancer and network administration roles."
+    condition     = contains(var.project_roles, "roles/compute.loadBalancerAdmin") && contains(var.project_roles, "roles/compute.networkAdmin") && contains(var.project_roles, "roles/compute.securityAdmin")
+    error_message = "The Terraform operator needs dedicated load-balancer, network, and Cloud Armor security administration roles."
   }
 }
 
