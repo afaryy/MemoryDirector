@@ -108,11 +108,11 @@
       "additionalProperties": false,
       "required": ["currency", "monthly_cost_tolerance", "project_alert_budget", "vertex_ai_spend_cap", "cloud_run_spend_cap"],
       "properties": {
-        "currency": { "type": "string", "const": "USD" },
-        "monthly_cost_tolerance": { "type": "number", "exclusiveMinimum": 0, "maximum": 200 },
-        "project_alert_budget": { "type": "number", "exclusiveMinimum": 0, "maximum": 150 },
-        "vertex_ai_spend_cap": { "type": "number", "exclusiveMinimum": 0, "maximum": 110 },
-        "cloud_run_spend_cap": { "type": "number", "exclusiveMinimum": 0, "maximum": 25 }
+        "currency": { "type": "string", "const": "AUD" },
+        "monthly_cost_tolerance": { "type": "number", "exclusiveMinimum": 0, "maximum": 250 },
+        "project_alert_budget": { "type": "number", "exclusiveMinimum": 0, "maximum": 200 },
+        "vertex_ai_spend_cap": { "type": "number", "exclusiveMinimum": 0, "maximum": 150 },
+        "cloud_run_spend_cap": { "type": "number", "exclusiveMinimum": 0, "maximum": 35 }
       }
     },
     "state_bucket_name": { "type": "string", "minLength": 3 },

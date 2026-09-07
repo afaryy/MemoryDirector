@@ -127,7 +127,13 @@ test("accepts the approved four-layer control configuration", () => {
     global_daily_film_hard_max: 100,
   });
   assert.equal(sandbox.quotas.global_daily_film_limit, 30);
-  assert.equal(project.budgets.monthly_cost_tolerance, 200);
+  assert.deepEqual(project.budgets, {
+    currency: "AUD",
+    monthly_cost_tolerance: 250,
+    project_alert_budget: 200,
+    vertex_ai_spend_cap: 150,
+    cloud_run_spend_cap: 35,
+  });
 });
 
 test("rejects a sandbox daily film limit above the approved hard maximum", () => {
@@ -148,12 +154,28 @@ test("rejects a sandbox daily film limit above the approved hard maximum", () =>
   assert.match(result.stderr, /global_daily_film_limit/);
 });
 
-test("rejects a monthly cost tolerance above USD 200", () => {
+test("rejects a monthly cost tolerance above AUD 250", () => {
+  const result = spawnSync("node", [fileURLToPath(validator), "--json", JSON.stringify({
+    project_id: "memory-director-505708",
+    budgets: {
+      currency: "AUD",
+      monthly_cost_tolerance: 251,
+      project_alert_budget: 200,
+      vertex_ai_spend_cap: 150,
+      cloud_run_spend_cap: 35,
+    },
+  })], { encoding: "utf8" });
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /monthly_cost_tolerance/);
+});
+
+test("rejects a billing currency that differs from the linked AUD account", () => {
   const result = spawnSync("node", [fileURLToPath(validator), "--json", JSON.stringify({
     project_id: "memory-director-505708",
     budgets: {
       currency: "USD",
-      monthly_cost_tolerance: 201,
+      monthly_cost_tolerance: 200,
       project_alert_budget: 150,
       vertex_ai_spend_cap: 110,
       cloud_run_spend_cap: 25,
@@ -161,7 +183,7 @@ test("rejects a monthly cost tolerance above USD 200", () => {
   })], { encoding: "utf8" });
 
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /monthly_cost_tolerance/);
+  assert.match(result.stderr, /budgets\/currency/);
 });
 
 test("rejects retention configuration that targets Terraform state", () => {
