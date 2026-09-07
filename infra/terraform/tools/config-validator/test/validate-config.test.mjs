@@ -105,3 +105,74 @@ test("rejects an invalid public-edge API path prefix", () => {
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /api_path_prefix/);
 });
+
+test("accepts the approved four-layer control configuration", () => {
+  const result = spawnSync("node", [
+    fileURLToPath(validator),
+    fileURLToPath(new URL("common-environment.json", configDir)),
+    fileURLToPath(new URL("memory-director.json", configDir)),
+    fileURLToPath(new URL("sandbox.json", configDir)),
+  ], { encoding: "utf8" });
+
+  assert.equal(result.status, 0, result.stderr);
+  const common = JSON.parse(readFileSync(new URL("common-environment.json", configDir), "utf8"));
+  const project = JSON.parse(readFileSync(new URL("memory-director.json", configDir), "utf8"));
+  const sandbox = JSON.parse(readFileSync(new URL("sandbox.json", configDir), "utf8"));
+  assert.deepEqual(common.application_limits, {
+    max_film_duration_seconds: 60,
+    max_media_items: 15,
+    media_analysis_max_attempts: 2,
+    max_upload_file_mb: 250,
+    max_request_text_chars: 2000,
+    global_daily_film_hard_max: 100,
+  });
+  assert.equal(sandbox.quotas.global_daily_film_limit, 30);
+  assert.equal(project.budgets.monthly_cost_tolerance, 200);
+});
+
+test("rejects a sandbox daily film limit above the approved hard maximum", () => {
+  const result = spawnSync("node", [fileURLToPath(validator), "--json", JSON.stringify({
+    environment: "sandbox",
+    quotas: {
+      visitor_daily_film_limit: 5,
+      ip_daily_film_limit: 10,
+      ip_max_concurrent_films: 2,
+      global_daily_film_limit: 101,
+      global_max_concurrent_films: 6,
+      visitor_daily_original_song_limit: 3,
+      global_daily_original_song_limit: 20,
+    },
+  })], { encoding: "utf8" });
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /global_daily_film_limit/);
+});
+
+test("rejects a monthly cost tolerance above USD 200", () => {
+  const result = spawnSync("node", [fileURLToPath(validator), "--json", JSON.stringify({
+    project_id: "memory-director-505708",
+    budgets: {
+      currency: "USD",
+      monthly_cost_tolerance: 201,
+      project_alert_budget: 150,
+      vertex_ai_spend_cap: 110,
+      cloud_run_spend_cap: 25,
+    },
+  })], { encoding: "utf8" });
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /monthly_cost_tolerance/);
+});
+
+test("rejects retention configuration that targets Terraform state", () => {
+  const result = spawnSync("node", [fileURLToPath(validator), "--json", JSON.stringify({
+    retention: {
+      upload_days: 1,
+      export_days: 3,
+      terraform_state_days: 3,
+    },
+  })], { encoding: "utf8" });
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /terraform_state_days/);
+});

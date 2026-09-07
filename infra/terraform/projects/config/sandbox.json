@@ -1,6 +1,35 @@
 {
   "environment": "sandbox",
   "allow_destroy": true,
+  "quotas": {
+    "visitor_daily_film_limit": 5,
+    "ip_daily_film_limit": 10,
+    "ip_max_concurrent_films": 2,
+    "global_daily_film_limit": 30,
+    "global_max_concurrent_films": 6,
+    "visitor_daily_original_song_limit": 3,
+    "global_daily_original_song_limit": 20
+  },
+  "rate_limits": {
+    "edge_requests_per_minute_per_ip": 120,
+    "api_requests_per_minute_per_ip": 30,
+    "film_requests_per_ten_minutes_per_ip": 5,
+    "ban_seconds": 3600,
+    "exceed_status_code": 429
+  },
+  "retention": {
+    "upload_days": 1,
+    "export_days": 3
+  },
+  "cloud_run": {
+    "api_min_instances": 0,
+    "api_max_instances": 3,
+    "api_concurrency": 4,
+    "api_timeout_seconds": 900,
+    "web_min_instances": 0,
+    "web_max_instances": 2,
+    "web_concurrency": 80
+  },
   "labels": {
     "environment": "sandbox"
   }

@@ -42,6 +42,7 @@ resource "google_compute_backend_service" "api" {
   name                  = "${var.name_prefix}-api-backend"
   protocol              = "HTTP"
   load_balancing_scheme = "EXTERNAL_MANAGED"
+  security_policy       = google_compute_security_policy.edge.id
 
   backend { group = google_compute_region_network_endpoint_group.api.id }
 }
@@ -51,8 +52,90 @@ resource "google_compute_backend_service" "web" {
   name                  = "${var.name_prefix}-web-backend"
   protocol              = "HTTP"
   load_balancing_scheme = "EXTERNAL_MANAGED"
+  security_policy       = google_compute_security_policy.edge.id
 
   backend { group = google_compute_region_network_endpoint_group.web.id }
+}
+
+resource "google_compute_security_policy" "edge" {
+  project     = var.project_id
+  name        = "${var.name_prefix}-edge-policy"
+  description = "Layered per-IP protection for Memory Director public and generation traffic."
+
+  rule {
+    action      = "rate_based_ban"
+    priority    = 100
+    description = "Bound costly film export and original-song requests."
+    match {
+      expr {
+        expression = "request.path.matches('/api/(usage/admissions|renders/export|memory-songs).*')"
+      }
+    }
+    rate_limit_options {
+      conform_action   = "allow"
+      exceed_action    = "deny(${var.rate_limits.exceed_status_code})"
+      enforce_on_key   = "IP"
+      ban_duration_sec = var.rate_limits.ban_seconds
+      rate_limit_threshold {
+        count        = var.rate_limits.film_requests_per_ten_minutes_per_ip
+        interval_sec = 600
+      }
+    }
+  }
+
+  rule {
+    action      = "rate_based_ban"
+    priority    = 200
+    description = "Bound other API requests."
+    match {
+      expr {
+        expression = "request.path.startsWith('/api/')"
+      }
+    }
+    rate_limit_options {
+      conform_action   = "allow"
+      exceed_action    = "deny(${var.rate_limits.exceed_status_code})"
+      enforce_on_key   = "IP"
+      ban_duration_sec = var.rate_limits.ban_seconds
+      rate_limit_threshold {
+        count        = var.rate_limits.api_requests_per_minute_per_ip
+        interval_sec = 60
+      }
+    }
+  }
+
+  rule {
+    action      = "rate_based_ban"
+    priority    = 300
+    description = "Bound general public requests."
+    match {
+      expr {
+        expression = "true"
+      }
+    }
+    rate_limit_options {
+      conform_action   = "allow"
+      exceed_action    = "deny(${var.rate_limits.exceed_status_code})"
+      enforce_on_key   = "IP"
+      ban_duration_sec = var.rate_limits.ban_seconds
+      rate_limit_threshold {
+        count        = var.rate_limits.edge_requests_per_minute_per_ip
+        interval_sec = 60
+      }
+    }
+  }
+
+  rule {
+    action      = "allow"
+    priority    = 2147483647
+    description = "Default allow after rate-limit evaluation."
+    match {
+      versioned_expr = "SRC_IPS_V1"
+      config {
+        src_ip_ranges = ["*"]
+      }
+    }
+  }
 }
 
 resource "google_compute_global_address" "edge" {

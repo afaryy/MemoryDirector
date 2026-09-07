@@ -26,6 +26,16 @@ variable "max_instance_count" {
   default = 3
 }
 
+variable "min_instance_count" {
+  type    = number
+  default = 0
+}
+
+variable "container_concurrency" {
+  type    = number
+  default = 80
+}
+
 variable "allow_public_invocation" {
   type    = bool
   default = true

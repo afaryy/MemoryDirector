@@ -38,3 +38,13 @@ variable "mcp_invoker_service_account_email" {
   type    = string
   default = null
 }
+
+variable "media_upload_days" {
+  type    = number
+  default = 1
+}
+
+variable "media_export_days" {
+  type    = number
+  default = 3
+}

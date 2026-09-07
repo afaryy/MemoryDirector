@@ -76,3 +76,57 @@ run "injects_only_the_validated_agent_engine_resource_into_the_api" {
     error_message = "The API must receive the smoke-tested Agent Engine resource through Terraform."
   }
 }
+
+run "enforces_bounded_api_runtime_and_injects_reviewed_quota_policy" {
+  command = plan
+
+  variables {
+    project_id  = "memory-director-505708"
+    region      = "australia-southeast1"
+    name_prefix = "memory-director-sandbox"
+    api_image   = "example.invalid/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    web_image   = "example.invalid/web@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    service     = "all"
+    runtime_limits = {
+      api_min_instances   = 0
+      api_max_instances   = 3
+      api_concurrency     = 4
+      api_timeout_seconds = 900
+      web_min_instances   = 0
+      web_max_instances   = 2
+      web_concurrency     = 80
+    }
+    application_limits = {
+      max_film_duration_seconds   = 60
+      max_media_items             = 15
+      media_analysis_max_attempts = 2
+      max_upload_file_mb          = 250
+      max_request_text_chars      = 2000
+      global_daily_film_hard_max  = 100
+    }
+    quotas = {
+      visitor_daily_film_limit          = 5
+      ip_daily_film_limit               = 10
+      ip_max_concurrent_films           = 2
+      global_daily_film_limit           = 30
+      global_max_concurrent_films       = 6
+      visitor_daily_original_song_limit = 3
+      global_daily_original_song_limit  = 20
+    }
+  }
+
+  assert {
+    condition     = output.api_max_instances == 3 && output.api_concurrency == 4 && output.web_max_instances == 2
+    error_message = "Cloud Run must use the reviewed API and web scaling boundaries."
+  }
+
+  assert {
+    condition     = output.api_environment_variables.QUOTA_ENABLED == "true" && output.api_environment_variables.GLOBAL_DAILY_FILM_LIMIT == "30" && output.api_environment_variables.GLOBAL_DAILY_FILM_HARD_MAX == "100"
+    error_message = "The API must receive the reviewed quota policy through Terraform."
+  }
+
+  assert {
+    condition     = output.api_environment_variables.QUOTA_FIRESTORE_DATABASE == "(default)" && output.api_environment_variables.MAX_MEDIA_ITEMS == "15" && output.api_environment_variables.MEDIA_ANALYSIS_MAX_ATTEMPTS == "2"
+    error_message = "The API must use Firestore quota state and common application ceilings."
+  }
+}

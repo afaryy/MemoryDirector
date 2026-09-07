@@ -6,7 +6,7 @@ terraform {
 locals {
   required_services = toset([
     "aiplatform.googleapis.com", "artifactregistry.googleapis.com", "run.googleapis.com",
-    "secretmanager.googleapis.com", "storage.googleapis.com",
+    "firestore.googleapis.com", "secretmanager.googleapis.com", "storage.googleapis.com",
   ])
   runtime_secret_ids   = toset(["clickhouse-credentials", "gemini-runtime-config"])
   writer_secret_ids    = toset(["clickhouse-event-writer-credentials"])
@@ -54,7 +54,23 @@ module "media_bucket" {
   location      = var.region
   force_destroy = true
   labels        = { environment = "sandbox", managed_by = "terraform", project = "memory-director" }
-  depends_on    = [google_project_service.platform]
+  lifecycle_rules = [
+    { action = "Delete", age_days = var.media_upload_days, prefix = "media/" },
+    { action = "Delete", age_days = var.media_export_days, prefix = "exports/" },
+  ]
+  depends_on = [google_project_service.platform]
+}
+
+resource "google_firestore_database" "quota" {
+  project                     = var.project_id
+  name                        = "(default)"
+  location_id                 = var.region
+  type                        = "FIRESTORE_NATIVE"
+  delete_protection_state     = "DELETE_PROTECTION_DISABLED"
+  deletion_policy             = "DELETE"
+  app_engine_integration_mode = "DISABLED"
+
+  depends_on = [google_project_service.platform]
 }
 
 module "agent_staging_bucket" {
@@ -96,6 +112,12 @@ module "secrets" {
 resource "google_project_iam_member" "runtime_vertex" {
   project = var.project_id
   role    = "roles/aiplatform.user"
+  member  = "serviceAccount:${module.runtime.email}"
+}
+
+resource "google_project_iam_member" "runtime_firestore" {
+  project = var.project_id
+  role    = "roles/datastore.user"
   member  = "serviceAccount:${module.runtime.email}"
 }
 

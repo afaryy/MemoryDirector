@@ -3,10 +3,12 @@ import zipfile
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from fastapi.responses import StreamingResponse
 
 import app.main as main_module
 from app.media_analysis import MediaAnalysis, StoredMedia
 from app.render import DeterministicVerticalRenderer, RenderExecutionError, RenderVerificationError
+from app.usage_limits import QuotaExceeded
 
 
 class RenderStorage:
@@ -108,6 +110,132 @@ class FailingRenderer:
 
     def render_many(self, request, source_paths, output_directory):
         raise self.error
+
+
+class DenyingQuotaStore:
+    def acquire(self, request):
+        raise QuotaExceeded("ip")
+
+    def validate(self, admission_id, request):
+        raise QuotaExceeded("ip")
+
+    def consume(self, admission_id, request, stage, **kwargs):
+        raise QuotaExceeded("ip")
+
+
+class CapturingQuotaStore:
+    def __init__(self) -> None:
+        self.request = None
+
+    def acquire(self, request):
+        from app.usage_limits import QuotaLease
+
+        self.request = request
+        return QuotaLease(lambda: None)
+
+    def validate(self, admission_id, request):
+        self.request = request
+
+    def consume(self, admission_id, request, stage, **kwargs):
+        self.request = request
+
+
+@pytest.mark.anyio
+async def test_export_cors_preflight_allows_the_visitor_header() -> None:
+    async with AsyncClient(transport=ASGITransport(app=main_module.app), base_url="http://test") as client:
+        response = await client.options(
+            "/renders/export",
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "x-memory-director-visitor",
+            },
+        )
+
+    assert response.status_code == 200
+    assert "x-memory-director-visitor" in response.headers["access-control-allow-headers"].lower()
+    assert "x-memory-director-admission" in response.headers["access-control-allow-headers"].lower()
+
+
+@pytest.mark.anyio
+async def test_media_analysis_rejects_an_invalid_admission_before_gemini(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    analyzer_calls = 0
+
+    class ForbiddenAnalyzer:
+        def analyze(self, stored_media):
+            nonlocal analyzer_calls
+            analyzer_calls += 1
+            raise AssertionError("Gemini must not run without admission")
+
+    monkeypatch.setenv("QUOTA_ENABLED", "true")
+    monkeypatch.setattr(main_module, "get_quota_store", lambda: DenyingQuotaStore())
+    monkeypatch.setattr(main_module, "get_media_analyzer", lambda: ForbiddenAnalyzer())
+
+    async with AsyncClient(transport=ASGITransport(app=main_module.app), base_url="http://test") as client:
+        response = await client.post(
+            "/media/analyze",
+            headers={"X-Memory-Director-Visitor": "visitor-a", "X-Memory-Director-Admission": "denied"},
+            files={"media": ("memory.jpg", b"photo", "image/jpeg")},
+            data={"consent": "true"},
+        )
+
+    assert response.status_code == 429
+    assert analyzer_calls == 0
+
+
+@pytest.mark.anyio
+async def test_export_trusts_forwarded_ip_only_when_proxy_headers_are_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = CapturingQuotaStore()
+    async def admitted_export(**kwargs):
+        return StreamingResponse(io.BytesIO(b"ok"))
+
+    monkeypatch.setattr(main_module, "get_quota_store", lambda: store)
+    monkeypatch.setenv("QUOTA_ENABLED", "true")
+    monkeypatch.setenv("TRUST_PROXY_HEADERS", "false")
+    monkeypatch.setattr(main_module, "_export_render_admitted", admitted_export)
+
+    async with AsyncClient(transport=ASGITransport(app=main_module.app), base_url="http://direct-client") as client:
+        response = await client.post(
+            "/renders/export",
+            headers={"X-Forwarded-For": "198.51.100.9", "X-Memory-Director-Visitor": "visitor-a", "X-Memory-Director-Admission": "admission-a"},
+            data={"title": "A memory", "caption": "Together.", "approved": "true"},
+        )
+
+    assert response.status_code == 200
+    assert store.request.client_ip == "127.0.0.1"
+
+
+@pytest.mark.anyio
+async def test_export_ignores_a_spoofed_forwarded_prefix_behind_google_load_balancing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = CapturingQuotaStore()
+
+    async def admitted_export(**kwargs):
+        return StreamingResponse(io.BytesIO(b"ok"))
+
+    monkeypatch.setattr(main_module, "get_quota_store", lambda: store)
+    monkeypatch.setenv("QUOTA_ENABLED", "true")
+    monkeypatch.setenv("TRUST_PROXY_HEADERS", "true")
+    monkeypatch.setattr(main_module, "_export_render_admitted", admitted_export)
+
+    async with AsyncClient(transport=ASGITransport(app=main_module.app), base_url="http://test") as client:
+        response = await client.post(
+            "/renders/export",
+            headers={
+                "X-Forwarded-For": "198.51.100.9, 203.0.113.8, 35.191.0.1",
+                "X-Memory-Director-Visitor": "visitor-a",
+                "X-Memory-Director-Admission": "admission-a",
+            },
+            data={"title": "A memory", "caption": "Together.", "approved": "true"},
+        )
+
+    assert response.status_code == 200
+    assert store.request.client_ip == "203.0.113.8"
 
 
 @pytest.mark.anyio
@@ -271,3 +399,45 @@ async def test_two_selected_analyzed_media_are_combined_in_one_export(monkeypatc
     assert any("fade=t=in" in command and "concat=n=2:v=1:a=0" in command for command in render_commands)
     assert all("xfade=" not in command for command in render_commands)
     assert guardian.stages == ["render", "export"]
+
+
+@pytest.mark.anyio
+async def test_render_quota_rejection_happens_before_renderer_or_lyria(monkeypatch: pytest.MonkeyPatch) -> None:
+    renderer_calls = 0
+    lyria_calls = 0
+
+    class ForbiddenRenderer:
+        def render_many(self, request, source_paths, output_directory):
+            nonlocal renderer_calls
+            renderer_calls += 1
+            raise AssertionError("renderer must not run after quota rejection")
+
+    class ForbiddenLyria:
+        def generate(self, prompt: str):
+            nonlocal lyria_calls
+            lyria_calls += 1
+            raise AssertionError("Lyria must not run after quota rejection")
+
+    monkeypatch.setattr(main_module, "get_quota_store", lambda: DenyingQuotaStore(), raising=False)
+    monkeypatch.setenv("QUOTA_ENABLED", "true")
+    monkeypatch.setattr(main_module, "get_renderer", lambda: ForbiddenRenderer())
+    monkeypatch.setattr(main_module, "get_lyria_client", lambda: ForbiddenLyria())
+
+    async with AsyncClient(transport=ASGITransport(app=main_module.app), base_url="http://test") as client:
+        response = await client.post(
+            "/renders/export",
+            headers={"X-Memory-Director-Visitor": "visitor-a", "X-Forwarded-For": "203.0.113.8", "X-Memory-Director-Admission": "denied"},
+            files={"media": ("memory.mp4", b"source", "video/mp4")},
+            data={
+                "title": "Garden day",
+                "caption": "Together.",
+                "approved": "true",
+                "soundtrack_mode": "original_song",
+                "memory_details": "Garden",
+            },
+        )
+
+    assert response.status_code == 429
+    assert response.headers["retry-after"] == "86400"
+    assert renderer_calls == 0
+    assert lyria_calls == 0

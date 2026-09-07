@@ -11,4 +11,17 @@ resource "google_storage_bucket" "this" {
   public_access_prevention    = "enforced"
   force_destroy               = var.force_destroy
   labels                      = var.labels
+
+  dynamic "lifecycle_rule" {
+    for_each = var.lifecycle_rules
+    content {
+      action {
+        type = lifecycle_rule.value.action
+      }
+      condition {
+        age            = lifecycle_rule.value.age_days
+        matches_prefix = [lifecycle_rule.value.prefix]
+      }
+    }
+  }
 }

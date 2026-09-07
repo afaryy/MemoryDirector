@@ -88,10 +88,14 @@ module "app" {
   service                       = var.service
   api_base_url                  = var.api_base_url
   public_ingress                = var.public_ingress
+  web_origins                   = "https://${local.project.public_edge.apex_domain}"
   mcp_endpoint                  = local.mcp_endpoint
   mcp_secret_project_id         = local.mcp_secret_project
   consent_event_writer_endpoint = var.consent_event_writer_endpoint
   agent_engine_resource         = var.agent_engine_resource
+  runtime_limits                = local.environment.cloud_run
+  application_limits            = local.common.application_limits
+  quotas                        = local.environment.quotas
 }
 
 output "configuration_summary" {
