@@ -7,7 +7,7 @@ Retrieved 2026-08-16. This is a practical archive of every unique destination ex
 - The challenge asks for a functional, production-ready Gemini + Google Cloud Agent Builder agent or multi-agent network for a media-and-entertainment workflow.
 - A project must actively use the selected partner at runtime. For ClickHouse, that means the official `mcp-clickhouse` server connected to ClickHouse Cloud or a self-hosted cluster.
 - The resources page explicitly includes multimodal video analysis, audio/music generation (Lyria 3), Gemini TTS, native ADK/Agent Engine, function calling, Cloud Run, and Secret Manager.
-- Official rules override the overview where they conflict: the rules state the entry deadline as **2026-09-07 14:00 PT**, while the overview banner says 2026-09-09. Treat 2026-09-07 as the working deadline until the organiser confirms otherwise.
+- The live official rules, overview, and dates page were rechecked on 7 September 2026 and now agree on the entry deadline: **2026-09-09 14:00 PDT**. The earlier September 7 conflict has been corrected on Devpost. See the current [ST-32 compliance checklist](../submission/SUBMISSION_CHECKLIST.md) and recheck the live rules immediately before submission.
 - The rules prohibit non-Google AI models, AI APIs, and agent frameworks in the submitted project. Use only Google Cloud AI plus the chosen partner’s built-in AI capabilities.
 
 ## Challenge pages

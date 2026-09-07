@@ -48,9 +48,10 @@ instead of applying a single opaque filter:
 5. A deterministic renderer makes the approximately-one-minute portrait film
    from a constrained storyboard; the model never directly encodes video.
 
-The repository contains early adapter, schema, consent/privacy, and export
-foundations. The simplified UI, visible automatic film, ClickHouse export gate,
-and final recorded proof remain release gates in the checklist.
+The repository contains the simplified UI, consent and privacy boundaries,
+automatic film preview/export path, Agent Engine planner, and ClickHouse MCP
+preference and export gates. The approved-media register and final recorded
+hosted proof remain release gates in the checklist.
 
 ## Technology
 
@@ -60,39 +61,41 @@ and final recorded proof remain release gates in the checklist.
 - Google Cloud Vertex AI Gemini for production planning and media analysis.
 - Private Google Cloud Storage for consented originals.
 - ClickHouse Cloud through the official `mcp-clickhouse` integration for the
-  explainable preference and consent/export path (hosted runtime proof pending).
-- Google Lyria for the original memory-song feature only after ST-38 implements
-  and verifies its safety/provenance boundary.
+  explainable preference and consent/export path; the hosted Agent Engine smoke
+  verifies the preference-tool invocation.
+- Google Lyria for an original memory-song option behind prompt-safety,
+  provenance, quota, and instrumental/no-sound fallback boundaries.
 - Terraform modules and GitHub Actions with OIDC/WIF for repeatable sandbox
   infrastructure and deployments.
 
 ## Proof of a working deployment
 
 - Hosted web app:
-  https://memory-director-sandbox-web-c3dzm7e76a-ts.a.run.app/
+  https://memorydirector.com/
 - Hosted API health endpoint:
-  https://memory-director-sandbox-api-c3dzm7e76a-ts.a.run.app/health
-- Deployment workflow:
-  https://github.com/afaryy/MemoryDirector/actions/runs/32362975036
+  https://memorydirector.com/api/health
+- Public-edge deployment and HTTPS verification:
+  https://github.com/afaryy/MemoryDirector/actions/runs/34118291595
+- Agent Engine and ClickHouse preference-tool smoke:
+  https://github.com/afaryy/MemoryDirector/actions/runs/34024861486
 - Architecture and data boundaries: [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md)
 - Three-minute recording plan: [`docs/demo/DEMO_RUNBOOK.md`](../demo/DEMO_RUNBOOK.md)
 - Rights gate: [`docs/demo/MEDIA_RIGHTS_REGISTER.md`](../demo/MEDIA_RIGHTS_REGISTER.md)
 
-The hosted sandbox has been smoke-tested with a non-sensitive synthetic image:
-the API returned health 200, the web page returned 200, and a direct API call
-to `/renders/export` returned a valid ZIP containing an MP4, JPG cover, and TXT
-caption. This is API evidence, not a claim that the current Web page already
-drives that endpoint. The final submission recording must use only assets
-approved in the rights register and must update this distinction after UI
-wiring is complete.
+The hosted sandbox has been smoke-tested with non-sensitive synthetic input:
+the API returned health 200, the web page returned 200, and the export API
+returned a valid ZIP containing an MP4, JPG cover, and TXT caption. The current
+Web source drives the consented analysis, Agent Engine planning, export,
+preview, download, and share path. The final submission recording must still
+prove that complete hosted journey using only assets approved in the rights
+register.
 
 ## What we would do next
 
-The next product step is to implement the simplified mobile flow, deterministic
-approximately-one-minute preview, original memory song with a safe fallback,
-and ClickHouse MCP consent/export gate. The core safety boundary remains the
-same: Memory Director directs the memory, but the user decides what leaves the
-phone.
+The immediate release step is to approve the demo-media rights register, run
+the exact hosted recording journey, and capture the final English-subtitled
+video. The core safety boundary remains the same: Memory Director directs the
+memory, but the user decides what leaves the phone.
 
 ## Repository and licence
 
