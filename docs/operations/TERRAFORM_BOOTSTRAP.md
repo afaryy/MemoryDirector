@@ -95,3 +95,8 @@ The deployment identity receives explicit platform-provisioning roles rather
 than Editor or Owner. Review those roles before the first apply; later platform
 work can reduce or split them further. Do not add a GitHub workflow destroy
 operation for this identity root.
+
+The operator receives `roles/datastore.owner` because the platform root owns
+the Firestore database lifecycle and therefore requires
+`datastore.databases.create`. The application runtime does not receive this
+role; it is limited to `roles/datastore.user` for quota-document operations.
