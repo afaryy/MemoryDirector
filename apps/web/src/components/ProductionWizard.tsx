@@ -155,6 +155,11 @@ const mediaAnalysisConcurrency = 2;
 const mediaAnalysisAttempts = 2;
 const mediaAnalysisRetryDelayMs = 250;
 const visitorStorageKey = "memory-director-visitor";
+const maximumMediaItems = 15;
+
+function selectedMediaFingerprint(file: File): string {
+  return [file.name, file.size, file.type, file.lastModified, file.webkitRelativePath].join("\u0000");
+}
 
 function memoryDirectorVisitorId(): string {
   const existing = window.localStorage.getItem(visitorStorageKey);
@@ -329,18 +334,48 @@ export function ProductionWizard() {
 
   function selectMedia(files: FileList | null) {
     const nextFiles = Array.from(files ?? []);
-    if (nextFiles.length > 15) {
-      setSelectionNotice("Choose up to 15 photos and videos for one film.");
+    if (nextFiles.length === 0) return;
+
+    const existingFingerprints = new Set(mediaItemsRef.current.map((item) => selectedMediaFingerprint(item.file)));
+    const uniqueFiles: File[] = [];
+    let duplicateCount = 0;
+    for (const file of nextFiles) {
+      const fingerprint = selectedMediaFingerprint(file);
+      if (existingFingerprints.has(fingerprint)) {
+        duplicateCount += 1;
+        continue;
+      }
+      existingFingerprints.add(fingerprint);
+      uniqueFiles.push(file);
+    }
+
+    if (mediaItemsRef.current.length + uniqueFiles.length > maximumMediaItems) {
+      const remaining = maximumMediaItems - mediaItemsRef.current.length;
+      setSelectionNotice(
+        mediaItemsRef.current.length === 0
+          ? "Choose up to 15 photos and videos for one film."
+          : `You already selected ${mediaItemsRef.current.length} moments. Choose ${remaining} more at most.`,
+      );
       return;
     }
+    if (uniqueFiles.length === 0) {
+      setSelectionNotice("");
+      setMediaUpdateMessage(
+        duplicateCount === 1
+          ? "That moment is already selected."
+          : `${duplicateCount} duplicates were already selected.`,
+      );
+      return;
+    }
+
     invalidateGeneration();
-    mediaItemsRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
-    const nextItems = nextFiles.map((file) => ({
+    const addedItems = uniqueFiles.map((file) => ({
       file,
       id: nextMediaIdRef.current++,
       kind: selectedMediaKind(file),
       previewUrl: URL.createObjectURL(file),
     }));
+    const nextItems = [...mediaItemsRef.current, ...addedItems];
     mediaItemsRef.current = nextItems;
     setMediaItems(nextItems);
     setKeyboardDragId(null);
@@ -350,8 +385,31 @@ export function ProductionWizard() {
     setErrorMessage("");
     setCompletionMessage("");
     setSelectionNotice("");
-    setMediaUpdateMessage("");
+    setMediaUpdateMessage(
+      duplicateCount > 0
+        ? `Added ${addedItems.length} ${addedItems.length === 1 ? "moment" : "moments"}; ${duplicateCount} ${duplicateCount === 1 ? "duplicate was" : "duplicates were"} already selected.`
+        : `Added ${addedItems.length} ${addedItems.length === 1 ? "moment" : "moments"}; ${nextItems.length} selected.`,
+    );
     changeProductionState(previewUrlRef.current ? "preview" : "ready");
+  }
+
+  function clearSelectedMedia() {
+    if (!window.confirm("Clear all selected photos and videos?")) return;
+    invalidateGeneration();
+    mediaItemsRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+    mediaItemsRef.current = [];
+    setMediaItems([]);
+    setKeyboardDragId(null);
+    keyboardDragOriginRef.current = null;
+    consentRef.current = false;
+    setHasMediaPermission(false);
+    setErrorMessage("");
+    setCompletionMessage("");
+    setSelectionNotice("");
+    setMediaUpdateMessage("All selected photos and videos were cleared.");
+    if (uploadInputRef.current) uploadInputRef.current.value = "";
+    changeProductionState(previewUrlRef.current ? "preview" : "ready");
+    window.setTimeout(() => uploadInputRef.current?.focus(), 0);
   }
 
   function removeMediaFile(index: number) {
@@ -663,7 +721,7 @@ export function ProductionWizard() {
                 <span className="wizard__media-icon" aria-hidden="true"><Images /></span>
                 <strong>Choose from this device</strong>
                 <small>Photos and videos stay under your control.</small>
-                <input accept="image/*,video/*" aria-label="Choose photos and videos" id="memory-media" multiple onChange={(event) => selectMedia(event.target.files)} ref={uploadInputRef} type="file" />
+                <input accept="image/*,video/*" aria-label="Choose photos and videos" id="memory-media" multiple onChange={(event) => { selectMedia(event.target.files); event.currentTarget.value = ""; }} ref={uploadInputRef} type="file" />
               </label>
 
               {mediaItems.length > 0 ? (
@@ -692,7 +750,10 @@ export function ProductionWizard() {
                       </div>
                     </SortableContext>
                   </DndContext>
-                  <p className="wizard__media-reorder-help" id="media-reorder-help">Drag to change the order. On a phone, press and hold, then move.</p>
+                  <div className="wizard__media-tools">
+                    <p className="wizard__media-reorder-help" id="media-reorder-help">Drag to change the order. On a phone, press and hold, then move.</p>
+                    <button aria-label="Clear all selected media" className="button wizard__clear-media" onClick={clearSelectedMedia} type="button"><X aria-hidden="true" />Clear all</button>
+                  </div>
                 </>
               ) : (
                 <div className="wizard__media-help"><CircleCheck aria-hidden="true" /><span>Your selected moments will appear here. Remove any one before you make the film.</span></div>

@@ -152,6 +152,104 @@ describe("ProductionWizard", () => {
     expect(screen.getByText("second.jpg")).toBeVisible();
   });
 
+  it("appends a later device selection without clearing earlier moments", () => {
+    render(<ProductionWizard />);
+    const picker = screen.getByLabelText("Choose photos and videos");
+
+    fireEvent.change(picker, {
+      target: { files: [new File(["first"], "first.jpg", { type: "image/jpeg", lastModified: 1 })] },
+    });
+    fireEvent.change(picker, {
+      target: { files: [new File(["second"], "second.mp4", { type: "video/mp4", lastModified: 2 })] },
+    });
+
+    const cards = within(screen.getByRole("list", { name: "Selected media" })).getAllByRole("listitem");
+    expect(cards.map((card) => within(card).getByText(/\.(?:jpg|mp4)$/).textContent)).toEqual([
+      "first.jpg",
+      "second.mp4",
+    ]);
+    expect(statusWithText("Added 1 moment; 2 selected.")).toHaveTextContent("Added 1 moment; 2 selected.");
+  });
+
+  it("ignores an exact duplicate when adding more media", () => {
+    render(<ProductionWizard />);
+    const picker = screen.getByLabelText("Choose photos and videos");
+    const first = new File(["same"], "same.jpg", { type: "image/jpeg", lastModified: 7 });
+
+    fireEvent.change(picker, { target: { files: [first] } });
+    fireEvent.change(picker, {
+      target: {
+        files: [
+          new File(["same"], "same.jpg", { type: "image/jpeg", lastModified: 7 }),
+          new File(["new"], "new.jpg", { type: "image/jpeg", lastModified: 8 }),
+        ],
+      },
+    });
+
+    expect(within(screen.getByRole("list", { name: "Selected media" })).getAllByRole("listitem")).toHaveLength(2);
+    expect(statusWithText("Added 1 moment; 1 duplicate was already selected.")).toHaveTextContent(
+      "Added 1 moment; 1 duplicate was already selected.",
+    );
+  });
+
+  it("keeps the current selection when the device picker is cancelled", () => {
+    render(<ProductionWizard />);
+    const picker = screen.getByLabelText("Choose photos and videos");
+    fireEvent.change(picker, {
+      target: { files: [new File(["first"], "first.jpg", { type: "image/jpeg" })] },
+    });
+
+    fireEvent.change(picker, { target: { files: [] } });
+
+    expect(screen.getByText("first.jpg")).toBeVisible();
+    expect(within(screen.getByRole("list", { name: "Selected media" })).getAllByRole("listitem")).toHaveLength(1);
+  });
+
+  it("clears every selected moment only after confirmation", () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn((file: File) => `blob:selected-${file.name}`),
+      revokeObjectURL,
+    });
+    render(<ProductionWizard />);
+    selectPhotos(2);
+
+    const clearAll = screen.getByRole("button", { name: "Clear all selected media" });
+    fireEvent.click(clearAll);
+    expect(screen.getByText("garden-0.jpg")).toBeVisible();
+
+    fireEvent.click(clearAll);
+    expect(screen.queryByRole("list", { name: "Selected media" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear all selected media" })).not.toBeInTheDocument();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:selected-garden-0.jpg");
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:selected-garden-1.jpg");
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(statusWithText("All selected photos and videos were cleared.")).toHaveTextContent(
+      "All selected photos and videos were cleared.",
+    );
+  });
+
+  it("preserves the existing selection when an appended choice would exceed 15 items", () => {
+    render(<ProductionWizard />);
+    selectPhotos(14);
+
+    fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
+      target: {
+        files: [
+          new File(["extra-1"], "extra-1.jpg", { type: "image/jpeg" }),
+          new File(["extra-2"], "extra-2.jpg", { type: "image/jpeg" }),
+        ],
+      },
+    });
+
+    expect(within(screen.getByRole("list", { name: "Selected media" })).getAllByRole("listitem")).toHaveLength(14);
+    expect(screen.queryByText("extra-1.jpg")).not.toBeInTheDocument();
+    expect(statusWithText("You already selected 14 moments. Choose 1 more at most.")).toHaveTextContent(
+      "You already selected 14 moments. Choose 1 more at most.",
+    );
+  });
+
   it("shows real photo and video previews in an ordered horizontal media strip", () => {
     render(<ProductionWizard />);
     fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
@@ -190,11 +288,13 @@ describe("ProductionWizard", () => {
     const strip = screen.getByRole("list", { name: "Selected media" });
     const scrollRegion = strip.parentElement;
     const guidance = screen.getByText("Drag to change the order. On a phone, press and hold, then move.");
+    const mediaTools = guidance.parentElement;
 
     expect(scrollRegion).toHaveClass("wizard__media-scroll");
     expect(scrollRegion).not.toContainElement(guidance);
-    expect(scrollRegion?.parentElement).toBe(guidance.parentElement);
-    expect(scrollRegion?.compareDocumentPosition(guidance) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(mediaTools).toHaveClass("wizard__media-tools");
+    expect(scrollRegion?.parentElement).toBe(mediaTools?.parentElement);
+    expect(scrollRegion?.compareDocumentPosition(mediaTools) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("recognizes a phone video by extension when the browser omits its MIME type", () => {
