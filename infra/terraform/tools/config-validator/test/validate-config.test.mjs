@@ -121,6 +121,7 @@ test("accepts the approved four-layer control configuration", () => {
   assert.deepEqual(common.application_limits, {
     max_film_duration_seconds: 60,
     max_media_items: 15,
+    media_analysis_max_attempts: 2,
     max_upload_file_mb: 250,
     max_request_text_chars: 2000,
     global_daily_film_hard_max: 100,

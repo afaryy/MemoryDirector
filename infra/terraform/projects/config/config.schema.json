@@ -18,6 +18,7 @@
       "required": [
         "max_film_duration_seconds",
         "max_media_items",
+        "media_analysis_max_attempts",
         "max_upload_file_mb",
         "max_request_text_chars",
         "global_daily_film_hard_max"
@@ -25,6 +26,7 @@
       "properties": {
         "max_film_duration_seconds": { "type": "integer", "const": 60 },
         "max_media_items": { "type": "integer", "minimum": 1, "maximum": 15 },
+        "media_analysis_max_attempts": { "type": "integer", "minimum": 1, "maximum": 2 },
         "max_upload_file_mb": { "type": "integer", "minimum": 1, "maximum": 250 },
         "max_request_text_chars": { "type": "integer", "minimum": 1, "maximum": 2000 },
         "global_daily_film_hard_max": { "type": "integer", "minimum": 1, "maximum": 100 }

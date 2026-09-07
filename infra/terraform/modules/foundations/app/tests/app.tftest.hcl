@@ -97,11 +97,12 @@ run "enforces_bounded_api_runtime_and_injects_reviewed_quota_policy" {
       web_concurrency     = 80
     }
     application_limits = {
-      max_film_duration_seconds  = 60
-      max_media_items            = 15
-      max_upload_file_mb         = 250
-      max_request_text_chars     = 2000
-      global_daily_film_hard_max = 100
+      max_film_duration_seconds   = 60
+      max_media_items             = 15
+      media_analysis_max_attempts = 2
+      max_upload_file_mb          = 250
+      max_request_text_chars      = 2000
+      global_daily_film_hard_max  = 100
     }
     quotas = {
       visitor_daily_film_limit          = 5
@@ -125,7 +126,7 @@ run "enforces_bounded_api_runtime_and_injects_reviewed_quota_policy" {
   }
 
   assert {
-    condition     = output.api_environment_variables.QUOTA_FIRESTORE_DATABASE == "(default)" && output.api_environment_variables.MAX_MEDIA_ITEMS == "15"
+    condition     = output.api_environment_variables.QUOTA_FIRESTORE_DATABASE == "(default)" && output.api_environment_variables.MAX_MEDIA_ITEMS == "15" && output.api_environment_variables.MEDIA_ANALYSIS_MAX_ATTEMPTS == "2"
     error_message = "The API must use Firestore quota state and common application ceilings."
   }
 }

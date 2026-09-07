@@ -23,6 +23,7 @@ locals {
     GLOBAL_DAILY_ORIGINAL_SONG_LIMIT  = tostring(var.quotas.global_daily_original_song_limit)
     MAX_FILM_DURATION_SECONDS         = tostring(var.application_limits.max_film_duration_seconds)
     MAX_MEDIA_ITEMS                   = tostring(var.application_limits.max_media_items)
+    MEDIA_ANALYSIS_MAX_ATTEMPTS       = tostring(var.application_limits.media_analysis_max_attempts)
     MAX_UPLOAD_FILE_MB                = tostring(var.application_limits.max_upload_file_mb)
     MAX_REQUEST_TEXT_CHARS            = tostring(var.application_limits.max_request_text_chars)
     }, var.mcp_endpoint == null ? {} : {

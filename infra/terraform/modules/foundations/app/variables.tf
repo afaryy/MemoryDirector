@@ -81,18 +81,20 @@ variable "runtime_limits" {
 
 variable "application_limits" {
   type = object({
-    max_film_duration_seconds  = number
-    max_media_items            = number
-    max_upload_file_mb         = number
-    max_request_text_chars     = number
-    global_daily_film_hard_max = number
+    max_film_duration_seconds   = number
+    max_media_items             = number
+    media_analysis_max_attempts = number
+    max_upload_file_mb          = number
+    max_request_text_chars      = number
+    global_daily_film_hard_max  = number
   })
   default = {
-    max_film_duration_seconds  = 60
-    max_media_items            = 15
-    max_upload_file_mb         = 250
-    max_request_text_chars     = 2000
-    global_daily_film_hard_max = 100
+    max_film_duration_seconds   = 60
+    max_media_items             = 15
+    media_analysis_max_attempts = 2
+    max_upload_file_mb          = 250
+    max_request_text_chars      = 2000
+    global_daily_film_hard_max  = 100
   }
 }
 

@@ -111,6 +111,10 @@ def max_media_items() -> int:
     return configured_positive_integer("MAX_MEDIA_ITEMS", 15)
 
 
+def media_analysis_max_attempts() -> int:
+    return configured_positive_integer("MEDIA_ANALYSIS_MAX_ATTEMPTS", 2)
+
+
 def max_request_text_chars() -> int:
     return configured_positive_integer("MAX_REQUEST_TEXT_CHARS", 2000)
 MEDIA_SUFFIX_BY_CONTENT_TYPE = {
@@ -248,6 +252,7 @@ def require_admission(
     includes_original_song: bool = False,
     operation_key: str | None = None,
     max_uses: int | None = None,
+    max_attempts: int | None = None,
 ) -> str | None:
     if os.environ.get("QUOTA_ENABLED", "false").lower() != "true":
         return None
@@ -261,6 +266,7 @@ def require_admission(
             stage,
             operation_key=operation_key,
             max_uses=max_uses,
+            max_attempts=max_attempts,
         )
     except QuotaExceeded as error:
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(error), headers={"Retry-After": "86400"}) from error
@@ -339,6 +345,7 @@ async def analyze_media(
         "media_analysis",
         operation_key=media_id,
         max_uses=max_media_items(),
+        max_attempts=media_analysis_max_attempts(),
     )
     try:
         storage = get_media_storage()

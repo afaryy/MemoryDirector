@@ -130,6 +130,7 @@ def test_admission_has_bounded_stage_uses() -> None:
             "media_analysis",
             operation_key=f"media-{index}",
             max_uses=15,
+            max_attempts=2,
         )
     with pytest.raises(QuotaExceeded, match="already been used"):
         store.consume(
@@ -138,6 +139,7 @@ def test_admission_has_bounded_stage_uses() -> None:
             "media_analysis",
             operation_key="media-16",
             max_uses=15,
+            max_attempts=2,
         )
 
     store.consume(lease.admission_id, request(song=True), "planning")
@@ -160,6 +162,7 @@ def test_media_retry_is_idempotent_at_the_configured_maximum() -> None:
             "media_analysis",
             operation_key=f"media-{index}",
             max_uses=15,
+            max_attempts=2,
         )
 
     store.consume(
@@ -168,7 +171,18 @@ def test_media_retry_is_idempotent_at_the_configured_maximum() -> None:
         "media_analysis",
         operation_key="media-0",
         max_uses=15,
+        max_attempts=2,
     )
+
+    with pytest.raises(QuotaExceeded, match="already been used"):
+        store.consume(
+            lease.admission_id,
+            request(),
+            "media_analysis",
+            operation_key="media-0",
+            max_uses=15,
+            max_attempts=2,
+        )
 
     with pytest.raises(QuotaExceeded, match="already been used"):
         store.consume(
@@ -177,6 +191,7 @@ def test_media_retry_is_idempotent_at_the_configured_maximum() -> None:
             "media_analysis",
             operation_key="different-media",
             max_uses=15,
+            max_attempts=2,
         )
 
 
