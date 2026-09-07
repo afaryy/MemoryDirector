@@ -75,9 +75,8 @@ Each spend cap is considered active only after an operator records its Cloud Bil
 
 As of 7 September 2026, the technical quota, Cloud Run, Cloud Armor, Firestore,
 and GCS controls are deployed. The Cloud Billing Budget API is enabled and the
-alerts-only budget below is active. The two spend-cap controls remain pending
-until their console status has been verified. ST-45 must remain In Progress
-until all three billing controls have visible, non-sensitive evidence.
+alerts-only budget and both service-specific spend caps below are active. The
+Cloud Billing console showed each spend cap as `Configured` after creation.
 
 ### Verified alerts-only budget — 7 September 2026
 
@@ -88,14 +87,19 @@ until all three billing controls have visible, non-sensitive evidence.
 - Thresholds: 50%, 80%, and 100% of current spend
 - Credits: all credits included
 
-### Billing-console activation evidence
+### Verified spend caps — 7 September 2026
 
-1. Open Cloud Billing > Budgets & alerts for the billing account linked to `memory-director-505708`.
-2. Confirm the existing A$200 alerts-only project budget and its notification recipients.
-3. In the console, create a spend-cap budget scoped to `memory-director-505708` and the eligible Vertex AI / Agent Platform service for A$150.
-4. In the console, create a spend-cap budget scoped to `memory-director-505708` and Cloud Run for A$35.
-5. Record screenshots or exported metadata showing each name, project, service, amount, currency, configured status, and notification recipients; never include payment details.
-6. Do not mark ST-45 complete until the controls are visible and a non-destructive verification has been recorded.
+| Name | Project | Service | Monthly cap | Thresholds | Status |
+| --- | --- | --- | ---: | --- | --- |
+| `Memory Director Vertex AI cap` | `memory-director-505708` | Vertex AI (`aiplatform.googleapis.com`) | A$150 | 50%, 80%, 100% | `Configured` |
+| `Memory Director Cloud Run cap` | `memory-director-505708` | Cloud Run (`run.googleapis.com`) | A$35 | 50%, 80%, 100% | `Configured` |
+
+The console enables email spend-cap notifications to billing admins and users
+and to project owners for both caps. The verified budget resource identifiers
+are `bb938cd5-e4a2-43c1-9e83-efce9387f2b8` for Vertex AI and
+`080371ac-4dc7-4ce9-bb80-45639c3a39e5` for Cloud Run. These identifiers and
+the configured status are operational evidence; no payment details or secrets
+are recorded in the repository.
 
 ## Layer 4: private-media retention
 
