@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 
 import pytest
 
@@ -257,3 +258,76 @@ def test_firestore_snapshots_are_resolved_by_reference_path_not_result_order() -
     assert resolved["quota/visitor"] is visitor
     assert resolved["quota/ip"] is ip
     assert resolved["quota/global"] is global_counter
+
+
+def test_firestore_stage_usage_avoids_reserved_field_names(monkeypatch) -> None:
+    """Firestore rejects nested field names that begin and end with ``__``."""
+
+    class Snapshot:
+        exists = True
+
+        def __init__(self, reference) -> None:
+            self.reference = reference
+
+        def to_dict(self):
+            return dict(self.reference.values)
+
+    class Reference:
+        def __init__(self, path: str, values: dict[str, object]) -> None:
+            self.path = path
+            self.id = path.rsplit("/", 1)[-1]
+            self.values = values
+
+        def get(self, *, transaction):
+            return Snapshot(self)
+
+    def assert_valid_field_names(value: object) -> None:
+        if not isinstance(value, dict):
+            return
+        for key, nested in value.items():
+            if key.startswith("__") and key.endswith("__"):
+                raise ValueError(f"reserved Firestore field: {key}")
+            assert_valid_field_names(nested)
+
+    class Transaction:
+        def update(self, reference, values) -> None:
+            assert_valid_field_names(values)
+            reference.values.update(values)
+
+    class Collection:
+        def __init__(self, reference) -> None:
+            self.reference = reference
+
+        def document(self, document_id: str):
+            assert document_id == "admission-a"
+            return self.reference
+
+    class Client:
+        def __init__(self, reference) -> None:
+            self.reference = reference
+
+        def collection(self, name: str):
+            assert name == "quota_leases"
+            return Collection(self.reference)
+
+        def transaction(self):
+            return Transaction()
+
+    quota_request = request()
+    reference = Reference(
+        "quota_leases/admission-a",
+        {
+            "released": False,
+            "expires_at": datetime.now(UTC) + timedelta(minutes=5),
+            "visitor_hash": sha256(quota_request.visitor_id.encode()).hexdigest(),
+            "ip_hash": sha256(quota_request.client_ip.encode()).hexdigest(),
+            "includes_original_song": False,
+            "stage_uses": {},
+        },
+    )
+    monkeypatch.setattr("google.cloud.firestore.transactional", lambda function: function)
+    store = FirestoreQuotaStore(policy(), Client(reference))
+
+    store.consume("admission-a", quota_request, "planning")
+
+    assert reference.values["stage_uses"] == {"planning": {"once": 1}}
