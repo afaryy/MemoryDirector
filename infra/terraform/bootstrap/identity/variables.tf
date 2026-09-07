@@ -7,6 +7,7 @@ variable "project_roles" {
     "roles/artifactregistry.admin",
     "roles/compute.loadBalancerAdmin",
     "roles/compute.networkAdmin",
+    "roles/datastore.owner",
     "roles/iam.serviceAccountAdmin",
     "roles/iam.serviceAccountUser",
     "roles/iam.roleAdmin",
