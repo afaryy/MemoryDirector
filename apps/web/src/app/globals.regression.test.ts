@@ -37,6 +37,7 @@ describe("secondary text contrast regression", () => {
     expect(contrast(variable("muted"), variable("paper"))).toBeGreaterThanOrEqual(4.5);
     expect(contrast(variable("terracotta"), [255, 255, 255])).toBeGreaterThanOrEqual(4.5);
     expect(contrast(variable("moss"), variable("sand"))).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(variable("moss"), variable("paper"))).toBeGreaterThanOrEqual(4.5);
   });
 
   it("uses the compliant muted color for the request placeholder", () => {
@@ -45,5 +46,9 @@ describe("secondary text contrast regression", () => {
 
   it("keeps the preview badge background dark enough for sand text", () => {
     expect(css).toMatch(/\.wizard__preview-badge\s*{[^}]*background:\s*rgba\(0,\s*0,\s*0,\s*\.15\)/);
+  });
+
+  it("uses a compliant light surface for the media-picker hover state", () => {
+    expect(css).toMatch(/\.wizard__media:hover\s*{[^}]*background:\s*var\(--paper\)/);
   });
 });
