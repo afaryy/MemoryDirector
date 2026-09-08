@@ -9,10 +9,32 @@ from typing import Callable, Literal, Protocol
 from uuid import uuid4
 
 
+GATE_MESSAGES = {
+    "visitor": "You have reached today's film limit on this device. Please try again tomorrow.",
+    "ip": "This network has reached today's film limit. Please try again tomorrow.",
+    "ip_concurrency": (
+        "This network is already making the maximum number of films. "
+        "Please wait a few minutes, then try again."
+    ),
+    "global": "Memory Director has reached today's shared film limit. Please try again tomorrow.",
+    "global_concurrency": "Memory Director is busy making other films. Please wait a few minutes, then try again.",
+    "visitor_song": (
+        "You have reached today's original-song limit. Choose Gentle instrumental or No music, "
+        "or try again tomorrow."
+    ),
+    "global_song": (
+        "Original-song creation has reached today's shared limit. Choose Gentle instrumental or No music, "
+        "or try again tomorrow."
+    ),
+}
+
+
 class QuotaExceeded(RuntimeError):
-    def __init__(self, scope: str, message: str = "This usage limit has been reached. Please try again tomorrow.") -> None:
-        super().__init__(message)
+    def __init__(self, scope: str, message: str | None = None) -> None:
+        fallback = "This usage limit has been reached. Please try again tomorrow."
+        super().__init__(message or GATE_MESSAGES.get(scope, fallback))
         self.scope = scope
+        self.retry_after_seconds = 60 if scope in {"ip_concurrency", "global_concurrency"} else 86_400
 
 
 AdmissionStage = Literal["media_analysis", "planning", "song", "export"]
@@ -192,7 +214,7 @@ class InMemoryQuotaStore:
                 ])
             for exceeded, scope in checks:
                 if exceeded:
-                    raise QuotaExceeded(scope, "Your daily film limit has been reached. Please try again tomorrow.")
+                    raise QuotaExceeded(scope)
 
             admission_id = uuid4().hex
             visitor["film"] += 1
@@ -407,7 +429,7 @@ class FirestoreQuotaStore:
                 ])
             for exceeded, scope in checks:
                 if exceeded:
-                    raise QuotaExceeded(scope, "Your daily film limit has been reached. Please try again tomorrow.")
+                    raise QuotaExceeded(scope)
 
             visitor["film"] += 1
             ip["film"] += 1

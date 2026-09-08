@@ -42,10 +42,12 @@ def test_rejects_the_sixth_film_for_one_visitor_without_consuming_an_ip_slot() -
     for _ in range(5):
         store.acquire(request()).release()
 
-    with pytest.raises(QuotaExceeded, match="daily film limit") as error:
+    with pytest.raises(QuotaExceeded) as error:
         store.acquire(request())
 
     assert error.value.scope == "visitor"
+    assert str(error.value) == "You have reached today's film limit on this device. Please try again tomorrow."
+    assert error.value.retry_after_seconds == 86_400
     assert store.snapshot(request())["ip_film_admitted"] == 5
 
 
@@ -58,6 +60,7 @@ def test_rejects_the_eleventh_film_for_one_ip_across_visitors() -> None:
         store.acquire(request(visitor="visitor-eleven"))
 
     assert error.value.scope == "ip"
+    assert str(error.value) == "This network has reached today's film limit. Please try again tomorrow."
 
 
 def test_thumbnail_limits_are_shared_by_visitor_and_ip_counters() -> None:
@@ -132,6 +135,10 @@ def test_rejects_more_than_two_concurrent_films_for_one_ip_and_release_restores_
     with pytest.raises(QuotaExceeded) as error:
         store.acquire(request(visitor="three"))
     assert error.value.scope == "ip_concurrency"
+    assert str(error.value) == (
+        "This network is already making the maximum number of films. Please wait a few minutes, then try again."
+    )
+    assert error.value.retry_after_seconds == 60
 
     first.release()
     replacement = store.acquire(request(visitor="three"))
@@ -152,6 +159,19 @@ def test_context_manager_releases_concurrency_after_failure_but_keeps_the_admiss
     assert snapshot["visitor_film_admitted"] == 1
 
 
+def test_global_concurrency_gate_asks_the_user_to_wait_briefly() -> None:
+    store = InMemoryQuotaStore(policy(global_max_concurrent_films=1))
+    first = store.acquire(request(visitor="one", ip="203.0.113.1"))
+
+    with pytest.raises(QuotaExceeded) as error:
+        store.acquire(request(visitor="two", ip="203.0.113.2"))
+
+    assert error.value.scope == "global_concurrency"
+    assert str(error.value) == "Memory Director is busy making other films. Please wait a few minutes, then try again."
+    assert error.value.retry_after_seconds == 60
+    first.release()
+
+
 def test_global_daily_limit_is_shared_across_visitors_and_ips() -> None:
     store = InMemoryQuotaStore(policy(global_daily_film_limit=2))
     store.acquire(request(visitor="one", ip="203.0.113.1")).release()
@@ -161,6 +181,7 @@ def test_global_daily_limit_is_shared_across_visitors_and_ips() -> None:
         store.acquire(request(visitor="three", ip="203.0.113.3"))
 
     assert error.value.scope == "global"
+    assert str(error.value) == "Memory Director has reached today's shared film limit. Please try again tomorrow."
 
 
 def test_original_song_limits_are_checked_atomically_with_film_limits() -> None:
@@ -171,7 +192,25 @@ def test_original_song_limits_are_checked_atomically_with_film_limits() -> None:
         store.acquire(request(song=True))
 
     assert error.value.scope == "visitor_song"
+    assert str(error.value) == (
+        "You have reached today's original-song limit. Choose Gentle instrumental or No music, "
+        "or try again tomorrow."
+    )
     assert store.snapshot(request())["visitor_film_admitted"] == 1
+
+
+def test_global_original_song_limit_suggests_a_lower_cost_sound_choice() -> None:
+    store = InMemoryQuotaStore(policy(global_daily_original_song_limit=1))
+    store.acquire(request(visitor="one", ip="203.0.113.1", song=True)).release()
+
+    with pytest.raises(QuotaExceeded) as error:
+        store.acquire(request(visitor="two", ip="203.0.113.2", song=True))
+
+    assert error.value.scope == "global_song"
+    assert str(error.value) == (
+        "Original-song creation has reached today's shared limit. Choose Gentle instrumental or No music, "
+        "or try again tomorrow."
+    )
 
 
 def test_no_sound_admission_cannot_be_upgraded_to_original_song() -> None:

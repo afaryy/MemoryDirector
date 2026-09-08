@@ -123,6 +123,25 @@ class DenyingQuotaStore:
         raise QuotaExceeded("ip")
 
 
+@pytest.mark.anyio
+async def test_admission_rejection_returns_safe_cost_gate_guidance(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(main_module, "get_quota_store", lambda: DenyingQuotaStore())
+    monkeypatch.setenv("QUOTA_ENABLED", "true")
+
+    async with AsyncClient(transport=ASGITransport(app=main_module.app), base_url="http://test") as client:
+        response = await client.post(
+            "/usage/admissions",
+            headers={"X-Memory-Director-Visitor": "visitor-a"},
+            json={"soundtrack_mode": "original_song"},
+        )
+
+    assert response.status_code == 429
+    assert response.headers["retry-after"] == "86400"
+    assert response.json() == {
+        "detail": "This network has reached today's film limit. Please try again tomorrow."
+    }
+
+
 class CapturingQuotaStore:
     def __init__(self) -> None:
         self.request = None
