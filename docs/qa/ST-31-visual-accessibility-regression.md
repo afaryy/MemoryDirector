@@ -3,8 +3,8 @@
 ## Scope and ownership
 
 - Production baseline: <https://memorydirector.com/>
-- Baseline commit: `6ed4dbd`
-- Test date: 7 September 2026 (AEST)
+- Verified production commit: `64ee654a999549322dbeea22f9ffc2b8b29acdaf`
+- Test dates: 7–8 September 2026 (AEST)
 - Browser: isolated Chromium
 - Synthetic media only; no media was submitted to the production generation API.
 - Completed [ST-49 live browser acceptance](ST-49-LIVE-BROWSER-ACCEPTANCE.md)
@@ -15,9 +15,9 @@
 
 | Environment | Viewport | Status | Evidence |
 | --- | ---: | --- | --- |
-| Production Chromium, desktop emulation | 1280 × 720 | Pass with ISSUE-001 found | Layout, form semantics, typed input, media selection, reorder, removal, Clear all, limit handling, and console checked |
-| Production Chromium, mobile emulation | 390 × 844 | Pass with ISSUE-001 found | No horizontal overflow; responsive layout and controls checked |
-| Production Chromium, narrow mobile emulation | 320 × 568 | Pass with ISSUE-001 found | No horizontal overflow; visible controls meet the 44px target minimum |
+| Production Chromium, desktop emulation | 1280 × 720 | Pass | Layout, form semantics, typed input, media selection, reorder, removal, Clear all, limit handling, contrast, and console checked |
+| Production Chromium, mobile emulation | 390 × 844 | Pass | No horizontal overflow; responsive layout, controls, and deployed contrast checked |
+| Production Chromium, narrow mobile emulation | 320 × 568 | Pass before contrast release | No horizontal overflow; visible controls meet the 44px target minimum |
 | ST-49 production journey, desktop and mobile emulation | Desktop and 390 × 844 | Pass | Original-song and no-music generation, progress, 60-second preview, playback, Make again, and Save passed; phone-only follow-up moved to ST-52 |
 | Local production build, desktop emulation | 1280 × 720 | Pass | ISSUE-001 contrast remeasured after the fix; no console errors |
 | Local production build, mobile emulation | 390 × 844 | Pass | Post-fix responsive and keyboard regression; no horizontal overflow or console errors |
@@ -46,7 +46,7 @@
 
 ## ISSUE-001: secondary text contrast
 
-Severity: Medium. Status: fixed locally.
+Severity: Medium. Status: fixed, merged, deployed, and verified.
 
 The production palette rendered multiple normal-sized labels below the WCAG AA
 4.5:1 contrast threshold. Measured examples included 3.56:1 for the masthead
@@ -56,7 +56,7 @@ badge.
 
 The fix darkens the three affected palette tokens, uses the muted token for
 placeholder text, and changes the preview badge to a subtle dark overlay.
-Post-fix browser-computed ratios are:
+Post-deploy browser-computed ratios on `memorydirector.com` are:
 
 | Pair | Ratio |
 | --- | ---: |
@@ -74,13 +74,9 @@ style connections.
 
 - `npm test -- --run`: 47 tests passed across five files.
 - `npm run build`: production build, lint, and type checking passed.
-- Post-fix Chromium console: no errors.
+- Post-deploy Chromium console: no errors.
 
-QA found one Medium accessibility issue and fixed it locally. Under the QA
-health rubric, the inspected page improves from 98.8 to 100 after the fix.
-
-## Remaining before ST-31 can be Done
-
-1. Incorporate ST-52's physical iOS or Android evidence when that follow-up is
-   complete.
-2. Verify the merged contrast fix on the deployed production URL.
+QA found one Medium accessibility issue and verified its production fix. Under
+the QA health rubric, the inspected browser page improves from 98.8 to 100.
+ST-31 is Done. Physical iOS or Android behaviour is deliberately tracked in
+ST-52 and does not weaken the completed browser accessibility evidence.

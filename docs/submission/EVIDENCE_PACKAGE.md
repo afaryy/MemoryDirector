@@ -4,8 +4,8 @@ This index is the claim boundary for the final Memory Director submission. It
 maps submission-ready statements to public evidence and keeps unfinished or
 unverified technology out of the pitch.
 
-Last audited: **7 September 2026 (AEST)** against the `main` baseline
-`506f2fb7249be2fa5a178117f32e8a0b09980fbe`.
+Last audited: **8 September 2026 (AEST)** against the `main` baseline
+`cc6c10267f9294e28ce8fb4b0a6b030529a7ca8b`.
 
 ## Submission fields
 
@@ -23,6 +23,9 @@ Last audited: **7 September 2026 (AEST)** against the `main` baseline
 Use [`DEVPOST_PROJECT_PAGE.md`](DEVPOST_PROJECT_PAGE.md) as the source for the
 long description, [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md) for the recording, and
 [`SUBMISSION_CHECKLIST.md`](SUBMISSION_CHECKLIST.md) for rules compliance.
+The [capability evidence matrix](../CAPABILITY_EVIDENCE.md) is the cross-document
+source of truth for implemented, deployed, physical-device, and final-submission
+claims.
 
 ## Required runtime evidence
 
@@ -43,9 +46,10 @@ Public evidence:
   preference-tool invocation” and “Switch API only after smoke succeeds.” Its
   sanitized smoke artefact is attached to that run.
 
-Final-demo proof: show a production request producing the visible 60-second
-film. Do not expose the Agent Engine resource name if the recording does not
-need it.
+Final-demo proof: show the successful Agent Engine workflow evidence separately
+from the public Web film journey. The current UI calls `/storyboards`, not
+`/production-proposals`; do not imply that the visible film proves Agent Engine
+invocation. Do not expose the resource name if the recording does not need it.
 
 ### Official ClickHouse MCP runtime
 
@@ -64,9 +68,10 @@ Public evidence:
 - The [Agent Engine smoke](https://github.com/afaryy/MemoryDirector/actions/runs/34024861486)
   also required `preference_tool_invoked: true` before activating the API.
 
-Final-demo proof: capture the user action, the friendly preference explanation,
-and a sanitized indication that the official MCP tool ran. Never show a
-credential, bearer token, raw database response, or arbitrary SQL console.
+Final-demo proof: capture the user action and a sanitized indication that the
+official MCP tool ran. The current Web UI shows neither a preference explanation
+nor a tool log, so use separate workflow evidence and label it honestly. Never
+show a credential, bearer token, raw database response, or arbitrary SQL console.
 
 ## Supporting engineering evidence
 
@@ -76,11 +81,11 @@ prize categories in the official rules and must not be described as bonuses.
 | Capability | Truthful status | Public evidence | Permitted submission wording |
 | --- | --- | --- | --- |
 | Terraform | Implemented, validated and used for sandbox infrastructure | [Terraform workflow](https://github.com/afaryy/MemoryDirector/actions/runs/34113891154), [roots and modules](https://github.com/afaryy/MemoryDirector/tree/main/infra/terraform) | “Terraform provisions the bounded Google Cloud sandbox.” |
-| GitHub Actions and keyless deployment | Implemented; workflows use GitHub OIDC/WIF | [Application workflow](https://github.com/afaryy/MemoryDirector/blob/main/.github/workflows/deploy.yml), [current base test run](https://github.com/afaryy/MemoryDirector/actions/runs/34124916579) | “Tests and guarded deployments run through GitHub Actions using short-lived Google Cloud credentials.” |
+| GitHub Actions and keyless deployment | Implemented; workflows use GitHub OIDC/WIF | [Application workflow](https://github.com/afaryy/MemoryDirector/blob/main/.github/workflows/deploy.yml), [deployed Web commit test run](https://github.com/afaryy/MemoryDirector/actions/runs/34132016535), [current Web deployment](https://github.com/afaryy/MemoryDirector/actions/runs/34132225436) | “Tests and guarded deployments run through GitHub Actions using short-lived Google Cloud credentials.” |
 | Consent gates | Implemented in Web and API; hosted consent-writer deployment exists | [Web gate](https://github.com/afaryy/MemoryDirector/blob/main/apps/web/src/components/ProductionWizard.tsx), [API guardian](https://github.com/afaryy/MemoryDirector/blob/main/services/api/app/consent_guardian.py), [consent-writer deployment](https://github.com/afaryy/MemoryDirector/actions/runs/34006128081) | “Media processing and export fail closed without the required consent decisions.” |
 | Private Cloud Storage handling | Implemented in code and Terraform; final recording must use approved fixtures | [Storage adapter](https://github.com/afaryy/MemoryDirector/blob/main/services/api/app/media_storage.py), [storage infrastructure](https://github.com/afaryy/MemoryDirector/blob/main/infra/terraform/modules/foundations/sandbox_platform/main.tf), [retention operations](../operations/USAGE_COST_CONTROLS.md) | “Consented originals use private Cloud Storage; raw media is not stored in ClickHouse.” |
 | Agent Engine | Hosted smoke verified and API activation gated on success | [Run 34024861486](https://github.com/afaryy/MemoryDirector/actions/runs/34024861486), [operations guide](../operations/AGENT_ENGINE.md) | Use the runtime claim above. |
-| Lyria original memory song | Implemented with prompt-safety and fallback; hosted synthetic API render documented; final user-facing recording still required | [Lyria client](https://github.com/afaryy/MemoryDirector/blob/main/services/api/app/lyria_client.py), [song boundary](https://github.com/afaryy/MemoryDirector/blob/main/services/api/app/memory_song.py), [deployment evidence](../operations/APP_DEPLOYMENT.md) | Claim the song only if the final approved-fixture rehearsal and recording both succeed; otherwise show instrumental or no sound. |
+| Lyria original memory song | Implemented with prompt-safety and fallback; hosted browser journey verified; final approved-fixture recording still required | [Lyria client](https://github.com/afaryy/MemoryDirector/blob/main/services/api/app/lyria_client.py), [song boundary](https://github.com/afaryy/MemoryDirector/blob/main/services/api/app/memory_song.py), [browser evidence](../qa/ST-49-LIVE-BROWSER-ACCEPTANCE.md) | Claim the song only if the final approved-fixture rehearsal and recording both succeed; otherwise show a verified fallback. |
 | Video Intelligence | **Not implemented or runtime-verified** | No runtime dependency, call path, workflow or evidence artefact exists on audited `main` | Do not list, mention, imply, or select Video Intelligence in the submission. |
 | Usage, rate-limit, cost and retention controls | Technical quotas, Cloud Armor and retention are deployed; billing controls have their own evidence status | [Control runbook](../operations/USAGE_COST_CONTROLS.md), [public-edge run](https://github.com/afaryy/MemoryDirector/actions/runs/34118291595) | Describe only the controls explicitly marked verified in the runbook. Do not claim an instantaneous hard cloud-spend guarantee. |
 
@@ -90,8 +95,9 @@ The product uses only these data classes:
 
 - photos and videos deliberately selected by the user;
 - the user's typed or spoken production request;
-- anonymised consent, render, and accepted/rejected preference events in
-  ClickHouse;
+- anonymised consent, selection, and render/export events in ClickHouse, plus
+  seeded demonstration preferences; the public Web flow does not write durable
+  per-user accepted/rejected preferences;
 - Gemini outputs derived from approved inputs and, only if the release gate
   passes, Lyria outputs derived from approved prompt context; and
 - team-owned, synthetic, public-domain, or separately licensed demo assets.
@@ -114,6 +120,8 @@ Do not mark these complete from code or workflow evidence alone:
 - [ ] ClickHouse is selected as the partner track.
 - [ ] Rights register is complete and approved by the media owner.
 - [ ] The exact approved fixture set succeeds through the hosted Web journey.
+- [ ] ST-52 records the required physical-device voice, touch, Save, Share, and
+  instrumental evidence; do not replace it with mobile emulation.
 - [ ] The final video shows the product functioning, includes English audio or
   subtitles, and measures no more than 3:00.
 - [ ] The video is publicly playable on YouTube or Vimeo.

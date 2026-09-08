@@ -1,39 +1,46 @@
-# ST-38 design QA
+# Current design QA
 
 ## Compared
 
-- Reference: `.superdesign/tmp/memory-album-workbench.html`
-- Implementation: `apps/web/src/app/page.tsx` and `apps/web/src/components/ProductionWizard.tsx`
-- Browser: Codex in-app browser
-- Desktop viewport: 1280 × 720
-- Mobile behavior: responsive rules reviewed at 390 px; automated component behavior verified in Vitest
+- Public product: <https://memorydirector.com/>
+- Implementation: `apps/web/src/app/page.tsx`,
+  `apps/web/src/components/ProductionWizard.tsx`, and
+  `apps/web/src/app/globals.css`
+- Production commit: `64ee654a999549322dbeea22f9ffc2b8b29acdaf`
+- Browser viewports: desktop and 390 × 844 mobile emulation
 
-The in-app browser captures are session artifacts and do not expose filesystem paths. The reference and implementation were captured at the same desktop viewport before comparison.
+## Visual and interaction result
 
-## Visual comparison
+| Area | Current behaviour | Result |
+| --- | --- | --- |
+| Header and introduction | Compact brand, help action, short outcome-led heading | Pass |
+| Media workbench | Mixed-media picker, append, duplicate suppression, ordered cards, cover, move, remove, and confirmed Clear all | Pass |
+| Request | Editable textarea with labelled Clear and optional microphone actions | Pass |
+| Soundtrack | Original memory song, gentle instrumental, and no-music choices remain visible | Pass |
+| Consent and action | Explicit permission gates the fixed, high-contrast Make my film action | Pass |
+| Progress and errors | One compact status area; failures preserve inputs and allow retry | Pass |
+| Preview | Real 9:16 video, cover, playback, Make again, separate Save and Share actions | Pass |
+| Responsive layout | No horizontal overflow at 390 × 844; controls retain usable target sizes | Pass |
 
-| Area | Reference | Implementation | Result |
-| --- | --- | --- | --- |
-| Header | Moss film mark, compact brand and help icon | Same hierarchy, colors, spacing and Lucide icons | Pass |
-| Intro | Terracotta eyebrow and single-line desktop heading | Heading width and size adjusted to remain on one line | Pass |
-| Media | Sand dashed chooser with selected-media guidance | Same; real file input opens the device picker | Pass |
-| Request | Paper textarea with inline Clear and microphone actions | Same; both actions are functional and labelled | Pass |
-| Music | Three always-visible choices; original song selected | Same; selection styling follows state | Pass |
-| Preview | Moss preview-before-save callout | Same; replaced by the real video preview after export | Pass |
-| Primary action | Fixed terracotta bottom action | Same; disabled state remains visibly distinct | Pass |
+## Accessibility result
 
-## Interaction and accessibility checks
+- Form controls have accessible names and logical keyboard order.
+- Focus uses a visible three-pixel outline; disabled actions are distinguishable.
+- Epilogue is bundled locally, so visitors do not make a Google Fonts request.
+- The deployed contrast fix meets WCAG AA for the measured normal-text pairs:
+  muted on sand 4.65:1, terracotta on white 5.49:1, moss on sand
+  4.65:1, placeholder on paper 5.78:1, preview badge 5.81:1, and
+  media hover 5.78:1.
+- Reduced-motion styling is covered by the active CSS regression checks.
 
-- Keyboard focus uses a three-pixel terracotta outline.
-- The upload control, voice control, clear control, music choices, consent checkbox and primary action all have accessible names.
-- The primary action remains disabled until a request, at least one media item and permission are present.
-- Epilogue is bundled from `@fontsource/epilogue`; visitors do not make a Google Fonts request.
-- Selected items can be removed individually.
-- Failed generation keeps the request and media selections and offers retry.
-- The generated MP4 appears in a native video preview before Save & Share.
+## Verification and boundary
 
-## Verification
-
-- `npm test -- --run`: 13 tests passed.
-- `npm run build`: production build passed, including type checking.
-- No P0, P1 or P2 visual issues remain in the captured desktop state.
+- `npm test -- --run`: 47 tests passed across five files.
+- `npm run build`: production build, lint, and type checking passed.
+- Production Chromium: no console errors in the final desktop or mobile check.
+- [ST-31 visual and accessibility regression](docs/qa/ST-31-visual-accessibility-regression.md)
+  is Done.
+- [ST-49 live browser acceptance](docs/qa/ST-49-LIVE-BROWSER-ACCEPTANCE.md)
+  covers production generation in desktop and mobile emulation.
+- ST-52 owns real-device voice, touch, Save and native Share evidence. This report
+  does not claim that physical-device work is complete.

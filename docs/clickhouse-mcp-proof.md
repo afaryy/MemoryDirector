@@ -2,7 +2,13 @@
 
 ## Required runtime behaviour
 
-Memory Director must connect to the official `mcp-clickhouse` server and invoke its `run_query` tool at runtime. The query retrieves only accepted music preferences for the current user and occasion, then the agent explains the recommendation in plain language.
+Memory Director connects to the official `mcp-clickhouse` server and invokes its
+`run_query` tool at runtime in two bounded paths. The export guardian reads the
+selected-media consent state and can block rendering. Separately, the Agent Engine
+production-proposal endpoint retrieves an accepted seeded demonstration preference
+and returns an explanation in its typed proposal. The current public Web UI uses
+`/storyboards`, not `/production-proposals`, and displays neither a tool log nor a
+preference explanation.
 
 ## Cloud configuration
 
@@ -27,5 +33,11 @@ The official server defaults to read-only queries. Keep `CLICKHOUSE_ALLOW_WRITE_
 
 1. Apply `infra/clickhouse/001_schema.sql` and `002_demo_data.sql` to a consented demo database.
 2. Start `mcp-clickhouse` with the Cloud connection environment variables.
-3. Open the Web flow, create a plan, and confirm that the API calls `run_query` with the generated query for `demo-user` and `travel`.
-4. Record the tool name, a hash of the SQL, returned row count, and the user-facing explanation in the demo recording. Do not record credentials or raw personal media.
+3. Run the guarded Agent Engine deployment smoke and confirm it produces a valid
+   production proposal with `preference_tool_invoked: true` for the synthetic
+   fixture.
+4. Run a consented Web export and verify the separate guardian query succeeds; also
+   exercise its fail-closed result with a non-sensitive test fixture.
+5. Record only the workflow URL, tool name, hashed query identifier, row count, and
+   pass/fail result. Present this as separate runtime evidence, not an in-app panel.
+   Do not record credentials, raw database responses, or personal media.

@@ -18,18 +18,19 @@ once. A family member becomes the editor by default.
 Memory Director is a mobile-first web app and Google Cloud API. The target
 journey is deliberately simple: the person speaks or types a request, chooses
 their own photos and videos through the device picker, presses **Make my
-film**, watches a portrait preview, then chooses **Save & share**. The
-submission recording will show only capabilities that are working through this
-visible flow; a synthetic API fixture export is not presented as a complete
-hosted-UI journey.
+film**, watches a 60-second portrait preview, then chooses **Save video** or
+**Share video**. Desktop and mobile-emulated production journeys have verified
+the original-song and no-music paths through visible preview and Save. The
+submission recording will show only capabilities that pass the final approved-
+fixture rehearsal; browser emulation is not presented as physical-device proof.
 
 The agent is deliberately bounded:
 
 - voice is optional; typed input is always available;
 - consent is required before media processing;
 - uncertain place claims require confirmation;
-- privacy flags remain visible for review;
-- held-back media is not silently deleted;
+- the API constrains privacy metadata and never exposes private provider URIs;
+- changing the selected set never deletes original device files;
 - the browser sees only files the user deliberately selects;
 - the ClickHouse MCP consent/export gate can block rendering and export;
 - no social account or automatic publishing permission is requested.
@@ -39,19 +40,24 @@ The agent is deliberately bounded:
 The intended production flow coordinates several evidence-based decisions
 instead of applying a single opaque filter:
 
-1. Gemini turns a plain-language memory request into a constrained production brief.
+1. The public Web flow uses Gemini to turn a plain-language memory request into
+   a constrained storyboard.
 2. Multimodal Gemini analysis describes only observable media properties and
    returns allow-listed privacy signals.
 3. The production flow omits an uncertain place or fact until the user confirms it.
-4. The official `mcp-clickhouse` server is the runtime integration for
-   anonymised preferences and the required consent/export decision.
-5. A deterministic renderer makes the approximately-one-minute portrait film
+4. The official `mcp-clickhouse` server supplies the required consent/export
+   decision. A separately smoke-tested Agent Engine endpoint uses it for one
+   seeded, read-only preference lookup.
+5. A deterministic renderer makes the 60-second portrait film
    from a constrained storyboard; the model never directly encodes video.
 
-The repository contains the simplified UI, consent and privacy boundaries,
-automatic film preview/export path, Agent Engine planner, and ClickHouse MCP
-preference and export gates. The approved-media register and final recorded
-hosted proof remain release gates in the checklist.
+The public deployment contains the simplified UI, consent and privacy
+boundaries, direct Gemini storyboard and film preview/export path, and
+ClickHouse MCP export gate. A separate Agent Engine production-proposal endpoint
+and ClickHouse MCP preference tool are deployed and workflow-smoke verified but
+are not called by the current Web UI. The approved-media register,
+physical-device follow-up, and final recorded hosted proof remain separate
+release gates in the checklist and [capability evidence matrix](../CAPABILITY_EVIDENCE.md).
 
 ## Technology
 
@@ -61,8 +67,8 @@ hosted proof remain release gates in the checklist.
 - Google Cloud Vertex AI Gemini for production planning and media analysis.
 - Private Google Cloud Storage for consented originals.
 - ClickHouse Cloud through the official `mcp-clickhouse` integration for the
-  explainable preference and consent/export path; the hosted Agent Engine smoke
-  verifies the preference-tool invocation.
+  consent/export path and seeded read-only preference demonstration; the hosted
+  Agent Engine smoke verifies the separate preference-tool invocation.
 - Google Lyria for an original memory-song option behind prompt-safety,
   provenance, quota, and instrumental/no-sound fallback boundaries.
 - Terraform modules and GitHub Actions with OIDC/WIF for repeatable sandbox
@@ -73,8 +79,9 @@ hosted proof remain release gates in the checklist.
 - Photos and videos deliberately selected by the user; the app does not scan
   the wider device library.
 - The user's typed or spoken production request.
-- Anonymised consent, render, and accepted/rejected preference events in
-  ClickHouse. ClickHouse stores no raw photos or videos.
+- Anonymised consent, selection, and render/export events in ClickHouse, plus
+  seeded demonstration preferences. The public Web flow does not write durable
+  per-user creative preferences. ClickHouse stores no raw photos or videos.
 - Gemini and Lyria outputs derived from approved request and media context.
 - For the public demonstration, only assets approved in the media rights
   register.
@@ -88,8 +95,8 @@ hosted proof remain release gates in the checklist.
   The API accepts known media IDs, a closed music choice, and exactly 60
   seconds; it rejects private URIs and malformed plans.
 - Partner integration is strongest when it controls a real decision. The
-  official ClickHouse MCP tool supplies a bounded preference lookup and consent
-  evidence instead of acting as a decorative analytics dashboard.
+  official ClickHouse MCP tool supplies the export consent evidence, and the
+  separate Agent Engine smoke proves a bounded seeded preference lookup.
 - Hosted evidence needs stricter wording than local tests. We keep code-level,
   deployed-runtime, and final recorded proof separate in the
   [`ST-33 evidence package`](EVIDENCE_PACKAGE.md).
@@ -108,13 +115,12 @@ hosted proof remain release gates in the checklist.
 - Three-minute recording plan: [`docs/demo/DEMO_RUNBOOK.md`](../demo/DEMO_RUNBOOK.md)
 - Rights gate: [`docs/demo/MEDIA_RIGHTS_REGISTER.md`](../demo/MEDIA_RIGHTS_REGISTER.md)
 
-The hosted sandbox has been smoke-tested with non-sensitive synthetic input:
-the API returned health 200, the web page returned 200, and the export API
-returned a valid ZIP containing an MP4, JPG cover, and TXT caption. The current
-Web source drives the consented analysis, Agent Engine planning, export,
-preview, download, and share path. The final submission recording must still
-prove that complete hosted journey using only assets approved in the rights
-register.
+The hosted product has passed desktop and mobile-emulated browser journeys with
+non-sensitive fixtures, including consented analysis, direct Gemini storyboard
+planning, export, a real 60-second preview, playback, Make again, and Save. Original-song
+and no-music paths passed; the instrumental rerun and native-device actions are
+tracked in ST-52. The final submission recording must still prove the chosen
+journey using only assets approved in the rights register.
 
 ## What we would do next
 
