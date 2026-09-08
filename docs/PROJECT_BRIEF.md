@@ -21,7 +21,11 @@ Memory Director is a mobile-first web application that guides a user through:
 
 ## Differentiator
 
-The product does not only generate a one-off edit. It keeps an explainable creative memory of a user's accepted or rejected preferences. During the next project, the agent queries ClickHouse through the official `mcp-clickhouse` server and can explain recommendations such as: “You chose gentle festive instrumentals twice and rejected loud pop, so I placed gentle instrumental music first.”
+The official `mcp-clickhouse` path demonstrates how a bounded planner can read a
+seeded, approved preference and explain its music recommendation. The current
+public Web flow uses a shared demonstration partition and does not write a person's
+accepted or rejected choices for future projects; durable per-user creative memory
+is not a submitted capability.
 
 ## MVP boundary
 
@@ -29,13 +33,24 @@ The MVP focuses on a 60-second vertical travel, family, or everyday-life film, l
 
 ## Current delivery status
 
-The repository and public deployment include the one-page production UI, browser voice fallback, mixed-media selection and ordering, explicit consent, three soundtrack choices, an Agent Engine planner, the official ClickHouse MCP preference and consent/export paths, deterministic 60-second rendering, inline preview, Make again, Save, and native-share support with a fallback. Desktop and mobile-emulated production journeys have verified original-song and no-music rendering. Physical-device voice, touch, saved-file, native-share, and instrumental evidence remains in ST-52; rights-cleared media and the final three-minute submission recording remain in ST-9 and ST-17. See the [capability evidence matrix](CAPABILITY_EVIDENCE.md) for exact claim status.
+The repository and public deployment include the one-page production UI, browser
+voice fallback, mixed-media selection and ordering, explicit consent, three
+soundtrack choices, direct Gemini storyboard planning, the ClickHouse MCP
+consent/export path, deterministic 60-second rendering, inline preview, Make
+again, Save, and native-share support with a fallback. A separate Agent Engine
+production-proposal endpoint and its approved ClickHouse preference tool are
+deployed and workflow-smoke verified, but the public Web UI does not call that
+endpoint. Desktop and mobile-emulated journeys have verified original-song and
+no-music rendering. Physical-device voice, touch, saved-file, native-share, and
+instrumental evidence remains in ST-52; rights-cleared media and the final
+three-minute submission recording remain in ST-9 and ST-17. See the
+[capability evidence matrix](CAPABILITY_EVIDENCE.md) for exact claim status.
 
 ## Success criteria for the demo
 
 - A voice/text request and deliberately selected media become an understandable preview.
-- The system explains selected or held-back media without deleting originals.
+- The selected media order remains visible and reversible; originals are never deleted.
 - An uncertain location is omitted or confirmed before final copy uses it.
-- The official ClickHouse MCP path visibly checks the consent/export decision.
+- Sanitized runtime evidence proves the official ClickHouse MCP consent/export decision without exposing credentials or presenting a tool log as an in-app screen.
 - No render or export continues when that gate denies the request.
 - The user receives an MP4 to save and share manually.

@@ -5,7 +5,7 @@ maps submission-ready statements to public evidence and keeps unfinished or
 unverified technology out of the pitch.
 
 Last audited: **8 September 2026 (AEST)** against the `main` baseline
-`64ee654a999549322dbeea22f9ffc2b8b29acdaf`.
+`cc6c10267f9294e28ce8fb4b0a6b030529a7ca8b`.
 
 ## Submission fields
 
@@ -46,9 +46,10 @@ Public evidence:
   preference-tool invocation” and “Switch API only after smoke succeeds.” Its
   sanitized smoke artefact is attached to that run.
 
-Final-demo proof: show a production request producing the visible 60-second
-film. Do not expose the Agent Engine resource name if the recording does not
-need it.
+Final-demo proof: show the successful Agent Engine workflow evidence separately
+from the public Web film journey. The current UI calls `/storyboards`, not
+`/production-proposals`; do not imply that the visible film proves Agent Engine
+invocation. Do not expose the resource name if the recording does not need it.
 
 ### Official ClickHouse MCP runtime
 
@@ -67,9 +68,10 @@ Public evidence:
 - The [Agent Engine smoke](https://github.com/afaryy/MemoryDirector/actions/runs/34024861486)
   also required `preference_tool_invoked: true` before activating the API.
 
-Final-demo proof: capture the user action, the friendly preference explanation,
-and a sanitized indication that the official MCP tool ran. Never show a
-credential, bearer token, raw database response, or arbitrary SQL console.
+Final-demo proof: capture the user action and a sanitized indication that the
+official MCP tool ran. The current Web UI shows neither a preference explanation
+nor a tool log, so use separate workflow evidence and label it honestly. Never
+show a credential, bearer token, raw database response, or arbitrary SQL console.
 
 ## Supporting engineering evidence
 
@@ -79,7 +81,7 @@ prize categories in the official rules and must not be described as bonuses.
 | Capability | Truthful status | Public evidence | Permitted submission wording |
 | --- | --- | --- | --- |
 | Terraform | Implemented, validated and used for sandbox infrastructure | [Terraform workflow](https://github.com/afaryy/MemoryDirector/actions/runs/34113891154), [roots and modules](https://github.com/afaryy/MemoryDirector/tree/main/infra/terraform) | “Terraform provisions the bounded Google Cloud sandbox.” |
-| GitHub Actions and keyless deployment | Implemented; workflows use GitHub OIDC/WIF | [Application workflow](https://github.com/afaryy/MemoryDirector/blob/main/.github/workflows/deploy.yml), [current base test run](https://github.com/afaryy/MemoryDirector/actions/runs/34132016535), [current Web deployment](https://github.com/afaryy/MemoryDirector/actions/runs/34132225436) | “Tests and guarded deployments run through GitHub Actions using short-lived Google Cloud credentials.” |
+| GitHub Actions and keyless deployment | Implemented; workflows use GitHub OIDC/WIF | [Application workflow](https://github.com/afaryy/MemoryDirector/blob/main/.github/workflows/deploy.yml), [deployed Web commit test run](https://github.com/afaryy/MemoryDirector/actions/runs/34132016535), [current Web deployment](https://github.com/afaryy/MemoryDirector/actions/runs/34132225436) | “Tests and guarded deployments run through GitHub Actions using short-lived Google Cloud credentials.” |
 | Consent gates | Implemented in Web and API; hosted consent-writer deployment exists | [Web gate](https://github.com/afaryy/MemoryDirector/blob/main/apps/web/src/components/ProductionWizard.tsx), [API guardian](https://github.com/afaryy/MemoryDirector/blob/main/services/api/app/consent_guardian.py), [consent-writer deployment](https://github.com/afaryy/MemoryDirector/actions/runs/34006128081) | “Media processing and export fail closed without the required consent decisions.” |
 | Private Cloud Storage handling | Implemented in code and Terraform; final recording must use approved fixtures | [Storage adapter](https://github.com/afaryy/MemoryDirector/blob/main/services/api/app/media_storage.py), [storage infrastructure](https://github.com/afaryy/MemoryDirector/blob/main/infra/terraform/modules/foundations/sandbox_platform/main.tf), [retention operations](../operations/USAGE_COST_CONTROLS.md) | “Consented originals use private Cloud Storage; raw media is not stored in ClickHouse.” |
 | Agent Engine | Hosted smoke verified and API activation gated on success | [Run 34024861486](https://github.com/afaryy/MemoryDirector/actions/runs/34024861486), [operations guide](../operations/AGENT_ENGINE.md) | Use the runtime claim above. |
@@ -93,8 +95,9 @@ The product uses only these data classes:
 
 - photos and videos deliberately selected by the user;
 - the user's typed or spoken production request;
-- anonymised consent, render, and accepted/rejected preference events in
-  ClickHouse;
+- anonymised consent, selection, and render/export events in ClickHouse, plus
+  seeded demonstration preferences; the public Web flow does not write durable
+  per-user accepted/rejected preferences;
 - Gemini outputs derived from approved inputs and, only if the release gate
   passes, Lyria outputs derived from approved prompt context; and
 - team-owned, synthetic, public-domain, or separately licensed demo assets.

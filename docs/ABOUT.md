@@ -18,6 +18,10 @@ Most video editors expect people to understand a timeline, trimming, music licen
 
 ## ClickHouse integration
 
-Gemini creates constrained production decisions; the official `mcp-clickhouse` integration records and checks consent/export decisions and can recall accepted and rejected preferences so future music or pacing suggestions are explainable.
+Gemini creates constrained production decisions. The official `mcp-clickhouse`
+integration checks consent/export decisions, and a seeded read-only preference
+fixture demonstrates an explainable music recommendation. The current public Web
+flow does not identify a person or write their accepted/rejected creative choices
+for later projects.
 
 The current implementation, deployment, physical-device, and final-submission evidence are tracked separately in the [capability evidence matrix](CAPABILITY_EVIDENCE.md).

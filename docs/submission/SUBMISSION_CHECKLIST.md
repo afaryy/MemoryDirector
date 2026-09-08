@@ -1,7 +1,7 @@
 # ST-32 competition compliance checklist
 
 Last revalidated: **8 September 2026 (AEST)** against repository commit
-`64ee654a999549322dbeea22f9ffc2b8b29acdaf` and the live Devpost pages.
+`cc6c10267f9294e28ce8fb4b0a6b030529a7ca8b` and the live Devpost pages.
 
 Status meanings:
 
@@ -34,7 +34,7 @@ the live rules immediately before the final Devpost submission.
 | Submit before 9 Sep 2026, 2:00 PM PDT | [Rules, sections 5 and 7](https://agentic-cinema.devpost.com/rules); [schedule](https://agentic-cinema.devpost.com/details/dates) | Devpost confirmation before 10 Sep, 7:00 AM AEST | Ready | Devpost representative | Submit early enough to recover from upload or form errors. |
 | Every entrant is eligible | [Rules, section 4](https://agentic-cinema.devpost.com/rules) | Each member confirms age, residence, sanctions-list and contest-entity eligibility | Attestation required | Every team member | Repository evidence cannot establish personal eligibility. |
 | No more than four people; every member added on Devpost; one authorised representative | [Rules, section 7.B](https://agentic-cinema.devpost.com/rules) | Screenshot or final review of the Devpost member list and named representative | Blocked | Devpost representative | Verify the live Devpost roster; do not infer it from GitHub or Linear. |
-| Functional production-ready agent powered by Gemini and Google Cloud Agent Builder | [Rules, section 7.A](https://agentic-cinema.devpost.com/rules) | Hosted flow in the demo; source paths for ADK/Agent Engine and Gemini; successful [Agent Engine deployment and smoke run](https://github.com/afaryy/MemoryDirector/actions/runs/34024861486) | Verified | Engineering | The run proves the hosted Agent Engine plan and tool invocation; the final video must show the user-facing workflow. |
+| Functional production-ready agent powered by Gemini and Google Cloud Agent Builder | [Rules, section 7.A](https://agentic-cinema.devpost.com/rules) | Source paths for ADK/Agent Engine and Gemini; successful [Agent Engine deployment and smoke run](https://github.com/afaryy/MemoryDirector/actions/runs/34024861486); truthful final demo | Verified runtime, recording pending | Engineering | The run proves the separate hosted Agent Engine proposal and tool invocation. The current Web UI uses `/storyboards`, not `/production-proposals`; the recording must not imply otherwise. |
 | Active ClickHouse use at runtime through official `mcp-clickhouse`, connected to Cloud or self-hosted ClickHouse | [Rules, section 7.B](https://agentic-cinema.devpost.com/rules); [ClickHouse track resources](https://agentic-cinema.devpost.com/details/clickhouse-resources) | `mcp-clickhouse` image/config in source; runtime call shown in the final demo; successful Agent Engine smoke step named “Prove Agent Engine plan and ClickHouse preference-tool invocation” | Verified | Engineering / demo recorder | Keep the MCP call visible and explain its actual preference/consent role; a README mention alone is insufficient. |
 | Only Google Cloud AI and the chosen partner's built-in AI features are used by the submitted product | [Rules, section 7.B](https://agentic-cinema.devpost.com/rules) | Runtime dependency and architecture review; final copy contains no unsupported AI claim | Verified | Engineering / submission editor | Current runtime code uses Google ADK, Vertex AI/Gemini and ClickHouse; re-scan dependencies and submission copy after later merges. |
 | Project runs on web, Android or iOS | [Rules, section 7.B](https://agentic-cinema.devpost.com/rules) | Public web URL and demo footage | Verified | Engineering | [Hosted web app](https://memorydirector.com/) and same-origin health route passed production checks on the audited commit. |
@@ -57,7 +57,7 @@ the live rules immediately before the final Devpost submission.
   <https://github.com/afaryy/MemoryDirector>
 - Hosted product: <https://memorydirector.com/>
 - Hosted health route: <https://memorydirector.com/api/health>
-- Current `main` test run:
+- Deployed Web commit's test run:
   <https://github.com/afaryy/MemoryDirector/actions/runs/34132016535>
 - Current Web deployment:
   <https://github.com/afaryy/MemoryDirector/actions/runs/34132225436>
@@ -77,8 +77,9 @@ the live rules immediately before the final Devpost submission.
 1. Complete and approve the media rights register.
 2. Verify the Devpost roster, eligibility attestations, representative and
    ClickHouse track selection.
-3. Run the hosted flow with the exact approved demo fixtures and capture the
-   runtime ClickHouse/Agent Engine evidence without exposing credentials.
+3. Run the hosted Web flow with the exact approved demo fixtures and capture
+   separate sanitized ClickHouse/Agent Engine workflow evidence without implying
+   that the Web UI invoked the Agent Engine endpoint.
 4. Record and publish an English or English-subtitled YouTube/Vimeo demo under
    three minutes.
 5. Refresh the project-page copy so every capability matches the final build.
