@@ -27,8 +27,9 @@ Memory Director is a mobile-first web application that guides a user through:
 
 The core experience combines a simple voice/text request with selected media,
 a validated production plan, and a playable film the user controls. The official
-`mcp-clickhouse` consent/export path can block rendering and export when required
-consent evidence is missing.
+`mcp-clickhouse` path checks consent records before rendering and again before
+export. Either action is blocked when permission is denied or required consent
+evidence is missing.
 
 A separate deployed Agent Engine planner demonstrates an approved, read-only
 ClickHouse preference lookup. It is not connected to the public web interface.
