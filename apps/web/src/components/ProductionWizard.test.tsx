@@ -114,6 +114,10 @@ describe("ProductionWizard", () => {
     expect(screen.getByRole("heading", { name: "3. Choose the sound" })).toBeVisible();
     expect(screen.getByRole("radio", { name: /Original AI song/ })).toBeChecked();
     expect(screen.getByText("Watch before you save")).toBeVisible();
+    const permission = screen.getByLabelText("I have permission to use these media.");
+    const picker = screen.getByLabelText("Choose photos and videos");
+    expect(permission.compareDocumentPosition(picker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText(/privately uploaded now.*scheduled for deletion after one day/i)).toBeVisible();
   });
 
   it("clears a spoken or typed request with one labelled action", () => {
@@ -326,30 +330,102 @@ describe("ProductionWizard", () => {
     expect(preview).not.toHaveAttribute("poster");
   });
 
-  it("autoplays one muted frame and offers a tap fallback for iPhone video previews", () => {
+  it("automatically replaces an iPhone video placeholder with a private server thumbnail", async () => {
+    const thumbnailResponse = new Response(new Blob(["jpeg"], { type: "image/jpeg" }), {
+      status: 201,
+      headers: { "Content-Type": "image/jpeg", "X-Memory-Director-Media-ID": "sha256:phone-video" },
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(thumbnailResponse));
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn((value: File | Blob) => value.type === "image/jpeg" ? "blob:server-thumbnail" : "blob:local-video"),
+      revokeObjectURL: vi.fn(),
+    });
     render(<ProductionWizard />);
+    fireEvent.click(screen.getByLabelText("I have permission to use these media."));
     fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
       target: { files: [new File(["video"], "IMG_3419.MOV", { type: "video/quicktime" })] },
     });
 
-    const preview = screen.getByLabelText("Preview IMG_3419.MOV") as HTMLVideoElement;
-    const play = vi.fn().mockResolvedValue(undefined);
-    const pause = vi.fn();
-    Object.defineProperty(preview, "play", { configurable: true, value: play });
-    Object.defineProperty(preview, "pause", { configurable: true, value: pause });
-    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
-      callback(0);
-      return 1;
+    expect(screen.getByRole("status", { name: "Preparing preview IMG_3419.MOV" })).toBeVisible();
+    expect(await screen.findByRole("img", { name: "Preview IMG_3419.MOV" })).toHaveAttribute("src", "blob:server-thumbnail");
+    expect(screen.queryByRole("button", { name: "Show video preview IMG_3419.MOV" })).not.toBeInTheDocument();
+    const call = vi.mocked(fetch).mock.calls[0];
+    expect(call[0]).toBe("http://localhost:8000/media/thumbnail");
+    expect(call[1]).toMatchObject({ method: "POST" });
+    expect((call[1]?.body as FormData).get("consent")).toBe("true");
+  });
+
+  it("keeps permission when more photos or videos are added", () => {
+    render(<ProductionWizard />);
+    fireEvent.click(screen.getByLabelText("I have permission to use these media."));
+    selectOnePhoto();
+    selectOnePhoto();
+
+    expect(screen.getByLabelText("I have permission to use these media.")).toBeChecked();
+  });
+
+  it("prepares at most two video thumbnails at once", async () => {
+    const resolvers: Array<() => void> = [];
+    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => {
+      const callNumber = resolvers.length + 1;
+      resolvers.push(() => resolve(new Response(new Blob(["jpeg"], { type: "image/jpeg" }), {
+        status: 201,
+        headers: { "Content-Type": "image/jpeg", "X-Memory-Director-Media-ID": `sha256:video-${callNumber}` },
+      })));
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn(() => "blob:preview"),
+      revokeObjectURL: vi.fn(),
+    });
+    render(<ProductionWizard />);
+    fireEvent.click(screen.getByLabelText("I have permission to use these media."));
+    fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
+      target: { files: [
+        new File(["one"], "one.mov", { type: "video/quicktime" }),
+        new File(["two"], "two.mov", { type: "video/quicktime" }),
+        new File(["three"], "three.mov", { type: "video/quicktime" }),
+      ] },
     });
 
-    expect(preview).toHaveAttribute("autoplay");
-    fireEvent.click(screen.getByRole("button", { name: "Show video preview IMG_3419.MOV" }));
-    expect(play).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await act(async () => resolvers[0]());
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    await act(async () => {
+      resolvers.slice(1).forEach((resolve) => resolve());
+    });
+  });
 
-    fireEvent.playing(preview);
-    expect(pause).toHaveBeenCalledOnce();
-    expect(preview).not.toHaveAttribute("poster");
-    expect(screen.queryByRole("button", { name: "Show video preview IMG_3419.MOV" })).not.toBeInTheDocument();
+  it("ignores a stale thumbnail response after permission is turned off and on", async () => {
+    const resolvers: Array<(response: Response) => void> = [];
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => resolvers.push(resolve))));
+    const revokeObjectURL = vi.fn();
+    let serverPreview = 0;
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn((value: File | Blob) => value instanceof File ? "blob:local-video" : `blob:server-${++serverPreview}`),
+      revokeObjectURL,
+    });
+    render(<ProductionWizard />);
+    const permission = screen.getByLabelText("I have permission to use these media.");
+    fireEvent.click(permission);
+    fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
+      target: { files: [new File(["video"], "phone.mov", { type: "video/quicktime" })] },
+    });
+    fireEvent.click(permission);
+    fireEvent.click(permission);
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    await act(async () => resolvers[0](new Response(new Blob(["old"], { type: "image/jpeg" }), {
+      status: 201,
+      headers: { "Content-Type": "image/jpeg", "X-Memory-Director-Media-ID": "sha256:old" },
+    })));
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:server-1");
+
+    await act(async () => resolvers[1](new Response(new Blob(["new"], { type: "image/jpeg" }), {
+      status: 201,
+      headers: { "Content-Type": "image/jpeg", "X-Memory-Director-Media-ID": "sha256:new" },
+    })));
+    expect(await screen.findByRole("img", { name: "Preview phone.mov" })).toHaveAttribute("src", "blob:server-2");
   });
 
   it("reorders selected media with the keyboard drag control without revoking consent", () => {

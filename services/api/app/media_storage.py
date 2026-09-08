@@ -96,6 +96,7 @@ class GcsMediaStorage:
         blob = self._bucket.blob(object_name)
         if not blob.exists():
             return None
+        blob.reload()
         body = blob.download_as_bytes()
         content_type = blob.content_type or "application/octet-stream"
         digest = sha256(body).hexdigest()

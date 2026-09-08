@@ -112,6 +112,23 @@ async def test_analysis_returns_safe_schema_without_private_uri(monkeypatch: pyt
 
 
 @pytest.mark.anyio
+async def test_analysis_reuses_a_video_previously_stored_for_its_thumbnail(monkeypatch: pytest.MonkeyPatch) -> None:
+    storage = FakeStorage()
+    stored = storage.put("sha256:ready", "video/mp4", b"already-uploaded")
+    patch_dependencies(monkeypatch, storage, FakeAnalyzer())
+
+    async with AsyncClient(transport=ASGITransport(app=main_module.app), base_url="http://test") as client:
+        response = await client.post(
+            f"/media/{stored.media_id}/analyze",
+            data={"consent": "true"},
+        )
+
+    assert response.status_code == 201
+    assert response.json()["media_id"] == "sha256:ready"
+    assert storage.put_calls == [("sha256:ready", "video/mp4", b"already-uploaded")]
+
+
+@pytest.mark.anyio
 async def test_analysis_rejects_unsupported_mime(monkeypatch: pytest.MonkeyPatch) -> None:
     storage = FakeStorage()
     patch_dependencies(monkeypatch, storage, FakeAnalyzer())

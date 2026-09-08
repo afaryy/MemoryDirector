@@ -23,7 +23,26 @@ Original-song work has tighter limits: three attempts per visitor and twenty glo
 
 Firestore Native mode is the authoritative transactional quota store shared by every Cloud Run instance. Identifiers are hashed before document keys are written. ClickHouse receives bounded decision and outcome telemetry for cost analysis, but it is not used as an atomic admission counter.
 
-The browser reserves one short-lived admission before it uploads media or invokes Gemini. The same opaque admission ID is required for the bounded workflow: media analyses up to the configured media-item limit, one planning operation, one export, and—only when the admission reserved an original song—one song generation. Media analysis is idempotent by content ID, so the client's bounded retry of the same file does not consume another slot. Stage use is consumed atomically in Firestore, an export is terminal, and a no-sound or instrumental admission cannot be upgraded to an original song. The lease is released when the workflow succeeds or fails. Expired leases are reclaimed so a terminated Cloud Run instance cannot hold capacity for the rest of the day. Rejected or replayed requests return HTTP 429 before a costly provider call starts.
+After the user accepts the explicit private-upload disclosure, the Web client may
+upload a selected video early to obtain a mobile-safe JPEG thumbnail. This path
+has its own Firestore-backed daily limits: 75 thumbnail attempts per visitor and
+150 per client IP in sandbox. Both the browser and each API instance run at most
+two thumbnail jobs concurrently. The quota is consumed after MIME and size checks
+but before ffmpeg, and a failed ffmpeg attempt is not refunded so malformed input
+cannot bypass the resource bound. A successful content-addressed upload is reused
+for later analysis and remains under the one-day media lifecycle.
+
+The browser reserves one short-lived film admission before full media analysis or
+Gemini invocation. The same opaque admission ID is required for the bounded
+workflow: media analyses up to the configured media-item limit, one planning
+operation, one export, and—only when the admission reserved an original song—one
+song generation. Media analysis is idempotent by content ID, so reusing an early
+thumbnail upload or retrying the same file does not consume another slot. Stage use
+is consumed atomically in Firestore, an export is terminal, and a no-sound or
+instrumental admission cannot be upgraded to an original song. The lease is
+released when the workflow succeeds or fails. Expired leases are reclaimed so a
+terminated Cloud Run instance cannot hold capacity for the rest of the day.
+Rejected or replayed requests return HTTP 429 before a costly provider call starts.
 
 ## Layer 2: edge and compute protection
 

@@ -113,6 +113,7 @@ class QuotaLease:
 
 class QuotaStore(Protocol):
     def acquire(self, request: QuotaRequest) -> QuotaLease: ...
+    def consume_thumbnail(self, request: QuotaRequest, *, visitor_limit: int, ip_limit: int) -> None: ...
     def validate(self, admission_id: str, request: QuotaRequest) -> None: ...
     def consume(
         self,
@@ -141,7 +142,20 @@ class InMemoryQuotaStore:
         return f"{day}:{scope}:{identifier}"
 
     def _counter(self, key: str) -> dict[str, int]:
-        return self._daily.setdefault(key, {"film": 0, "song": 0, "in_flight": 0})
+        return self._daily.setdefault(key, {"film": 0, "song": 0, "thumbnail": 0, "in_flight": 0})
+
+    def consume_thumbnail(self, request: QuotaRequest, *, visitor_limit: int, ip_limit: int) -> None:
+        if not self.policy.enabled:
+            return
+        with self._lock:
+            visitor = self._counter(self._key(request.utc_day, "visitor", request.visitor_id))
+            ip = self._counter(self._key(request.utc_day, "ip", request.client_ip))
+            if visitor["thumbnail"] >= visitor_limit:
+                raise QuotaExceeded("visitor_thumbnail", "Daily video preview limit reached.")
+            if ip["thumbnail"] >= ip_limit:
+                raise QuotaExceeded("ip_thumbnail", "Daily video preview limit reached.")
+            visitor["thumbnail"] += 1
+            ip["thumbnail"] += 1
 
     def _reap_expired_leases(self) -> None:
         now = self._clock()
@@ -274,8 +288,10 @@ class InMemoryQuotaStore:
             return {
                 "visitor_film_admitted": visitor["film"],
                 "visitor_song_admitted": visitor["song"],
+                "visitor_thumbnails": visitor["thumbnail"],
                 "ip_film_admitted": ip["film"],
                 "ip_in_flight": ip["in_flight"],
+                "ip_thumbnails": ip["thumbnail"],
                 "global_film_admitted": global_counter["film"],
                 "global_song_admitted": global_counter["song"],
                 "global_in_flight": global_counter["in_flight"],
@@ -310,9 +326,45 @@ class FirestoreQuotaStore:
         return {
             "film": int(raw.get("film", 0)),
             "song": int(raw.get("song", 0)),
+            "thumbnail": int(raw.get("thumbnail", 0)),
             "in_flight": len(active_leases),
             "active_leases": active_leases,
         }
+
+    def consume_thumbnail(self, request: QuotaRequest, *, visitor_limit: int, ip_limit: int) -> None:
+        if not self.policy.enabled:
+            return
+        from google.cloud import firestore
+
+        day = request.utc_day
+        visitor_ref = self.client.collection("quota_counters").document(
+            quota_document_id(day, "visitor", request.visitor_id)
+        )
+        ip_ref = self.client.collection("quota_counters").document(
+            quota_document_id(day, "ip", request.client_ip)
+        )
+
+        @firestore.transactional
+        def consume_transaction(transaction) -> None:
+            snapshots = self._by_path(transaction.get_all([visitor_ref, ip_ref]))
+            visitor = self._values(snapshots[visitor_ref.path])
+            ip = self._values(snapshots[ip_ref.path])
+            if visitor["thumbnail"] >= visitor_limit:
+                raise QuotaExceeded("visitor_thumbnail", "Daily video preview limit reached.")
+            if ip["thumbnail"] >= ip_limit:
+                raise QuotaExceeded("ip_thumbnail", "Daily video preview limit reached.")
+            transaction.set(
+                visitor_ref,
+                {"thumbnail": visitor["thumbnail"] + 1, "day": day, "scope": "visitor"},
+                merge=True,
+            )
+            transaction.set(
+                ip_ref,
+                {"thumbnail": ip["thumbnail"] + 1, "day": day, "scope": "ip"},
+                merge=True,
+            )
+
+        consume_transaction(self.client.transaction())
 
     def acquire(self, request: QuotaRequest) -> QuotaLease:
         if not self.policy.enabled:

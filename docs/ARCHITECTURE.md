@@ -40,6 +40,47 @@ flowchart LR
 6. Immediately before rendering and export, the Consent Guardian calls the official ClickHouse MCP path to check consent, selected-media status, and soundtrack safety.
 7. A passing check permits a 60-second 9:16 MP4 for manual saving and sharing. A denied or unavailable required check blocks export.
 
+## Mobile video thumbnail decision
+
+Selecting a video successfully does not guarantee that a mobile browser can
+decode and display a frame from the temporary local `File`/blob URL. In
+particular, iOS browsers can return a selected MOV/HEVC asset while withholding
+or delaying the decoded frame needed by an HTML `<video>` thumbnail. Desktop
+browsers may display the same file because their codec, metadata-loading, and
+media-policy behaviour differs. This is a preview limitation, not evidence that
+the picker or upload failed.
+
+A native iOS or Android application can ask the operating system media framework
+for a thumbnail (for example, PhotoKit/AVFoundation on iOS). It has a more direct
+asset and codec path than browser JavaScript. Memory Director is intentionally a
+responsive Web application for the current competition, so the project does not
+claim this native capability yet.
+
+The Web release uses this bounded fallback:
+
+1. Before selection, the user explicitly accepts the disclosure that selected
+   videos will be privately uploaded to prepare previews and may be reused when
+   making the film.
+2. The browser first attempts its local video frame and sends at most two video
+   thumbnail requests concurrently.
+3. FastAPI accepts supported phone-video MIME types or a safe filename-extension
+   fallback, then runs FFmpeg outside the async event loop. FFmpeg is restricted
+   to a known local container format and local-only protocols and produces a JPEG
+   within a 480 by 480 bounding box.
+4. The JPEG returns to the browser as a temporary object URL and replaces the
+   placeholder automatically; there is no separate **Preview** button.
+5. The content-addressed private source can be reused for Gemini analysis instead
+   of uploading the same video again. The source remains in the private media
+   bucket and is scheduled for lifecycle deletion after one day.
+6. Firestore-backed visitor/IP daily limits, a two-thumbnail worker bound per API
+   instance, Cloud Run scaling limits, and the existing budget controls constrain
+   public resource use.
+
+The planned formal product is a native mobile application. That version should
+generate selection thumbnails locally with the operating system media framework,
+retain the same explicit-consent and user-controlled save/share boundaries, and
+upload original media only when cloud analysis or rendering actually requires it.
+
 The separate `/production-proposals` endpoint invokes the bounded ADK planner on
 Vertex AI Agent Engine. That planner calls the approved ClickHouse preference tool
 once and returns a typed, exactly 60-second plan. The API rejects unknown media

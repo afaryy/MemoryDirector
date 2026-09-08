@@ -1,4 +1,4 @@
-from app.media_storage import InMemoryMediaStorage
+from app.media_storage import GcsMediaStorage, InMemoryMediaStorage
 
 
 def test_in_memory_storage_records_content_addressed_private_object() -> None:
@@ -13,3 +13,35 @@ def test_in_memory_storage_records_content_addressed_private_object() -> None:
     assert stored.gs_uri == "gs://memory-director-media/media/sha256:abc/original"
     assert storage.objects[stored.media_id] == b"abc"
     assert not hasattr(storage, "delete")
+
+
+def test_gcs_read_refreshes_content_type_before_reusing_a_thumbnail_upload() -> None:
+    class Blob:
+        content_type = None
+
+        def exists(self) -> bool:
+            return True
+
+        def reload(self) -> None:
+            self.content_type = "video/quicktime"
+
+        def download_as_bytes(self) -> bytes:
+            return b"video"
+
+    blob = Blob()
+
+    class Bucket:
+        def blob(self, _object_name: str) -> Blob:
+            return blob
+
+    class Client:
+        def bucket(self, _bucket_name: str) -> Bucket:
+            return Bucket()
+
+    storage = GcsMediaStorage("private-media", client=Client())
+
+    stored, body = storage.read("sha256:video") or (None, None)
+
+    assert stored is not None
+    assert stored.content_type == "video/quicktime"
+    assert body == b"video"

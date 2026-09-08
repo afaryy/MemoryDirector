@@ -23,6 +23,8 @@ supports family assistance and demonstrations.
 │ MEMORY DIRECTOR                      │
 │ Turn moments into a film             │
 │                                      │
+│ [ ] I own or have permission to use  │
+│     these photos and videos           │
 │ Photos and videos        [Clear all] │
 │ [ + Choose from this device ]        │
 │ [ cover ★ ] [ photo ] [ video ]      │
@@ -36,7 +38,6 @@ supports family assistance and demonstrations.
 │ ( ) Gentle instrumental              │
 │ ( ) No music                         │
 │                                      │
-│ [ ] I have permission to use these   │
 │             [ Make my film ]         │
 └──────────────────────────────────────┘
 ```
@@ -45,12 +46,33 @@ supports family assistance and demonstrations.
 
 - The user selects 1–15 mixed photos and videos and can append another picker
   selection. Exact duplicates are ignored.
+- The permission disclosure appears before the picker. It explains that selected
+  videos are privately uploaded immediately to make their JPEG thumbnails, may be
+  reused for film generation, and are scheduled for deletion after one day.
+- Photos show a local preview. A video uses a local browser frame when available;
+  otherwise the private server-generated JPEG replaces the placeholder
+  automatically. No extra **Preview** action is required.
 - The first item is the cover. Reorder controls change the sequence and cover.
 - Clear all asks for confirmation and resets media consent.
 - A request, at least one selected item, and permission are required before
   **Make my film** is enabled.
 - The three soundtrack choices stay visible. Unsafe or unavailable song generation
   can fall back without claiming success.
+
+### Why the Web video fallback exists
+
+Mobile browsers do not expose the same media-library and codec APIs as native
+editors. An iPhone picker can return a valid MOV/HEVC file while browser JavaScript
+still cannot reliably obtain a decoded frame for a local thumbnail. Native editors
+can do this because they use operating-system frameworks such as
+PhotoKit/AVFoundation rather than an HTML `<video>` element.
+
+For the competition Web version, Memory Director therefore generates only the
+missing video thumbnail on the private API and returns a small JPEG. The full
+selected source is reused later instead of uploaded twice and is covered by the
+one-day private-storage lifecycle. Photos continue to preview locally. The future
+formal product is planned as a native mobile application, where thumbnails can be
+generated locally before any cloud upload.
 
 ## 2. Making the film
 

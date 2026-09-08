@@ -8,7 +8,9 @@
     "global_daily_film_limit": 30,
     "global_max_concurrent_films": 6,
     "visitor_daily_original_song_limit": 3,
-    "global_daily_original_song_limit": 20
+    "global_daily_original_song_limit": 20,
+    "visitor_daily_thumbnail_limit": 75,
+    "ip_daily_thumbnail_limit": 150
   },
   "rate_limits": {
     "edge_requests_per_minute_per_ip": 120,

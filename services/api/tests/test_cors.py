@@ -15,5 +15,11 @@ async def test_local_web_client_is_allowed_to_call_render_api() -> None:
             },
         )
 
+        actual_response = await client.get(
+            "/health",
+            headers={"Origin": "http://localhost:3000"},
+        )
+
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+    assert actual_response.headers["access-control-expose-headers"] == "X-Memory-Director-Media-ID"

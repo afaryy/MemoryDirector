@@ -6,7 +6,8 @@
     "media_analysis_max_attempts": 2,
     "max_upload_file_mb": 250,
     "max_request_text_chars": 2000,
-    "global_daily_film_hard_max": 100
+    "global_daily_film_hard_max": 100,
+    "thumbnail_max_concurrency": 2
   },
   "labels": {
     "managed_by": "terraform",
