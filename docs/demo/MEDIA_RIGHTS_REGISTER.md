@@ -28,7 +28,9 @@ Keep private source files and signed or recorded consent evidence outside the pu
 
 Do not download a replacement track merely because it is described as free or royalty-free. Such tracks may still impose attribution, public-performance, redistribution, territory, or platform restrictions. The intended demo soundtrack is M01, generated specifically for the selected memory.
 
-Complete M01 only after generating the final demo song. Record the actual model/version and date rather than an assumption. Review the prompt and output to confirm that they do not request or contain a commercial recording, copied lyrics, artist imitation, or voice cloning. Delete N01 from the final register if all original video audio is removed from the export.
+M01 is complete for the approved final demo song. Its actual model, date, safety
+review, and provenance limitation are recorded above. N01 remains in the register
+as an explicit record that source-video audio is not used in the final export.
 
 ## Privacy check
 

@@ -80,12 +80,16 @@ after confirming that application data is disposable.
 ## Hosted sandbox verification
 
 The public application is <https://memorydirector.com/>. The current audited Web
-release is commit `64ee654a999549322dbeea22f9ffc2b8b29acdaf`, deployed by workflow
-run [34132225436](https://github.com/afaryy/MemoryDirector/actions/runs/34132225436).
+release is commit `6b738f40014e4c7861ff1705f7df4d26d294d051`, deployed by workflow
+run [34188310631](https://github.com/afaryy/MemoryDirector/actions/runs/34188310631).
 That manual web-only run authenticated with GitHub OIDC/WIF, built the immutable
 image, and updated the existing Cloud Run Web service through its isolated state.
 The same commit passed the complete Tests workflow in run
-[34132016535](https://github.com/afaryy/MemoryDirector/actions/runs/34132016535).
+[34188276089](https://github.com/afaryy/MemoryDirector/actions/runs/34188276089).
+
+The concurrent workflow-run deployment [34188314559](https://github.com/afaryy/MemoryDirector/actions/runs/34188314559)
+passed authorization but skipped its deploy job. It is not used as deployment
+evidence.
 
 The run was verified with a non-sensitive fixture:
 

@@ -41,9 +41,11 @@ again, Save, and native-share support with a fallback. A separate Agent Engine
 production-proposal endpoint and its approved ClickHouse preference tool are
 deployed and workflow-smoke verified, but the public Web UI does not call that
 endpoint. Desktop and mobile-emulated journeys have verified original-song and
-no-music rendering. Physical-device voice, touch, saved-file, native-share, and
-instrumental evidence remains in ST-52; rights-cleared media and the final
-three-minute submission recording remain in ST-9 and ST-17. See the
+no-music rendering. ST-52 additionally records an all-pass iPhone 11 journey for
+voice, touch reorder, phone-video preview, saved-file behavior, native Share, and
+instrumental audio. Android and native screen-reader coverage remain unclaimed.
+ST-9 records the approved, rights-reviewed fixtures and generated song; the final
+three-minute submission recording remains in ST-17. See the
 [capability evidence matrix](CAPABILITY_EVIDENCE.md) for exact claim status.
 
 ## Success criteria for the demo

@@ -95,7 +95,7 @@ test("product and UX documents match the public call path and controls", () => {
   }
 
   const mobileFlow = readDocument("docs/ux/MOBILE_PRODUCTION_FLOW.md");
-  for (const label of ["Clear all", "Make again", "Save video", "Share video", "ST-52"]) {
+  for (const label of ["Clear all", "Make again", "Save video", "Share video", "server-generated JPEG"]) {
     assert.match(mobileFlow, new RegExp(label), `docs/ux/MOBILE_PRODUCTION_FLOW.md: ${label}`);
   }
 });
@@ -110,7 +110,7 @@ test("architecture and operations distinguish the public Web and Agent Engine pa
   assert.match(agentEngine, /34024861486/);
 
   const deployment = readDocument("docs/operations/APP_DEPLOYMENT.md");
-  for (const evidence of ["34132016535", "34132225436", "https://memorydirector.com/", "https://memorydirector.com/api/health"]) {
+  for (const evidence of ["34188276089", "34188310631", "https://memorydirector.com/", "https://memorydirector.com/api/health"]) {
     assert.match(deployment, new RegExp(evidence.replaceAll("/", "\\/")), evidence);
   }
   assert.doesNotMatch(deployment, /32362975036/);
@@ -124,20 +124,66 @@ test("architecture and operations distinguish the public Web and Agent Engine pa
   assert.match(clickHouseProof, /separate runtime evidence/);
 });
 
-test("QA and submission documents preserve incomplete evidence gates", () => {
+test("QA documents record the completed physical iPhone scope", () => {
+  const physicalQaPath = resolve(repositoryRoot, "docs/qa/ST-52-PHYSICAL-IPHONE-ACCEPTANCE.md");
+  assert.equal(existsSync(physicalQaPath), true, "ST-52 physical iPhone report must exist");
+  const physicalQa = readFileSync(physicalQaPath, "utf8");
+  for (const evidence of [
+    "iPhone 11",
+    "iOS 26.6.1",
+    "Chrome (version not recorded)",
+    "6b738f4",
+    "34188276089",
+    "34188310631",
+  ]) {
+    assert.ok(physicalQa.includes(evidence), evidence);
+  }
+  assert.doesNotMatch(physicalQa, /\| (?:Fail|Pending) \|/);
+
+  const browserQa = readDocument("docs/qa/ST-49-LIVE-BROWSER-ACCEPTANCE.md");
+  assert.match(browserQa, /ST-52-PHYSICAL-IPHONE-ACCEPTANCE\.md/);
+  assert.doesNotMatch(browserQa, /Do not mark ST-52 Done/);
+
   const accessibility = readDocument("docs/qa/ST-31-visual-accessibility-regression.md");
   assert.match(accessibility, /fixed, merged, deployed, and verified/);
   assert.match(accessibility, /ST-31 is Done/);
-  assert.match(accessibility, /ST-52/);
+  assert.match(accessibility, /iPhone 11/);
   assert.doesNotMatch(accessibility, /Remaining before ST-31 can be Done/);
+});
+
+test("current evidence distinguishes main from the deployed Web release", () => {
+  for (const path of [
+    "docs/CAPABILITY_EVIDENCE.md",
+    "docs/submission/SUBMISSION_CHECKLIST.md",
+    "docs/submission/EVIDENCE_PACKAGE.md",
+  ]) {
+    assert.match(readDocument(path), /eab585c/, `${path}: current main commit`);
+  }
+
+  for (const path of [
+    "docs/CAPABILITY_EVIDENCE.md",
+    "docs/operations/APP_DEPLOYMENT.md",
+    "docs/submission/SUBMISSION_CHECKLIST.md",
+    "docs/submission/EVIDENCE_PACKAGE.md",
+    "design-qa.md",
+  ]) {
+    const document = readDocument(path);
+    assert.match(document, /6b738f4/, `${path}: final release commit`);
+    assert.doesNotMatch(document, /64ee654|cc6c102|34132016535|34132225436/, `${path}: stale release evidence`);
+  }
+});
+
+test("submission documents preserve the remaining human release gates", () => {
 
   const checklist = readDocument("docs/submission/SUBMISSION_CHECKLIST.md");
-  for (const evidence of ["cc6c102", "34132016535", "34132225436", "ST-52", "rights register", "submission receipt"]) {
+  for (const evidence of ["eab585c", "6b738f4", "34191468668", "34188310631", "ST-52", "rights register", "submission receipt"]) {
     assert.match(checklist, new RegExp(evidence, "i"), evidence);
   }
+  assert.match(checklist, /Video and project assets[\s\S]*\| Verified \|/);
 
   const evidencePackage = readDocument("docs/submission/EVIDENCE_PACKAGE.md");
   assert.match(evidencePackage, /VIDEO_URL_REQUIRED/);
-  assert.match(evidencePackage, /Rights approval[\s\S]*Pending/);
+  assert.match(evidencePackage, /- \[x\] Rights register is complete/);
+  assert.match(evidencePackage, /Rights approval[\s\S]*Ready/);
   assert.match(evidencePackage, /Devpost entry[\s\S]*Pending/);
 });

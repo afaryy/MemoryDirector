@@ -21,14 +21,14 @@ flowchart LR
 
 | Component | Responsibility | Status |
 | --- | --- | --- |
-| Next.js web app | Mobile controls, browser voice input, ordered media and cover selection, generation, inline preview, Save and native Share | Implemented, hosted, and browser verified; physical-device actions pending ST-52 |
+| Next.js web app | Mobile controls, browser voice input, ordered media and cover selection, generation, inline preview, Save and native Share | Implemented, hosted, browser verified, and physically exercised on an iPhone 11 in ST-52 |
 | FastAPI | Validation, consent enforcement, private media upload/analysis, CORS, constrained planning and render endpoints | Implemented, hosted, and exercised by production journeys |
 | Direct Gemini storyboard planner | Structured title, caption, and music direction for the public Web `/storyboards` request | Implemented and exercised through hosted browser journeys |
 | ADK Agent Engine planner | Separate `/production-proposals` endpoint for typed, exactly 60-second media selection and music direction using one constrained preference tool | Deployed and workflow-smoke verified; not called by the current Web UI |
 | Media analysis | Consent-gated private GCS upload, schema-validated Gemini descriptions, quality signals, duplicate detection, and allow-listed privacy metadata | Implemented and exercised through the hosted journey; privacy metadata is not displayed by the current Web UI |
 | ClickHouse adapter | Seeded read-only preference demonstration plus required consent/export decision via official `mcp-clickhouse` | Agent Engine preference-tool smoke and hosted export gate verified; no per-user preference-write path in the Web journey |
 | Render service | Deterministic 60-second 9:16 MP4, caption, cover, and optional sound mix | Deployed; original-song and no-music browser journeys verified |
-| Original memory-song service | Approved-fact music brief, safe Lyria 3 song generation, temporary render-only audio, and instrumental/no-sound fallback | Deployed; original-song browser journey verified, instrumental rerun pending ST-52 |
+| Original memory-song service | Approved-fact music brief, safe Lyria 3 song generation, temporary render-only audio, and instrumental/no-sound fallback | Deployed; original-song and no-music browser journeys verified, and instrumental audio verified on an iPhone 11 in ST-52 |
 
 ## Production flow
 

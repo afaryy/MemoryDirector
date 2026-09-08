@@ -129,8 +129,10 @@ where thumbnails can be generated locally before any cloud upload.
 ## Evidence boundary
 
 Desktop and 390 × 844 browser journeys are verified in
-[ST-49 live browser acceptance](../qa/ST-49-LIVE-BROWSER-ACCEPTANCE.md).
-Physical-device picker, voice permission, touch reorder/scroll, saved-file location,
-native Share completion/cancellation, and the instrumental rerun remain in ST-52.
-See the [capability evidence matrix](../CAPABILITY_EVIDENCE.md) before turning a
-browser result into a device or final-submission claim.
+[ST-49 live browser acceptance](../qa/ST-49-LIVE-BROWSER-ACCEPTANCE.md). The
+[ST-52 physical iPhone pass](../qa/ST-52-PHYSICAL-IPHONE-ACCEPTANCE.md) verifies
+the native picker, microphone flow, phone-video preview, touch reorder, Clear-all
+cancel/accept, saved-file result, native Share sheet, and instrumental audio on an
+iPhone 11. Android and native screen-reader behavior were not tested. See the
+[capability evidence matrix](../CAPABILITY_EVIDENCE.md) before turning one device
+result into a broader platform or final-submission claim.

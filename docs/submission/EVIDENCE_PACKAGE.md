@@ -5,7 +5,10 @@ maps submission-ready statements to public evidence and keeps unfinished or
 unverified technology out of the pitch.
 
 Last audited: **8 September 2026 (AEST)** against the `main` baseline
-`cc6c10267f9294e28ce8fb4b0a6b030529a7ca8b`.
+`eab585c9f8db6bbf14143c8e5c61c24c7cf2ecca`.
+The deployed Web release remains
+`6b738f40014e4c7861ff1705f7df4d26d294d051`; the later ST-9 merge changes
+documentation and approved evidence, not the deployed application image.
 
 ## Submission fields
 
@@ -81,7 +84,7 @@ prize categories in the official rules and must not be described as bonuses.
 | Capability | Truthful status | Public evidence | Permitted submission wording |
 | --- | --- | --- | --- |
 | Terraform | Implemented, validated and used for sandbox infrastructure | [Terraform workflow](https://github.com/afaryy/MemoryDirector/actions/runs/34113891154), [roots and modules](https://github.com/afaryy/MemoryDirector/tree/main/infra/terraform) | “Terraform provisions the bounded Google Cloud sandbox.” |
-| GitHub Actions and keyless deployment | Implemented; workflows use GitHub OIDC/WIF | [Application workflow](https://github.com/afaryy/MemoryDirector/blob/main/.github/workflows/deploy.yml), [deployed Web commit test run](https://github.com/afaryy/MemoryDirector/actions/runs/34132016535), [current Web deployment](https://github.com/afaryy/MemoryDirector/actions/runs/34132225436) | “Tests and guarded deployments run through GitHub Actions using short-lived Google Cloud credentials.” |
+| GitHub Actions and keyless deployment | Implemented; workflows use GitHub OIDC/WIF | [Application workflow](https://github.com/afaryy/MemoryDirector/blob/main/.github/workflows/deploy.yml), [deployed Web commit test run](https://github.com/afaryy/MemoryDirector/actions/runs/34188276089), [current Web deployment](https://github.com/afaryy/MemoryDirector/actions/runs/34188310631) | “Tests and guarded deployments run through GitHub Actions using short-lived Google Cloud credentials.” |
 | Consent gates | Implemented in Web and API; hosted consent-writer deployment exists | [Web gate](https://github.com/afaryy/MemoryDirector/blob/main/apps/web/src/components/ProductionWizard.tsx), [API guardian](https://github.com/afaryy/MemoryDirector/blob/main/services/api/app/consent_guardian.py), [consent-writer deployment](https://github.com/afaryy/MemoryDirector/actions/runs/34006128081) | “Media processing and export fail closed without the required consent decisions.” |
 | Private Cloud Storage handling | Implemented in code and Terraform; final recording must use approved fixtures | [Storage adapter](https://github.com/afaryy/MemoryDirector/blob/main/services/api/app/media_storage.py), [storage infrastructure](https://github.com/afaryy/MemoryDirector/blob/main/infra/terraform/modules/foundations/sandbox_platform/main.tf), [retention operations](../operations/USAGE_COST_CONTROLS.md) | “Consented originals use private Cloud Storage; raw media is not stored in ClickHouse.” |
 | Agent Engine | Hosted smoke verified and API activation gated on success | [Run 34024861486](https://github.com/afaryy/MemoryDirector/actions/runs/34024861486), [operations guide](../operations/AGENT_ENGINE.md) | Use the runtime claim above. |
@@ -118,10 +121,12 @@ Do not mark these complete from code or workflow evidence alone:
 - [ ] Devpost team roster contains at most four eligible members and names the
   authorised representative.
 - [ ] ClickHouse is selected as the partner track.
-- [ ] Rights register is complete and approved by the media owner.
+- [x] Rights register is complete and approved by the media owner.
 - [ ] The exact approved fixture set succeeds through the hosted Web journey.
-- [ ] ST-52 records the required physical-device voice, touch, Save, Share, and
-  instrumental evidence; do not replace it with mobile emulation.
+- [x] ST-52 records the required physical-device voice, touch, Save, Share, and
+  instrumental evidence on an iPhone 11; see
+  [`ST-52-PHYSICAL-IPHONE-ACCEPTANCE.md`](../qa/ST-52-PHYSICAL-IPHONE-ACCEPTANCE.md).
+  Do not broaden that evidence to Android or a native screen reader.
 - [ ] The final video shows the product functioning, includes English audio or
   subtitles, and measures no more than 3:00.
 - [ ] The video is publicly playable on YouTube or Vimeo.
@@ -139,11 +144,11 @@ private media, private object URLs, or unsanitized logs.
 | Artefact | Required value | Owner | Status |
 | --- | --- | --- | --- |
 | Release commit | Full commit SHA used for the hosted demo | Engineering | Pending final merge/deploy |
-| Test run | Successful `Tests` workflow for the release commit | Engineering | Pending final commit |
+| Test run | Successful `Tests` workflow for current `main` | Engineering | [Run 34191468668](https://github.com/afaryy/MemoryDirector/actions/runs/34191468668) passed |
 | Hosted app | <https://memorydirector.com/> | Engineering | Available; final incognito check pending |
 | Hosted health | <https://memorydirector.com/api/health> | Engineering | Available; final incognito check pending |
 | Agent/MCP proof | Sanitized run or recording frame showing Agent Engine plus official MCP invocation | Demo recorder | Existing workflow proof; final recording frame pending |
-| Rights approval | Completed rights register with owner and review date | Media owner | Pending |
+| Rights approval | Completed rights register with owner and review date | Media owner | Ready — approved 8 September 2026 |
 | Demo duration | Measured `MM:SS` at or below `03:00` | Demo editor | Pending |
 | Public video | YouTube or Vimeo URL | Devpost representative | Pending |
 | Devpost entry | Public project URL and submission receipt | Devpost representative | Pending |
