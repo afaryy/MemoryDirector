@@ -24,8 +24,8 @@ documentation and approved evidence, not the deployed application image.
 | Demo language | English or English-subtitled | Blocked on final video |
 
 Use [`DEVPOST_PROJECT_PAGE.md`](DEVPOST_PROJECT_PAGE.md) as the source for the
-long description, [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md) for the recording, and
-[`SUBMISSION_CHECKLIST.md`](SUBMISSION_CHECKLIST.md) for rules compliance.
+long description. The recording script and internal submission checklist are
+maintained privately by the project owner.
 The [capability evidence matrix](../CAPABILITY_EVIDENCE.md) is the cross-document
 source of truth for implemented, deployed, physical-device, and final-submission
 claims.

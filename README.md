@@ -131,9 +131,7 @@ comma-separated, exact browser origins allowed to call the API.
 - [Application deployment](docs/operations/APP_DEPLOYMENT.md)
 - [Public-domain operations](docs/operations/public-edge.md)
 - [Devpost project page](docs/submission/DEVPOST_PROJECT_PAGE.md)
-- [ST-32 competition compliance checklist](docs/submission/SUBMISSION_CHECKLIST.md)
 - [ST-33 public evidence package](docs/submission/EVIDENCE_PACKAGE.md)
-- [Three-minute demo script](docs/submission/DEMO_SCRIPT.md)
 
 Internal planning artifacts are kept separate from the public product-documentation path.
 
