@@ -59,6 +59,51 @@ type SortableMediaCardProps = {
   total: number;
 };
 
+function VideoThumbnail({ item }: { item: SelectedMedia }) {
+  const [poster, setPoster] = useState("/video-placeholder.svg");
+
+  function captureFrame(video: HTMLVideoElement) {
+    if (!video.videoWidth || !video.videoHeight) return;
+    const scale = 320 / Math.max(video.videoWidth, video.videoHeight);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+    canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    try {
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      setPoster(canvas.toDataURL("image/jpeg", 0.82));
+    } catch {
+      // Keep the visible fallback when a browser cannot decode or draw this codec.
+    }
+  }
+
+  function revealFirstFrame(video: HTMLVideoElement) {
+    const seekTime = Number.isFinite(video.duration) && video.duration > 0
+      ? Math.min(0.1, video.duration / 2)
+      : 0.1;
+    try {
+      video.currentTime = seekTime;
+    } catch {
+      // loadeddata can still provide the first decoded frame without seeking.
+    }
+  }
+
+  return (
+    <video
+      aria-label={`Preview ${item.file.name}`}
+      muted
+      onLoadedData={(event) => captureFrame(event.currentTarget)}
+      onLoadedMetadata={(event) => revealFirstFrame(event.currentTarget)}
+      onSeeked={(event) => captureFrame(event.currentTarget)}
+      playsInline
+      poster={poster}
+      preload="auto"
+      src={item.previewUrl}
+    />
+  );
+}
+
 function SortableMediaCard({
   isPreparing,
   isKeyboardGrabbed,
@@ -88,7 +133,7 @@ function SortableMediaCard({
           // eslint-disable-next-line @next/next/no-img-element
           <img alt={`Preview ${item.file.name}`} src={item.previewUrl} />
         ) : (
-          <video aria-label={`Preview ${item.file.name}`} muted playsInline preload="metadata" src={item.previewUrl} />
+          <VideoThumbnail item={item} />
         )}
         <span className="wizard__media-kind">
           {item.kind === "photo" ? <ImageIcon aria-hidden="true" /> : <Video aria-hidden="true" />}
