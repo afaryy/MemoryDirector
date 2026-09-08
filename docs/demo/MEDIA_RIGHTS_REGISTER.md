@@ -1,6 +1,6 @@
 # Demo Media Rights Register
 
-Use this register before placing any photo, video, music, narration, or generated asset in the hackathon demo. The demo must use 15–25 assets that are team-owned, synthetic, public-domain, or covered by recorded permission.
+Use this register before placing any photo, video, music, narration, or generated asset in the public demo. The final film may use any coherent subset of up to 15 assets, provided every used asset is team-owned or covered by recorded permission.
 
 ## Release gate
 
@@ -8,23 +8,16 @@ An asset may be used only when every required field below is complete. Do not up
 
 | ID | Type | Filename or description | Source / owner | Permission or licence evidence | People depicted consented? | Sensitive details checked? | Approved for demo? |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| A01 | Photo |  |  |  | N/A / Yes / No | Yes / No | Yes / No |
-| A02 | Photo |  |  |  | N/A / Yes / No | Yes / No | Yes / No |
-| A03 | Photo |  |  |  | N/A / Yes / No | Yes / No | Yes / No |
-| A04 | Photo |  |  |  | N/A / Yes / No | Yes / No | Yes / No |
-| A05 | Photo |  |  |  | N/A / Yes / No | Yes / No | Yes / No |
-| A06 | Photo |  |  |  | N/A / Yes / No | Yes / No | Yes / No |
-| A07 | Photo |  |  |  | N/A / Yes / No | Yes / No | Yes / No |
-| A08 | Photo |  |  |  | N/A / Yes / No | Yes / No | Yes / No |
-| A09 | Video |  |  |  | N/A / Yes / No | Yes / No | Yes / No |
-| A10 | Video |  |  |  | N/A / Yes / No | Yes / No | Yes / No |
-| A11 | Video |  |  |  | N/A / Yes / No | Yes / No | Yes / No |
-| A12 | Video |  |  |  | N/A / Yes / No | Yes / No | Yes / No |
-| A13 | Photo |  |  |  | N/A / Yes / No | Yes / No | Yes / No |
-| A14 | Photo |  |  |  | N/A / Yes / No | Yes / No | Yes / No |
-| A15 | Photo |  |  |  | N/A / Yes / No | Yes / No | Yes / No |
+| A01 | Video | Private fixture `A01.mp4`: family cake celebration | Team member / family media collection | Private owner and participant consent record, 8 September 2026 | Yes — consented participant | Opening frame checked; final-film review pending | Pending full-video and final-film review |
+| A02 | Photo | Private fixture `A02.jpeg`: family cake celebration | Team member / family media collection | Private owner and participant consent record, 8 September 2026 | Yes — consented participant | Yes | Yes |
+| A03 | Photo | Private fixture `A03.jpeg`: cake detail | Team member / family media collection | Private owner record, 8 September 2026 | N/A | Yes | Yes |
+| A04 | Photo | Private fixture `A04.jpeg`: restaurant portrait | Team member / family media collection | Owner and primary-participant consent recorded; background person not covered | No — recognisable background person | Check the generated film; crop, blur, or omit if recognisable | Selected; final-output approval pending |
+| A05 | Photo | Private fixture `A05.jpeg`: restaurant portrait | Team member / family media collection | Owner and primary-participant consent recorded; background people not covered | No — recognisable background people | Check the generated film; crop, blur, or omit if recognisable | Selected; final-output approval pending |
+| A06 | Photo | Private fixture `A06.jpeg`: restaurant portrait | Team member / family media collection | Owner and primary-participant consent recorded; background people not covered | No — recognisable background people | Check the generated film; crop, blur, or omit if recognisable | Selected; final-output approval pending |
+| A07 | Photo | Private fixture `A07.jpeg`: restaurant portrait | Team member / family media collection | Owner and primary-participant consent recorded; background person not covered | No — recognisable background person | Check the generated film; crop, blur, or omit if recognisable | Selected; final-output approval pending |
+| A08 | Photo | Private fixture `A08.jpeg`: family meal and flowers at home | Team member / family media collection | Private owner and participant consent record, 8 September 2026 | Yes — consented participant | Yes | Yes |
 
-Add rows A16–A25 only when each extra item improves the story. Prefer a small, coherent album to a large, weak collection.
+Keep private source files and signed or recorded consent evidence outside the public repository. The public register uses fixture IDs and a non-sensitive summary only.
 
 ## Music and audio register
 
@@ -46,4 +39,6 @@ Before recording the demo, review the approved media for:
 - Exact live travel dates or other information that should not be published.
 - Faces or text that should be blurred, removed, or held back.
 
-Record the review owner and date here: **Owner:** ____  **Date:** ____
+Candidate-media review: **Owner:** Project owner  **Date:** 8 September 2026
+
+The final exported film requires a separate review after generation. Candidate approval does not by itself approve an output that includes held-back media, an unreviewed song, or newly visible private details.
