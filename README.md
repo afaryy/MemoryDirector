@@ -41,8 +41,10 @@ Vertex AI supports media analysis and constrained storyboard planning. The API
 validates the plan before FFmpeg renders the selected source media, with optional
 original music from Google Lyria. Google Cloud AI is the product's only AI provider. The official ClickHouse MCP path checks selected-media
 consent evidence before rendering and again before export. The separately deployed
-ADK / Agent Engine planning endpoint is shown below the main flow; the current web
-interface does not call it.
+Google ADK / Vertex AI Agent Engine planning endpoint is shown below the main flow
+and is labelled **Deployed & smoke-test verified**. Solid arrows show the public
+web path; dashed arrows show the separate Agent Engine endpoint. The current web
+interface does not call that endpoint.
 
 [Read the architecture guide](docs/ARCHITECTURE.md) for the workflow, module
 responsibilities, data boundaries, and verified limitations, or
