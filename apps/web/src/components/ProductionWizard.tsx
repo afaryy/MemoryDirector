@@ -895,7 +895,7 @@ export function ProductionWizard() {
               </div>
               <label className="wizard__consent wizard__consent--media" htmlFor="media-permission">
                 <input aria-label="I have permission to use these media." checked={hasMediaPermission} id="media-permission" onChange={(event) => updateMediaPermission(event.target.checked)} type="checkbox" />
-                <span>I own or have permission to use these photos and videos. Selected videos are privately uploaded now to make previews and may be reused to make your film. They are automatically scheduled for deletion after one day.</span>
+                <span>I own or have permission to use these photos and videos.</span>
               </label>
               <label className="wizard__media" htmlFor="memory-media">
                 <span className="wizard__media-icon" aria-hidden="true"><Images /></span>
