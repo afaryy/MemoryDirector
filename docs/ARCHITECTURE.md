@@ -27,9 +27,11 @@ return messages and infrastructure connections for readability. In particular,
 Gemini and Lyria return results to the API; Lyria is not downstream of Gemini as a
 separate autonomous agent.
 
-The grey strip shows a **separate deployed planning endpoint**. Its dashed arrows
-do not mean every web request uses Agent Engine. This endpoint has hosted smoke
-evidence, but the current public web journey uses `/storyboards` directly.
+The grey strip is labelled **Google ADK + Vertex AI Agent Engine · Deployed &
+smoke-test verified** and shows the **separate deployed planning endpoint**. Its
+dashed arrows represent that endpoint's ClickHouse preference lookup, verified
+through hosted deployment smoke tests. The footer distinguishes this from the
+solid-arrow public web path: the current web journey uses `/storyboards` directly.
 
 ### 1. You tell the story
 

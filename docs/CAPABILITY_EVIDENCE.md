@@ -39,8 +39,8 @@ Evidence levels are intentionally separate:
 | Real iPhone journey | Not a code capability | Not proven by emulation | Passed on iPhone 11, iOS 26.6.1, Chrome (version not recorded) | Evidence ready; final recording still pending | [ST-52 iPhone acceptance](qa/ST-52-PHYSICAL-IPHONE-ACCEPTANCE.md) |
 | Real Android journey | Not a code capability | Not proven by emulation | Not tested | Not required for the Web entry | No Android claim is made |
 | Rights-cleared final demo media | Eight fixtures and the generated song are recorded and approved | Final 60-second export reviewed | Owner accepted incidental-background risk and approved the complete song | Evidence ready; keep private artefacts private | [Media rights register](demo/MEDIA_RIGHTS_REGISTER.md) — Yvonne |
-| Final English demo video, at most three minutes | Script and runbook exist | Not applicable | iPhone rehearsal evidence is ready | Pending ST-17 | [Demo script](submission/DEMO_SCRIPT.md), [demo runbook](demo/DEMO_RUNBOOK.md) — Yvonne |
-| Devpost entry and submission confirmation | Draft package exists | Not applicable | iPhone evidence ready | Pending final submission checklist | [Submission checklist](submission/SUBMISSION_CHECKLIST.md), [evidence package](submission/EVIDENCE_PACKAGE.md) — Yvonne; also depends on ST-17, roster, eligibility, track selection, public video, form review, and receipt |
+| Final English demo video, at most three minutes | Script and runbook exist | Not applicable | iPhone rehearsal evidence is ready | Pending ST-17 | Private demo script, [demo runbook](demo/DEMO_RUNBOOK.md) — Yvonne |
+| Devpost entry and submission confirmation | Draft package exists | Not applicable | iPhone evidence ready | Pending final submission checklist | Private submission checklist, [evidence package](submission/EVIDENCE_PACKAGE.md) — Yvonne; also depends on ST-17, roster, eligibility, track selection, public video, form review, and receipt |
 
 The deployed browser evidence does not imply full phone-library access, direct
 posting to social networks, Android or native-screen-reader coverage, a finished

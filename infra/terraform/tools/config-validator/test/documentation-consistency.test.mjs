@@ -71,7 +71,6 @@ test("each current journey document rejects the obsolete combined action", () =>
     "docs/ux/MOBILE_PRODUCTION_FLOW.md",
     "docs/demo/DEMO_RUNBOOK.md",
     "docs/submission/DEVPOST_PROJECT_PAGE.md",
-    "docs/submission/DEMO_SCRIPT.md",
   ]) {
     assert.doesNotMatch(readDocument(path), /Save\s*&\s*share/i, path);
   }
@@ -154,7 +153,6 @@ test("QA documents record the completed physical iPhone scope", () => {
 test("current evidence distinguishes main from the deployed Web release", () => {
   for (const path of [
     "docs/CAPABILITY_EVIDENCE.md",
-    "docs/submission/SUBMISSION_CHECKLIST.md",
     "docs/submission/EVIDENCE_PACKAGE.md",
   ]) {
     assert.match(readDocument(path), /eab585c/, `${path}: current main commit`);
@@ -163,7 +161,6 @@ test("current evidence distinguishes main from the deployed Web release", () => 
   for (const path of [
     "docs/CAPABILITY_EVIDENCE.md",
     "docs/operations/APP_DEPLOYMENT.md",
-    "docs/submission/SUBMISSION_CHECKLIST.md",
     "docs/submission/EVIDENCE_PACKAGE.md",
     "design-qa.md",
   ]) {
@@ -173,13 +170,7 @@ test("current evidence distinguishes main from the deployed Web release", () => 
   }
 });
 
-test("submission documents preserve the remaining human release gates", () => {
-
-  const checklist = readDocument("docs/submission/SUBMISSION_CHECKLIST.md");
-  for (const evidence of ["eab585c", "6b738f4", "34191468668", "34188310631", "ST-52", "rights register", "submission receipt"]) {
-    assert.match(checklist, new RegExp(evidence, "i"), evidence);
-  }
-  assert.match(checklist, /Video and project assets[\s\S]*\| Verified \|/);
+test("public evidence package preserves recorded release gates", () => {
 
   const evidencePackage = readDocument("docs/submission/EVIDENCE_PACKAGE.md");
   assert.match(evidencePackage, /VIDEO_URL_REQUIRED/);
