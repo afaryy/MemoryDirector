@@ -61,20 +61,50 @@ type SortableMediaCardProps = {
 
 function VideoThumbnail({ item }: { item: SelectedMedia }) {
   const [frameReady, setFrameReady] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const revealFrame = () => setFrameReady(true);
 
+  function keepPlayingFrame(event: React.SyntheticEvent<HTMLVideoElement>) {
+    const video = event.currentTarget;
+    setFrameReady(true);
+    window.requestAnimationFrame(() => video.pause());
+  }
+
+  function requestPreview() {
+    void videoRef.current?.play().catch(() => undefined);
+  }
+
   return (
-    <video
-      aria-label={`Preview ${item.file.name}`}
-      muted
-      onCanPlay={revealFrame}
-      onLoadedData={revealFrame}
-      onSeeked={revealFrame}
-      playsInline
-      poster={frameReady ? undefined : "/video-placeholder.svg"}
-      preload="metadata"
-      src={`${item.previewUrl}#t=0.001`}
-    />
+    <>
+      <video
+        aria-label={`Preview ${item.file.name}`}
+        autoPlay
+        muted
+        onCanPlay={revealFrame}
+        onLoadedData={revealFrame}
+        onPlaying={keepPlayingFrame}
+        onSeeked={revealFrame}
+        playsInline
+        poster={frameReady ? undefined : "/video-placeholder.svg"}
+        preload="metadata"
+        ref={videoRef}
+        src={`${item.previewUrl}#t=0.001`}
+      />
+      {!frameReady ? (
+        <button
+          aria-label={`Show video preview ${item.file.name}`}
+          className="button wizard__video-preview-button"
+          onClick={requestPreview}
+          onMouseDown={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+          onTouchStart={(event) => event.stopPropagation()}
+          type="button"
+        >
+          <Play aria-hidden="true" />
+          Preview
+        </button>
+      ) : null}
+    </>
   );
 }
 
