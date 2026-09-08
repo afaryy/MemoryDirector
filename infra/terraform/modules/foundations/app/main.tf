@@ -47,7 +47,7 @@ module "api" {
   image                 = var.api_image
   service_account_email = "memory-director-runtime@${var.project_id}.iam.gserviceaccount.com"
   container_port        = 8000
-  memory                = "2Gi"
+  memory                = "4Gi"
   timeout               = "${var.runtime_limits.api_timeout_seconds}s"
   min_instance_count    = var.runtime_limits.api_min_instances
   max_instance_count    = var.runtime_limits.api_max_instances
