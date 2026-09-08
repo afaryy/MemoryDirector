@@ -34,5 +34,5 @@
 ## Task 5: Prepare delivery
 
 - [x] Commit the evidence and reconciliation changes on `docs/ST-52-ST-48-final-evidence`.
-- [ ] Push and open a PR with exact verification results.
-- [ ] Update Linear ST-52 and ST-48 with the PR/evidence while keeping closure dependent on merge and final rendered-link verification.
+- [x] Push and open a PR with exact verification results.
+- [x] Update Linear ST-52 and ST-48 with the PR/evidence while keeping closure dependent on merge and final rendered-link verification.
