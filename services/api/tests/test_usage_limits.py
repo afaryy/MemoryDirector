@@ -60,6 +60,70 @@ def test_rejects_the_eleventh_film_for_one_ip_across_visitors() -> None:
     assert error.value.scope == "ip"
 
 
+def test_thumbnail_limits_are_shared_by_visitor_and_ip_counters() -> None:
+    store = InMemoryQuotaStore(policy())
+    store.consume_thumbnail(request(), visitor_limit=2, ip_limit=3)
+    store.consume_thumbnail(request(), visitor_limit=2, ip_limit=3)
+    with pytest.raises(QuotaExceeded) as visitor_error:
+        store.consume_thumbnail(request(), visitor_limit=2, ip_limit=3)
+    assert visitor_error.value.scope == "visitor_thumbnail"
+
+    store.consume_thumbnail(request(visitor="visitor-b"), visitor_limit=2, ip_limit=3)
+    with pytest.raises(QuotaExceeded) as ip_error:
+        store.consume_thumbnail(request(visitor="visitor-c"), visitor_limit=2, ip_limit=3)
+    assert ip_error.value.scope == "ip_thumbnail"
+
+
+def test_firestore_thumbnail_limits_use_transactional_shared_counters(monkeypatch) -> None:
+    class Reference:
+        def __init__(self, path: str) -> None:
+            self.path = path
+            self.values: dict[str, object] = {}
+
+    class Snapshot:
+        def __init__(self, reference: Reference) -> None:
+            self.reference = reference
+            self.exists = bool(reference.values)
+
+        def to_dict(self):
+            return dict(self.reference.values)
+
+    class Transaction:
+        def get_all(self, references):
+            return [Snapshot(reference) for reference in references]
+
+        def set(self, reference, values, *, merge=False) -> None:
+            reference.values = {**reference.values, **values} if merge else dict(values)
+
+    class Collection:
+        def __init__(self, client, name: str) -> None:
+            self.client = client
+            self.name = name
+
+        def document(self, document_id: str) -> Reference:
+            path = f"{self.name}/{document_id}"
+            return self.client.references.setdefault(path, Reference(path))
+
+    class Client:
+        def __init__(self) -> None:
+            self.references: dict[str, Reference] = {}
+
+        def collection(self, name: str) -> Collection:
+            return Collection(self, name)
+
+        def transaction(self) -> Transaction:
+            return Transaction()
+
+    monkeypatch.setattr("google.cloud.firestore.transactional", lambda operation: operation)
+    store = FirestoreQuotaStore(policy(), Client())
+
+    store.consume_thumbnail(request(), visitor_limit=1, ip_limit=2)
+    with pytest.raises(QuotaExceeded) as error:
+        store.consume_thumbnail(request(), visitor_limit=1, ip_limit=2)
+
+    assert error.value.scope == "visitor_thumbnail"
+
+
 def test_rejects_more_than_two_concurrent_films_for_one_ip_and_release_restores_capacity() -> None:
     store = InMemoryQuotaStore(policy())
     first = store.acquire(request(visitor="one"))

@@ -44,6 +44,9 @@ type SelectedMedia = {
   id: number;
   kind: "photo" | "video";
   previewUrl: string;
+  serverPreviewUrl?: string;
+  storedMediaId?: string;
+  thumbnailStatus: "local" | "preparing" | "ready" | "error";
 };
 type ProductionState = "ready" | "preparing" | "preview" | "error" | "saved";
 type SoundtrackMode = "original_song" | "instrumental" | "no_sound";
@@ -61,48 +64,31 @@ type SortableMediaCardProps = {
 
 function VideoThumbnail({ item }: { item: SelectedMedia }) {
   const [frameReady, setFrameReady] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
   const revealFrame = () => setFrameReady(true);
 
-  function keepPlayingFrame(event: React.SyntheticEvent<HTMLVideoElement>) {
-    const video = event.currentTarget;
-    setFrameReady(true);
-    window.requestAnimationFrame(() => video.pause());
-  }
-
-  function requestPreview() {
-    void videoRef.current?.play().catch(() => undefined);
+  if (item.serverPreviewUrl) {
+    // Generated thumbnails are private object URLs and cannot use the Next image optimizer.
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img alt={`Preview ${item.file.name}`} src={item.serverPreviewUrl} />;
   }
 
   return (
     <>
       <video
         aria-label={`Preview ${item.file.name}`}
-        autoPlay
         muted
         onCanPlay={revealFrame}
         onLoadedData={revealFrame}
-        onPlaying={keepPlayingFrame}
         onSeeked={revealFrame}
         playsInline
         poster={frameReady ? undefined : "/video-placeholder.svg"}
         preload="metadata"
-        ref={videoRef}
         src={`${item.previewUrl}#t=0.001`}
       />
-      {!frameReady ? (
-        <button
-          aria-label={`Show video preview ${item.file.name}`}
-          className="button wizard__video-preview-button"
-          onClick={requestPreview}
-          onMouseDown={(event) => event.stopPropagation()}
-          onPointerDown={(event) => event.stopPropagation()}
-          onTouchStart={(event) => event.stopPropagation()}
-          type="button"
-        >
-          <Play aria-hidden="true" />
-          Preview
-        </button>
+      {item.thumbnailStatus === "preparing" ? (
+        <span aria-label={`Preparing preview ${item.file.name}`} className="wizard__thumbnail-progress" role="status">
+          Preparing picture…
+        </span>
       ) : null}
     </>
   );
@@ -203,6 +189,7 @@ const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:800
 const mediaAnalysisConcurrency = 2;
 const mediaAnalysisAttempts = 2;
 const mediaAnalysisRetryDelayMs = 250;
+const maximumConcurrentThumbnails = 2;
 const visitorStorageKey = "memory-director-visitor";
 const maximumMediaItems = 15;
 
@@ -265,6 +252,25 @@ async function analyzeMediaFile(file: File, signal: AbortSignal, headers: Record
   throw new Error("We could not use those photos and videos.");
 }
 
+async function analyzeMediaItem(item: SelectedMedia, signal: AbortSignal, headers: Record<string, string>): Promise<MediaReview> {
+  if (!item.storedMediaId) return analyzeMediaFile(item.file, signal, headers);
+  for (let attempt = 1; attempt <= mediaAnalysisAttempts; attempt += 1) {
+    const formData = new FormData();
+    formData.append("consent", "true");
+    const response = await fetch(`${apiBaseUrl}/media/${encodeURIComponent(item.storedMediaId)}/analyze`, {
+      method: "POST",
+      body: formData,
+      headers,
+      signal,
+    });
+    if (response.ok) return (await response.json()) as MediaReview;
+    const isTransient = response.status >= 500 && response.status <= 599;
+    if (!isTransient || attempt === mediaAnalysisAttempts) throw new Error("We could not use those photos and videos.");
+    await wait(mediaAnalysisRetryDelayMs);
+  }
+  throw new Error("We could not use those photos and videos.");
+}
+
 async function extractPreview(blob: Blob, title: string) {
   const archive = unzipSync(new Uint8Array(await blob.arrayBuffer()));
   const mp4Name = Object.keys(archive).find((name) => name.replace(/\/+$/, "").toLowerCase().endsWith(".mp4"));
@@ -309,6 +315,9 @@ export function ProductionWizard() {
   const previewUrlRef = useRef<string | null>(null);
   const posterUrlRef = useRef<string | null>(null);
   const mediaItemsRef = useRef<SelectedMedia[]>([]);
+  const thumbnailControllersRef = useRef(new Map<number, AbortController>());
+  const thumbnailQueueRef = useRef<number[]>([]);
+  const activeThumbnailCountRef = useRef(0);
   const nextMediaIdRef = useRef(1);
   const previewSectionRef = useRef<HTMLElement | null>(null);
   const removeButtonRefs = useRef(new Map<number, HTMLButtonElement>());
@@ -320,7 +329,8 @@ export function ProductionWizard() {
   );
 
   const mediaFiles = mediaItems.map((item) => item.file);
-  const canMakeFilm = memoryRequest.trim().length > 0 && mediaFiles.length > 0 && hasMediaPermission && productionState !== "preparing";
+  const isThumbnailPreparing = mediaItems.some((item) => item.thumbnailStatus === "preparing");
+  const canMakeFilm = memoryRequest.trim().length > 0 && mediaFiles.length > 0 && hasMediaPermission && !isThumbnailPreparing && productionState !== "preparing";
   const isPreparing = productionState === "preparing";
 
   useEffect(
@@ -328,9 +338,15 @@ export function ProductionWizard() {
       generationRef.current += 1;
       activeRequestRef.current?.abort();
       activeRequestRef.current = null;
+      thumbnailControllersRef.current.forEach((controller) => controller.abort());
+      thumbnailControllersRef.current.clear();
+      thumbnailQueueRef.current = [];
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
       if (posterUrlRef.current) URL.revokeObjectURL(posterUrlRef.current);
-      mediaItemsRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+      mediaItemsRef.current.forEach((item) => {
+        URL.revokeObjectURL(item.previewUrl);
+        if (item.serverPreviewUrl) URL.revokeObjectURL(item.serverPreviewUrl);
+      });
       previewUrlRef.current = null;
       posterUrlRef.current = null;
       mediaItemsRef.current = [];
@@ -381,6 +397,102 @@ export function ProductionWizard() {
     markRevision();
   }
 
+  function replaceMediaItem(itemId: number, update: Partial<SelectedMedia>) {
+    const nextItems = mediaItemsRef.current.map((item) => item.id === itemId ? { ...item, ...update } : item);
+    mediaItemsRef.current = nextItems;
+    setMediaItems(nextItems);
+  }
+
+  async function prepareVideoThumbnail(item: SelectedMedia) {
+    if (item.kind !== "video" || item.thumbnailStatus === "ready") return;
+    const controller = new AbortController();
+    thumbnailControllersRef.current.get(item.id)?.abort();
+    thumbnailControllersRef.current.set(item.id, controller);
+    replaceMediaItem(item.id, { thumbnailStatus: "preparing" });
+    const formData = new FormData();
+    formData.append("consent", "true");
+    formData.append("media", item.file);
+    try {
+      const response = await fetch(`${apiBaseUrl}/media/thumbnail`, {
+        method: "POST",
+        body: formData,
+        headers: { "X-Memory-Director-Visitor": memoryDirectorVisitorId() },
+        signal: controller.signal,
+      });
+      const storedMediaId = response.headers.get("X-Memory-Director-Media-ID");
+      if (!response.ok || !storedMediaId) throw new Error("Video preview is unavailable.");
+      const thumbnail = await response.blob();
+      if (!thumbnail.type.startsWith("image/")) throw new Error("Video preview is unavailable.");
+      const serverPreviewUrl = URL.createObjectURL(thumbnail);
+      if (
+        thumbnailControllersRef.current.get(item.id) !== controller
+        || !consentRef.current
+        || !mediaItemsRef.current.some((current) => current.id === item.id)
+      ) {
+        URL.revokeObjectURL(serverPreviewUrl);
+        return;
+      }
+      const previousPreviewUrl = mediaItemsRef.current.find((current) => current.id === item.id)?.serverPreviewUrl;
+      if (previousPreviewUrl) URL.revokeObjectURL(previousPreviewUrl);
+      replaceMediaItem(item.id, { serverPreviewUrl, storedMediaId, thumbnailStatus: "ready" });
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        replaceMediaItem(item.id, { thumbnailStatus: "error" });
+        setMediaUpdateMessage(`We could not prepare a picture for ${item.file.name}. You can still make the film.`);
+      }
+    } finally {
+      if (thumbnailControllersRef.current.get(item.id) === controller) {
+        thumbnailControllersRef.current.delete(item.id);
+        const current = mediaItemsRef.current.find((candidate) => candidate.id === item.id);
+        if (consentRef.current && current?.thumbnailStatus === "local") enqueueVideoThumbnail(current);
+      }
+    }
+  }
+
+  function drainThumbnailQueue() {
+    while (activeThumbnailCountRef.current < maximumConcurrentThumbnails && thumbnailQueueRef.current.length > 0) {
+      const itemId = thumbnailQueueRef.current.shift();
+      const item = mediaItemsRef.current.find((candidate) => candidate.id === itemId);
+      if (!item || !consentRef.current) continue;
+      activeThumbnailCountRef.current += 1;
+      void prepareVideoThumbnail(item).finally(() => {
+        activeThumbnailCountRef.current = Math.max(0, activeThumbnailCountRef.current - 1);
+        drainThumbnailQueue();
+      });
+    }
+  }
+
+  function enqueueVideoThumbnail(item: SelectedMedia) {
+    if (
+      item.kind !== "video"
+      || item.thumbnailStatus === "ready"
+      || thumbnailControllersRef.current.has(item.id)
+      || thumbnailQueueRef.current.includes(item.id)
+    ) return;
+    replaceMediaItem(item.id, { thumbnailStatus: "preparing" });
+    thumbnailQueueRef.current.push(item.id);
+    drainThumbnailQueue();
+  }
+
+  function updateMediaPermission(allowed: boolean) {
+    consentRef.current = allowed;
+    setHasMediaPermission(allowed);
+    if (allowed) {
+      mediaItemsRef.current.forEach((item) => {
+        if (item.kind === "video" && item.thumbnailStatus !== "ready") enqueueVideoThumbnail(item);
+      });
+      return;
+    }
+    thumbnailControllersRef.current.forEach((controller) => controller.abort());
+    thumbnailControllersRef.current.clear();
+    thumbnailQueueRef.current = [];
+    const resetItems = mediaItemsRef.current.map((item) => item.thumbnailStatus === "preparing"
+      ? { ...item, thumbnailStatus: "local" as const }
+      : item);
+    mediaItemsRef.current = resetItems;
+    setMediaItems(resetItems);
+  }
+
   function selectMedia(files: FileList | null) {
     const nextFiles = Array.from(files ?? []);
     if (nextFiles.length === 0) return;
@@ -418,19 +530,18 @@ export function ProductionWizard() {
     }
 
     invalidateGeneration();
-    const addedItems = uniqueFiles.map((file) => ({
+    const addedItems: SelectedMedia[] = uniqueFiles.map((file) => ({
       file,
       id: nextMediaIdRef.current++,
       kind: selectedMediaKind(file),
       previewUrl: URL.createObjectURL(file),
+      thumbnailStatus: "local",
     }));
     const nextItems = [...mediaItemsRef.current, ...addedItems];
     mediaItemsRef.current = nextItems;
     setMediaItems(nextItems);
     setKeyboardDragId(null);
     keyboardDragOriginRef.current = null;
-    consentRef.current = false;
-    setHasMediaPermission(false);
     setErrorMessage("");
     setCompletionMessage("");
     setSelectionNotice("");
@@ -440,12 +551,23 @@ export function ProductionWizard() {
         : `Added ${addedItems.length} ${addedItems.length === 1 ? "moment" : "moments"}; ${nextItems.length} selected.`,
     );
     changeProductionState(previewUrlRef.current ? "preview" : "ready");
+    if (consentRef.current) {
+      addedItems.forEach((item) => {
+        if (item.kind === "video") enqueueVideoThumbnail(item);
+      });
+    }
   }
 
   function clearSelectedMedia() {
     if (!window.confirm("Clear all selected photos and videos?")) return;
     invalidateGeneration();
-    mediaItemsRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+    thumbnailControllersRef.current.forEach((controller) => controller.abort());
+    thumbnailControllersRef.current.clear();
+    thumbnailQueueRef.current = [];
+    mediaItemsRef.current.forEach((item) => {
+      URL.revokeObjectURL(item.previewUrl);
+      if (item.serverPreviewUrl) URL.revokeObjectURL(item.serverPreviewUrl);
+    });
     mediaItemsRef.current = [];
     setMediaItems([]);
     setKeyboardDragId(null);
@@ -464,7 +586,11 @@ export function ProductionWizard() {
   function removeMediaFile(index: number) {
     const removed = mediaItemsRef.current[index];
     if (!removed) return;
+    thumbnailControllersRef.current.get(removed.id)?.abort();
+    thumbnailControllersRef.current.delete(removed.id);
+    thumbnailQueueRef.current = thumbnailQueueRef.current.filter((itemId) => itemId !== removed.id);
     URL.revokeObjectURL(removed.previewUrl);
+    if (removed.serverPreviewUrl) URL.revokeObjectURL(removed.serverPreviewUrl);
     const nextItems = mediaItemsRef.current.filter((_, currentIndex) => currentIndex !== index);
     const nextFocusItem = nextItems[Math.min(index, nextItems.length - 1)];
     mediaItemsRef.current = nextItems;
@@ -573,11 +699,12 @@ export function ProductionWizard() {
   ): Promise<MediaReview[] | null> {
     if (!consentRef.current) throw new Error("Permission is required before making a film.");
     let completed = 0;
-    const reviews = await mapWithConcurrency(mediaFiles, mediaAnalysisConcurrency, async (file) => {
+    const items = mediaItemsRef.current;
+    const reviews = await mapWithConcurrency(items, mediaAnalysisConcurrency, async (item) => {
       if (generation !== generationRef.current || !consentRef.current || signal.aborted) {
         throw new DOMException("Generation cancelled", "AbortError");
       }
-      const review = await analyzeMediaFile(file, signal, headers);
+      const review = await analyzeMediaItem(item, signal, headers);
       completed += 1;
       if (generation === generationRef.current) {
         setProgressMessage(`Checked ${completed} of ${mediaFiles.length} moments…`);
@@ -766,6 +893,10 @@ export function ProductionWizard() {
                 <h3 id="choose-title">1. Choose photos and videos</h3>
                 <span>Up to 15</span>
               </div>
+              <label className="wizard__consent wizard__consent--media" htmlFor="media-permission">
+                <input aria-label="I have permission to use these media." checked={hasMediaPermission} id="media-permission" onChange={(event) => updateMediaPermission(event.target.checked)} type="checkbox" />
+                <span>I own or have permission to use these photos and videos. Selected videos are privately uploaded now to make previews and may be reused to make your film. They are automatically scheduled for deletion after one day.</span>
+              </label>
               <label className="wizard__media" htmlFor="memory-media">
                 <span className="wizard__media-icon" aria-hidden="true"><Images /></span>
                 <strong>Choose from this device</strong>
@@ -836,10 +967,6 @@ export function ProductionWizard() {
               </fieldset>
             </section>
 
-            <label className="wizard__consent" htmlFor="media-permission">
-              <input aria-label="I have permission to use these media." checked={hasMediaPermission} id="media-permission" onChange={(event) => { consentRef.current = event.target.checked; setHasMediaPermission(event.target.checked); }} type="checkbox" />
-              <span>I have permission to use these photos and videos.</span>
-            </label>
       </fieldset>
 
       <section aria-label={isPreparing ? "Making your film" : "Preview information"} aria-live={isPreparing ? "polite" : undefined} className={`wizard__preview-callout${isPreparing ? " is-preparing" : ""}`} role={isPreparing ? "status" : undefined}>

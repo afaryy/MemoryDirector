@@ -1,3 +1,4 @@
+import asyncio
 import os
 import io
 import base64
@@ -7,11 +8,12 @@ import zipfile
 from functools import lru_cache
 from hashlib import sha256
 from pathlib import Path
+from threading import BoundedSemaphore
 from typing import Literal
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field, ValidationError
 
 from app.agent_engine import AgentEnginePlanner, AgentPlannerUnavailable
@@ -24,11 +26,16 @@ from app.media_analysis import (
     MediaAnalysisError,
     MediaDecisionRegistry,
     MediaDecisionState,
+    StoredMedia,
     VertexGeminiMediaAnalyzer,
     ensure_safe_media_analysis,
     media_id_for_bytes,
 )
 from app.media_storage import GcsMediaStorage, MediaStorage
+from app.media_thumbnail import (
+    SubprocessVideoThumbnailer,
+    VideoThumbnailError,
+)
 from app.memory_song import UnsafeSongRequest, build_memory_song_brief
 from app.lyria_client import GoogleLyriaClient
 from app.models import PlaceCandidate, ProductionBrief, ProductionProposal, Storyboard
@@ -56,6 +63,7 @@ app.add_middleware(
     allow_origins=allowed_origins,
     allow_methods=["POST"],
     allow_headers=["Content-Type", "X-Memory-Director-Visitor", "X-Memory-Director-Admission"],
+    expose_headers=["X-Memory-Director-Media-ID"],
 )
 
 
@@ -127,14 +135,39 @@ MEDIA_SUFFIX_BY_CONTENT_TYPE = {
     "image/webp": ".webp",
     "video/mp4": ".mp4",
     "video/quicktime": ".mov",
+    "video/3gpp": ".3gp",
+    "video/3gpp2": ".3g2",
+    "video/mpeg": ".mpeg",
     "video/webm": ".webm",
+    "video/x-matroska": ".mkv",
+    "video/x-msvideo": ".avi",
     "video/x-m4v": ".m4v",
 }
+MEDIA_CONTENT_TYPE_BY_SUFFIX = {
+    ".3g2": "video/3gpp2",
+    ".3gp": "video/3gpp",
+    ".avi": "video/x-msvideo",
+    ".m4v": "video/x-m4v",
+    ".mkv": "video/x-matroska",
+    ".mov": "video/quicktime",
+    ".mp4": "video/mp4",
+    ".mpeg": "video/mpeg",
+    ".mpg": "video/mpeg",
+    ".webm": "video/webm",
+}
 _media_decisions = MediaDecisionRegistry()
+_thumbnail_slots = BoundedSemaphore(configured_positive_integer("THUMBNAIL_MAX_CONCURRENCY", 2))
 
 
 def normalize_media_content_type(content_type: str | None) -> str:
     return (content_type or "").partition(";")[0].strip().lower()
+
+
+def resolve_media_content_type(content_type: str | None, filename: str | None) -> str:
+    normalized = normalize_media_content_type(content_type)
+    if normalized and normalized != "application/octet-stream":
+        return normalized
+    return MEDIA_CONTENT_TYPE_BY_SUFFIX.get(Path(filename or "").suffix.lower(), normalized)
 
 
 def media_suffix_for_content_type(content_type: str) -> str:
@@ -205,6 +238,10 @@ def get_media_analyzer() -> VertexGeminiMediaAnalyzer:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Media analysis is not configured.",
         ) from error
+
+
+def get_video_thumbnailer() -> SubprocessVideoThumbnailer:
+    return SubprocessVideoThumbnailer()
 
 
 def get_lyria_client() -> GoogleLyriaClient:
@@ -322,6 +359,106 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+def analyze_stored_media(storage: MediaStorage, stored_media: StoredMedia) -> MediaAnalysisResponse:
+    media_id = stored_media.media_id
+    analysis = get_media_analyzer().analyze(stored_media)
+    if analysis.media_id != media_id:
+        raise MediaAnalysisError("media ID mismatch")
+    analysis = ensure_safe_media_analysis(analysis)
+    persisted = storage.load_decision(media_id)
+    decision = _media_decisions.remember(persisted) if persisted else _media_decisions.register(media_id)
+    storage.save_decision(decision)
+    return MediaAnalysisResponse(**analysis.model_dump(), decision_status=decision.status)
+
+
+@app.post("/media/thumbnail", status_code=status.HTTP_201_CREATED)
+async def create_media_thumbnail(
+    request: Request,
+    consent: str = Form(...),
+    media: UploadFile = File(...),
+) -> Response:
+    if consent != "true":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Explicit media consent is required.")
+    normalized_content_type = resolve_media_content_type(media.content_type, media.filename)
+    if not normalized_content_type.startswith("video/"):
+        raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Upload a video file.")
+    upload_limit = max_upload_bytes()
+    contents = await media.read(upload_limit + 1)
+    if len(contents) > upload_limit:
+        raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail="That file is too large to use.")
+    media_id = media_id_for_bytes(contents)
+    try:
+        get_quota_store().consume_thumbnail(
+            quota_request_from_http(request, includes_original_song=False),
+            visitor_limit=configured_positive_integer("VISITOR_DAILY_THUMBNAIL_LIMIT", 75),
+            ip_limit=configured_positive_integer("IP_DAILY_THUMBNAIL_LIMIT", 150),
+        )
+
+        def generate_thumbnail() -> bytes:
+            with _thumbnail_slots:
+                return get_video_thumbnailer().create(
+                    contents,
+                    media_suffix_for_content_type(normalized_content_type),
+                )
+
+        thumbnail = await asyncio.to_thread(generate_thumbnail)
+        get_media_storage().put(media_id, normalized_content_type, contents)
+    except QuotaExceeded as error:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=str(error),
+            headers={"Retry-After": "86400"},
+        ) from error
+    except VideoThumbnailError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="We could not prepare a preview for that video.",
+        ) from None
+    except HTTPException:
+        raise
+    except Exception as error:
+        logger.warning("Private video thumbnail preparation failed: %s", type(error).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Video preview is temporarily unavailable.",
+        ) from None
+    return Response(
+        content=thumbnail,
+        media_type="image/jpeg",
+        status_code=status.HTTP_201_CREATED,
+        headers={"X-Memory-Director-Media-ID": media_id},
+    )
+
+
+@app.post("/media/{media_id}/analyze", response_model=MediaAnalysisResponse, status_code=status.HTTP_201_CREATED)
+def analyze_previously_stored_media(
+    media_id: str,
+    request: Request,
+    consent: str = Form(...),
+) -> MediaAnalysisResponse:
+    if consent != "true":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Explicit media consent is required.")
+    require_admission(
+        request,
+        "media_analysis",
+        operation_key=media_id,
+        max_uses=max_media_items(),
+        max_attempts=media_analysis_max_attempts(),
+    )
+    try:
+        storage = get_media_storage()
+        stored = storage.read(media_id)
+        if stored is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media asset is unavailable.")
+        stored_media, _contents = stored
+        return analyze_stored_media(storage, stored_media)
+    except HTTPException:
+        raise
+    except Exception as error:
+        logger.warning("Stored media analysis failed: %s", type(error).__name__)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Media analysis is temporarily unavailable.") from None
+
+
 @app.post("/media/analyze", response_model=MediaAnalysisResponse, status_code=status.HTTP_201_CREATED)
 async def analyze_media(
     request: Request,
@@ -330,7 +467,7 @@ async def analyze_media(
 ) -> MediaAnalysisResponse:
     if consent != "true":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Explicit media consent is required.")
-    normalized_content_type = normalize_media_content_type(media.content_type)
+    normalized_content_type = resolve_media_content_type(media.content_type, media.filename)
     if not (normalized_content_type.startswith("video/") or normalized_content_type.startswith("image/")):
         raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Upload a photo or video file.")
 
@@ -350,20 +487,11 @@ async def analyze_media(
     try:
         storage = get_media_storage()
         stored_media = storage.put(media_id, normalized_content_type, contents)
-        analysis = get_media_analyzer().analyze(stored_media)
-        if analysis.media_id != media_id:
-            raise MediaAnalysisError("media ID mismatch")
-        analysis = ensure_safe_media_analysis(analysis)
-        persisted = storage.load_decision(media_id)
-        decision = _media_decisions.remember(persisted) if persisted else _media_decisions.register(media_id)
-        storage.save_decision(decision)
+        return analyze_stored_media(storage, stored_media)
     except HTTPException:
         raise
     except Exception as error:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Media analysis is temporarily unavailable.") from error
-
-    return MediaAnalysisResponse(**analysis.model_dump(), decision_status=decision.status)
-
 
 @app.post("/media/{media_id}/decision", response_model=MediaDecisionState, status_code=status.HTTP_200_OK)
 def decide_media(media_id: str, payload: MediaDecisionPayload) -> MediaDecisionState:
@@ -483,7 +611,7 @@ async def _export_render_admitted(
     else:
         if media is None:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Upload media or provide selected media_ids.")
-        normalized_content_type = normalize_media_content_type(media.content_type)
+        normalized_content_type = resolve_media_content_type(media.content_type, media.filename)
         if not (normalized_content_type.startswith("video/") or normalized_content_type.startswith("image/")):
             raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Upload a video or image file.")
 

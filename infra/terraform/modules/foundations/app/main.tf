@@ -21,11 +21,14 @@ locals {
     GLOBAL_MAX_CONCURRENT_FILMS       = tostring(var.quotas.global_max_concurrent_films)
     VISITOR_DAILY_ORIGINAL_SONG_LIMIT = tostring(var.quotas.visitor_daily_original_song_limit)
     GLOBAL_DAILY_ORIGINAL_SONG_LIMIT  = tostring(var.quotas.global_daily_original_song_limit)
+    VISITOR_DAILY_THUMBNAIL_LIMIT     = tostring(var.quotas.visitor_daily_thumbnail_limit)
+    IP_DAILY_THUMBNAIL_LIMIT          = tostring(var.quotas.ip_daily_thumbnail_limit)
     MAX_FILM_DURATION_SECONDS         = tostring(var.application_limits.max_film_duration_seconds)
     MAX_MEDIA_ITEMS                   = tostring(var.application_limits.max_media_items)
     MEDIA_ANALYSIS_MAX_ATTEMPTS       = tostring(var.application_limits.media_analysis_max_attempts)
     MAX_UPLOAD_FILE_MB                = tostring(var.application_limits.max_upload_file_mb)
     MAX_REQUEST_TEXT_CHARS            = tostring(var.application_limits.max_request_text_chars)
+    THUMBNAIL_MAX_CONCURRENCY         = tostring(var.application_limits.thumbnail_max_concurrency)
     }, var.mcp_endpoint == null ? {} : {
     CLICKHOUSE_MCP_ENDPOINT = var.mcp_endpoint
     }, var.consent_event_writer_endpoint == null ? {} : {

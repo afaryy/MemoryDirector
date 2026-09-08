@@ -103,6 +103,7 @@ run "enforces_bounded_api_runtime_and_injects_reviewed_quota_policy" {
       max_upload_file_mb          = 250
       max_request_text_chars      = 2000
       global_daily_film_hard_max  = 100
+      thumbnail_max_concurrency   = 2
     }
     quotas = {
       visitor_daily_film_limit          = 5
@@ -112,6 +113,8 @@ run "enforces_bounded_api_runtime_and_injects_reviewed_quota_policy" {
       global_max_concurrent_films       = 6
       visitor_daily_original_song_limit = 3
       global_daily_original_song_limit  = 20
+      visitor_daily_thumbnail_limit     = 75
+      ip_daily_thumbnail_limit          = 150
     }
   }
 
@@ -121,7 +124,7 @@ run "enforces_bounded_api_runtime_and_injects_reviewed_quota_policy" {
   }
 
   assert {
-    condition     = output.api_environment_variables.QUOTA_ENABLED == "true" && output.api_environment_variables.GLOBAL_DAILY_FILM_LIMIT == "30" && output.api_environment_variables.GLOBAL_DAILY_FILM_HARD_MAX == "100"
+    condition     = output.api_environment_variables.QUOTA_ENABLED == "true" && output.api_environment_variables.GLOBAL_DAILY_FILM_LIMIT == "30" && output.api_environment_variables.GLOBAL_DAILY_FILM_HARD_MAX == "100" && output.api_environment_variables.THUMBNAIL_MAX_CONCURRENCY == "2" && output.api_environment_variables.VISITOR_DAILY_THUMBNAIL_LIMIT == "75" && output.api_environment_variables.IP_DAILY_THUMBNAIL_LIMIT == "150"
     error_message = "The API must receive the reviewed quota policy through Terraform."
   }
 

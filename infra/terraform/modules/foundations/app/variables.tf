@@ -87,6 +87,7 @@ variable "application_limits" {
     max_upload_file_mb          = number
     max_request_text_chars      = number
     global_daily_film_hard_max  = number
+    thumbnail_max_concurrency   = number
   })
   default = {
     max_film_duration_seconds   = 60
@@ -95,6 +96,7 @@ variable "application_limits" {
     max_upload_file_mb          = 250
     max_request_text_chars      = 2000
     global_daily_film_hard_max  = 100
+    thumbnail_max_concurrency   = 2
   }
 }
 
@@ -107,6 +109,8 @@ variable "quotas" {
     global_max_concurrent_films       = number
     visitor_daily_original_song_limit = number
     global_daily_original_song_limit  = number
+    visitor_daily_thumbnail_limit     = number
+    ip_daily_thumbnail_limit          = number
   })
   default = {
     visitor_daily_film_limit          = 5
@@ -116,5 +120,7 @@ variable "quotas" {
     global_max_concurrent_films       = 6
     visitor_daily_original_song_limit = 3
     global_daily_original_song_limit  = 20
+    visitor_daily_thumbnail_limit     = 75
+    ip_daily_thumbnail_limit          = 150
   }
 }
