@@ -278,7 +278,7 @@ def acquire_quota(request: Request, *, includes_original_song: bool):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=str(error),
-            headers={"Retry-After": "86400"},
+            headers={"Retry-After": str(error.retry_after_seconds)},
         ) from error
 
 
@@ -306,7 +306,11 @@ def require_admission(
             max_attempts=max_attempts,
         )
     except QuotaExceeded as error:
-        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(error), headers={"Retry-After": "86400"}) from error
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=str(error),
+            headers={"Retry-After": str(error.retry_after_seconds)},
+        ) from error
     return admission_id
 
 
