@@ -30,6 +30,22 @@ The [capability evidence matrix](../CAPABILITY_EVIDENCE.md) is the cross-documen
 source of truth for implemented, deployed, physical-device, and final-submission
 claims.
 
+## Architecture and operating controls
+
+Use the [architecture PNG](../assets/architecture/memorydirector-architecture.png)
+in the submission gallery, with its
+[editable draw.io source](../assets/architecture/memorydirector-architecture.drawio)
+in the repository. The diagram separates the public web flow from the deployed
+Agent Engine planning endpoint; retain that distinction in captions and narration.
+
+The current [Project Story](DEVPOST_PROJECT_PAGE.md) also describes automated
+deployment and four layers of cost control. Supporting details are in the
+[deployment workflow inventory](../ARCHITECTURE.md#deployment-automation) and
+[cost-control runbook](../operations/USAGE_COST_CONTROLS.md). ClickHouse schema and
+access automation targets an existing ClickHouse Cloud service; it does not
+provision the Cloud service itself. Billing alerts and service-specific spend caps
+do not guarantee an instantaneous spending ceiling.
+
 ## Required runtime evidence
 
 ### Gemini and Google Cloud agent runtime
