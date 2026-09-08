@@ -58,17 +58,20 @@ claim this native capability yet.
 
 The Web release uses this bounded fallback:
 
-1. Before selection, the user explicitly accepts the disclosure that selected
-   videos will be privately uploaded to prepare previews and may be reused when
-   making the film.
-2. The browser first attempts its local video frame and sends at most two video
-   thumbnail requests concurrently.
+1. Before selection, the user explicitly confirms that they own or have
+   permission to use the selected media. Storage and deletion details remain in
+   the privacy documentation rather than the primary creation flow.
+2. Every browser first attempts a local blob-backed video frame. Desktop
+   browsers remain local-only. A mobile browser sends a thumbnail request only
+   when the local frame errors or has not decoded after the bounded wait, with at
+   most two requests running concurrently.
 3. FastAPI accepts supported phone-video MIME types or a safe filename-extension
    fallback, then runs FFmpeg outside the async event loop. FFmpeg is restricted
    to a known local container format and local-only protocols and produces a JPEG
    within a 480 by 480 bounding box.
-4. The JPEG returns to the browser as a temporary object URL and replaces the
-   placeholder automatically; there is no separate **Preview** button.
+4. The JPEG returns to the mobile browser as a temporary object URL and replaces
+   the unavailable local frame automatically; there is no separate **Preview**
+   button.
 5. The content-addressed private source can be reused for Gemini analysis instead
    of uploading the same video again. The source remains in the private media
    bucket and is scheduled for lifecycle deletion after one day.

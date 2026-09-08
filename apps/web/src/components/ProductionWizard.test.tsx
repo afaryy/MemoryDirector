@@ -102,6 +102,8 @@ describe("ProductionWizard", () => {
 
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 
@@ -316,14 +318,14 @@ describe("ProductionWizard", () => {
     expect(within(strip).getByText("Video")).toBeVisible();
   });
 
-  it("loads a nonzero frame and removes the fallback poster when a phone video is ready", () => {
+  it("loads a nonzero local frame without covering it with a fallback poster", () => {
     render(<ProductionWizard />);
     fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
       target: { files: [new File(["video"], "IMG_3419.MOV", { type: "video/quicktime" })] },
     });
 
     const preview = screen.getByLabelText("Preview IMG_3419.MOV") as HTMLVideoElement;
-    expect(preview).toHaveAttribute("poster", "/video-placeholder.svg");
+    expect(preview).not.toHaveAttribute("poster");
     expect(preview).toHaveAttribute("src", "blob:selected-IMG_3419.MOV#t=0.001");
 
     fireEvent.loadedData(preview);
@@ -331,7 +333,32 @@ describe("ProductionWizard", () => {
     expect(preview).not.toHaveAttribute("poster");
   });
 
-  it("automatically replaces an iPhone video placeholder with a private server thumbnail", async () => {
+  it("keeps a slow desktop video on its local preview without uploading it", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ProductionWizard />);
+    fireEvent.click(screen.getByLabelText("I have permission to use these media."));
+    fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
+      target: { files: [new File(["video"], "desktop.mp4", { type: "video/mp4" })] },
+    });
+
+    const preview = screen.getByLabelText("Preview desktop.mp4") as HTMLVideoElement;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    fireEvent.loadedData(preview);
+
+    expect(preview).toHaveAttribute("src", "blob:selected-desktop.mp4#t=0.001");
+    expect(preview).not.toHaveAttribute("poster");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("replaces an unavailable local video frame with a private server thumbnail after a delay", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue(
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit Mobile/15E148",
+    );
     const thumbnailResponse = new Response(new Blob(["jpeg"], { type: "image/jpeg" }), {
       status: 201,
       headers: { "Content-Type": "image/jpeg", "X-Memory-Director-Media-ID": "sha256:phone-video" },
@@ -347,8 +374,12 @@ describe("ProductionWizard", () => {
       target: { files: [new File(["video"], "IMG_3419.MOV", { type: "video/quicktime" })] },
     });
 
-    expect(screen.getByRole("status", { name: "Preparing preview IMG_3419.MOV" })).toBeVisible();
-    expect(await screen.findByRole("img", { name: "Preview IMG_3419.MOV" })).toHaveAttribute("src", "blob:server-thumbnail");
+    expect(fetch).not.toHaveBeenCalled();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+
+    expect(screen.getByRole("img", { name: "Preview IMG_3419.MOV" })).toHaveAttribute("src", "blob:server-thumbnail");
     expect(screen.queryByRole("button", { name: "Show video preview IMG_3419.MOV" })).not.toBeInTheDocument();
     const call = vi.mocked(fetch).mock.calls[0];
     expect(call[0]).toBe("http://localhost:8000/media/thumbnail");
@@ -366,6 +397,9 @@ describe("ProductionWizard", () => {
   });
 
   it("prepares at most two video thumbnails at once", async () => {
+    vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue(
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit Mobile/15E148",
+    );
     const resolvers: Array<() => void> = [];
     const fetchMock = vi.fn(() => new Promise<Response>((resolve) => {
       const callNumber = resolvers.length + 1;
@@ -388,6 +422,9 @@ describe("ProductionWizard", () => {
         new File(["three"], "three.mov", { type: "video/quicktime" }),
       ] },
     });
+    fireEvent.error(screen.getByLabelText("Preview one.mov"));
+    fireEvent.error(screen.getByLabelText("Preview two.mov"));
+    fireEvent.error(screen.getByLabelText("Preview three.mov"));
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     await act(async () => resolvers[0]());
@@ -398,6 +435,9 @@ describe("ProductionWizard", () => {
   });
 
   it("ignores a stale thumbnail response after permission is turned off and on", async () => {
+    vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue(
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit Mobile/15E148",
+    );
     const resolvers: Array<(response: Response) => void> = [];
     vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => resolvers.push(resolve))));
     const revokeObjectURL = vi.fn();
@@ -412,8 +452,10 @@ describe("ProductionWizard", () => {
     fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
       target: { files: [new File(["video"], "phone.mov", { type: "video/quicktime" })] },
     });
+    fireEvent.error(screen.getByLabelText("Preview phone.mov"));
     fireEvent.click(permission);
     fireEvent.click(permission);
+    fireEvent.error(screen.getByLabelText("Preview phone.mov"));
 
     expect(fetch).toHaveBeenCalledTimes(2);
     await act(async () => resolvers[0](new Response(new Blob(["old"], { type: "image/jpeg" }), {

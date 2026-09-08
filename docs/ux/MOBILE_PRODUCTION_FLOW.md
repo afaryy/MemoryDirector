@@ -46,12 +46,13 @@ supports family assistance and demonstrations.
 
 - The user selects 1–15 mixed photos and videos and can append another picker
   selection. Exact duplicates are ignored.
-- The permission disclosure appears before the picker. It explains that selected
-  videos are privately uploaded immediately to make their JPEG thumbnails, may be
-  reused for film generation, and are scheduled for deletion after one day.
+- The permission confirmation appears before the picker and states only that the
+  user owns or has permission to use the selected photos and videos. Private
+  fallback-upload, reuse, and one-day deletion details live in the privacy notice.
 - Photos show a local preview. A video uses a local browser frame when available;
-  otherwise the private server-generated JPEG replaces the placeholder
-  automatically. No extra **Preview** action is required.
+  a desktop browser remains local-only, while a mobile browser uses the private
+  server-generated JPEG only after the local frame errors or misses the bounded
+  decode wait. No extra **Preview** action is required.
 - The first item is the cover. Reorder controls change the sequence and cover.
 - Clear all asks for confirmation and resets media consent.
 - A request, at least one selected item, and permission are required before
@@ -67,12 +68,13 @@ still cannot reliably obtain a decoded frame for a local thumbnail. Native edito
 can do this because they use operating-system frameworks such as
 PhotoKit/AVFoundation rather than an HTML `<video>` element.
 
-For the competition Web version, Memory Director therefore generates only the
-missing video thumbnail on the private API and returns a small JPEG. The full
-selected source is reused later instead of uploaded twice and is covered by the
-one-day private-storage lifecycle. Photos continue to preview locally. The future
-formal product is planned as a native mobile application, where thumbnails can be
-generated locally before any cloud upload.
+For the competition Web version, Memory Director therefore keeps desktop
+selection previews local and generates only a missing mobile video thumbnail on
+the private API after a local decode error or bounded timeout. The API returns a
+small JPEG; the full selected source is reused later instead of uploaded twice and
+is covered by the one-day private-storage lifecycle. Photos continue to preview
+locally. The future formal product is planned as a native mobile application,
+where thumbnails can be generated locally before any cloud upload.
 
 ## 2. Making the film
 
