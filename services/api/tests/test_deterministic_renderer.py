@@ -83,7 +83,7 @@ def test_renderer_is_repeatable_for_same_media_and_unique_for_different_media(tm
     assert different_media.render_id != first.render_id
 
 
-def test_renderer_sequences_media_with_fade_through_black_and_an_exact_duration(tmp_path: Path) -> None:
+def test_renderer_starts_with_visible_media_then_fades_between_segments_at_an_exact_duration(tmp_path: Path) -> None:
     executor = RecordingExecutor()
     first_source = tmp_path / "first.jpg"
     second_source = tmp_path / "second.mp4"
@@ -103,7 +103,10 @@ def test_renderer_sequences_media_with_fade_through_black_and_an_exact_duration(
     assert "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1" in filter_graph
     assert filter_graph.count("fps=30,format=yuv420p,settb=AVTB") == 2
     assert "trim=duration=30" in filter_graph
-    assert "fade=t=in:st=0:d=0.5,fade=t=out:st=29.5:d=0.5" in filter_graph
+    first_filter, second_filter, _ = filter_graph.split(";")
+    assert "fade=t=in" not in first_filter
+    assert "fade=t=out:st=29.5:d=0.5" in first_filter
+    assert "fade=t=in:st=0:d=0.5,fade=t=out:st=29.5:d=0.5" in second_filter
     assert "[v0][v1]concat=n=2:v=1:a=0[concat]" in filter_graph
     assert "xfade=" not in filter_graph
     assert command[command.index("-filter_complex_threads") + 1] == "1"

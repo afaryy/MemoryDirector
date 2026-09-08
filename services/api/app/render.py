@@ -262,12 +262,15 @@ class DeterministicVerticalRenderer:
             for index, segment in enumerate(timeline.segments):
                 fade_duration = timeline.transition_seconds / 2
                 fade_out_start = segment.duration_seconds - fade_duration
+                # Keep frame zero visible so galleries and sharing apps can use it
+                # as the downloaded MP4 thumbnail. Later segments still fade in.
+                fade_in = "" if index == 0 else f"fade=t=in:st=0:d={fade_duration:g},"
                 filters.append(
                     f"[{index}:v]scale=1080:1920:force_original_aspect_ratio=increase,"
                     f"crop=1080:1920,setsar=1,"
                     f"fps=30,format=yuv420p,settb=AVTB,"
                     f"trim=duration={segment.duration_seconds},setpts=PTS-STARTPTS,"
-                    f"fade=t=in:st=0:d={fade_duration:g},"
+                    f"{fade_in}"
                     f"fade=t=out:st={fade_out_start:g}:d={fade_duration:g}[v{index}]"
                 )
             filters.append(
