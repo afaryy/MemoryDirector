@@ -268,7 +268,7 @@ describe("ProductionWizard", () => {
     );
     expect(within(strip).getByLabelText("Preview candles.mp4")).toHaveAttribute(
       "src",
-      "blob:selected-candles.mp4",
+      "blob:selected-candles.mp4#t=0.001",
     );
     expect(within(strip).getByText("Photo")).toBeVisible();
     expect(within(strip).getByText("Video")).toBeVisible();
@@ -306,15 +306,12 @@ describe("ProductionWizard", () => {
     const strip = screen.getByRole("list", { name: "Selected media" });
     expect(within(strip).getByLabelText("Preview IMG_3352.MOV")).toHaveAttribute(
       "src",
-      "blob:selected-IMG_3352.MOV",
+      "blob:selected-IMG_3352.MOV#t=0.001",
     );
     expect(within(strip).getByText("Video")).toBeVisible();
   });
 
-  it("shows a poster immediately and replaces it with a decoded frame for phone videos", () => {
-    const drawImage = vi.fn();
-    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({ drawImage } as unknown as CanvasRenderingContext2D);
-    vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/jpeg;base64,decoded-frame");
+  it("loads a nonzero frame and removes the fallback poster when a phone video is ready", () => {
     render(<ProductionWizard />);
     fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
       target: { files: [new File(["video"], "IMG_3419.MOV", { type: "video/quicktime" })] },
@@ -322,13 +319,11 @@ describe("ProductionWizard", () => {
 
     const preview = screen.getByLabelText("Preview IMG_3419.MOV") as HTMLVideoElement;
     expect(preview).toHaveAttribute("poster", "/video-placeholder.svg");
+    expect(preview).toHaveAttribute("src", "blob:selected-IMG_3419.MOV#t=0.001");
 
-    Object.defineProperty(preview, "videoWidth", { configurable: true, value: 1080 });
-    Object.defineProperty(preview, "videoHeight", { configurable: true, value: 1920 });
     fireEvent.loadedData(preview);
 
-    expect(drawImage).toHaveBeenCalledWith(preview, 0, 0, 180, 320);
-    expect(preview).toHaveAttribute("poster", "data:image/jpeg;base64,decoded-frame");
+    expect(preview).not.toHaveAttribute("poster");
   });
 
   it("reorders selected media with the keyboard drag control without revoking consent", () => {

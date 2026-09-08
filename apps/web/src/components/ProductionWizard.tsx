@@ -60,46 +60,20 @@ type SortableMediaCardProps = {
 };
 
 function VideoThumbnail({ item }: { item: SelectedMedia }) {
-  const [poster, setPoster] = useState("/video-placeholder.svg");
-
-  function captureFrame(video: HTMLVideoElement) {
-    if (!video.videoWidth || !video.videoHeight) return;
-    const scale = 320 / Math.max(video.videoWidth, video.videoHeight);
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
-    canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
-    const context = canvas.getContext("2d");
-    if (!context) return;
-    try {
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      setPoster(canvas.toDataURL("image/jpeg", 0.82));
-    } catch {
-      // Keep the visible fallback when a browser cannot decode or draw this codec.
-    }
-  }
-
-  function revealFirstFrame(video: HTMLVideoElement) {
-    const seekTime = Number.isFinite(video.duration) && video.duration > 0
-      ? Math.min(0.1, video.duration / 2)
-      : 0.1;
-    try {
-      video.currentTime = seekTime;
-    } catch {
-      // loadeddata can still provide the first decoded frame without seeking.
-    }
-  }
+  const [frameReady, setFrameReady] = useState(false);
+  const revealFrame = () => setFrameReady(true);
 
   return (
     <video
       aria-label={`Preview ${item.file.name}`}
       muted
-      onLoadedData={(event) => captureFrame(event.currentTarget)}
-      onLoadedMetadata={(event) => revealFirstFrame(event.currentTarget)}
-      onSeeked={(event) => captureFrame(event.currentTarget)}
+      onCanPlay={revealFrame}
+      onLoadedData={revealFrame}
+      onSeeked={revealFrame}
       playsInline
-      poster={poster}
-      preload="auto"
-      src={item.previewUrl}
+      poster={frameReady ? undefined : "/video-placeholder.svg"}
+      preload="metadata"
+      src={`${item.previewUrl}#t=0.001`}
     />
   );
 }
