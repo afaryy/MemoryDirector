@@ -1,141 +1,43 @@
-# Memory Director
+## Inspiration
+Every Saturday, I help my mum make short videos. The editing tools available to her are too complicated, so making a video has become something she needs my help with each week.
 
-## One-line pitch
+That weekly experience inspired MemoryDirector. I wanted to build a simple app that would let my mum—and other older adults—create their own short videos by describing what they want through voice or text and choosing their photos and clips. They should be able to focus on the memory they want to share without having to learn a complicated editor.
 
-Memory Director turns deliberately selected phone moments into a short,
-shareable memory film through one calm, voice-led action.
+Our goal is to make independent storytelling more accessible: give older adults a straightforward way to turn their own moments into films they can make, save, and share themselves.
 
-## The problem
+## What it does
+MemoryDirector turns deliberately selected photos and videos into a 60-second vertical memory film. Users can describe their memory by typing or speaking, arrange their selected media, choose an original memory song, gentle instrumental music, or no music, and make their film. They can then preview it, save the MP4, or use the device's native share sheet where supported.
 
-Older adults often have meaningful photos and videos but still need help with
-the work around them: deciding what to keep, remembering an unfamiliar place,
-choosing a suitable music feeling, writing a caption, and trimming a clip.
-Traditional editors expose a dense timeline and too many technical choices at
-once. A family member becomes the editor by default.
+The browser only sees files the user selects. Media processing requires consent, and sharing remains a deliberate user action.
 
-## What we built
+## How we built it
+We built a mobile-first Next.js and React interface backed by a FastAPI service on Google Cloud Run. Gemini on Vertex AI supports media analysis and turns a plain-language request into a constrained storyboard. The API validates the plan before FFmpeg renders a 60-second portrait MP4 from the selected source media. Google Lyria supports the original music option, with instrumental and no-music fallbacks.
 
-Memory Director is a mobile-first web app and Google Cloud API. The target
-journey is deliberately simple: the person speaks or types a request, chooses
-their own photos and videos through the device picker, presses **Make my
-film**, watches a 60-second portrait preview, then chooses **Save video** or
-**Share video**. Desktop and mobile-emulated production journeys have verified
-the original-song and no-music paths through visible preview and Save. A physical
-iPhone 11 journey additionally passed voice, touch reorder, phone-video preview,
-Save, native Share, and instrumental audio. The submission recording will show
-only capabilities that pass the final approved-fixture rehearsal.
+ClickHouse Cloud is part of the runtime through the official mcp-clickhouse server: consent/export checks can block rendering and export, and scoped events provide evidence of those decisions. We also deployed a separate Google ADK / Vertex AI Agent Engine production-planning endpoint that invokes an approved, read-only ClickHouse preference tool. That endpoint has passed deployment smoke checks; the current public web interface uses the direct Gemini storyboard path rather than the separate Agent Engine endpoint. Private Cloud Storage holds consented media.
 
-The agent is deliberately bounded:
+We built automated deployment workflows with GitHub Actions and Terraform for Google Cloud infrastructure, containerized services, public-domain configuration, ClickHouse schema and access setup, and ADK Agent Engine deployment with runtime verification. Workload Identity Federation supports deployment authentication, and Secret Manager holds runtime credentials.
 
-- voice is optional; typed input is always available;
-- consent is required before media processing;
-- uncertain place claims require confirmation;
-- the API constrains privacy metadata and never exposes private provider URIs;
-- changing the selected set never deletes original device files;
-- the browser sees only files the user deliberately selects;
-- the ClickHouse MCP consent/export gate can block rendering and export;
-- no social account or automatic publishing permission is requested.
+To keep the public demo affordable to operate, we added four layers of cost control: Firestore-backed usage quotas before costly work begins; Cloud Armor rate limits and bounded Cloud Run scaling; billing alerts and configured service-specific spend caps; and automatic lifecycle deletion of private media. These controls reduce unnecessary usage and storage costs. Billing alerts and spend caps are not instantaneous, so application quotas are our first line of protection.
 
-## Why it is agentic
+## Data sources and privacy
+Our inputs are the user's selected photos and videos and their typed or spoken request. ClickHouse holds anonymised workflow events and seeded demonstration preferences, not raw photos or videos. The public web flow does not yet maintain durable per-user creative preferences. Demonstration assets and generated music are documented in our media rights register.
 
-The intended production flow coordinates several evidence-based decisions
-instead of applying a single opaque filter:
+## Challenges we ran into
+The hardest work was making the whole journey dependable on a phone: preserving selected files, supporting video previews, handling touch reordering, and making save and share work on a real device. We also needed to turn flexible model output into a predictable film. We addressed that with constrained plans, known media IDs, validation, and deterministic rendering with duration checks.
 
-1. The public Web flow uses Gemini to turn a plain-language memory request into
-   a constrained storyboard.
-2. Multimodal Gemini analysis describes only observable media properties and
-   returns allow-listed privacy signals.
-3. The production flow omits an uncertain place or fact until the user confirms it.
-4. The official `mcp-clickhouse` server supplies the required consent/export
-   decision. A separately smoke-tested Agent Engine endpoint uses it for one
-   seeded, read-only preference lookup.
-5. A deterministic renderer makes the 60-second portrait film
-   from a constrained storyboard; the model never directly encodes video.
+Another challenge was keeping consent meaningful throughout the workflow. We made it a runtime gate rather than a checkbox that the rest of the system could ignore.
 
-The public deployment contains the simplified UI, consent and privacy
-boundaries, direct Gemini storyboard and film preview/export path, and
-ClickHouse MCP export gate. A separate Agent Engine production-proposal endpoint
-and ClickHouse MCP preference tool are deployed and workflow-smoke verified but
-are not called by the current Web UI. The media register is approved; final
-recorded hosted proof remains a separate release gate in the checklist and
-[capability evidence matrix](../CAPABILITY_EVIDENCE.md). The completed iPhone pass
-does not imply Android or native screen-reader coverage.
+## Accomplishments that we're proud of
+We have a working hosted product at memorydirector.com. Desktop and mobile-emulated journeys verified original-song and no-music films. A physical iPhone 11 journey also verified voice input, touch reordering, video preview, instrumental audio, saving, and native sharing.
 
-## Technology
-
-- Next.js and React mobile-first web interface with browser voice fallback.
-- FastAPI on Cloud Run for validation, consent, private media boundaries,
-  storyboard requests, and export.
-- Google Cloud Vertex AI Gemini for production planning and media analysis.
-- Private Google Cloud Storage for consented originals.
-- ClickHouse Cloud through the official `mcp-clickhouse` integration for the
-  consent/export path and seeded read-only preference demonstration; the hosted
-  Agent Engine smoke verifies the separate preference-tool invocation.
-- Google Lyria for an original memory-song option behind prompt-safety,
-  provenance, quota, and instrumental/no-sound fallback boundaries.
-- Terraform modules and GitHub Actions with OIDC/WIF for repeatable sandbox
-  infrastructure and deployments.
-
-## Data sources
-
-- Photos and videos deliberately selected by the user; the app does not scan
-  the wider device library.
-- The user's typed or spoken production request.
-- Anonymised consent, selection, and render/export events in ClickHouse, plus
-  seeded demonstration preferences. The public Web flow does not write durable
-  per-user creative preferences. ClickHouse stores no raw photos or videos.
-- Gemini and Lyria outputs derived from approved request and media context.
-- For the public demonstration, only assets approved in the media rights
-  register.
+We are especially proud of making the creative experience simpler while keeping the user's control over their own media visible.
 
 ## What we learned
+A useful interface for older adults needs fewer decisions and clearer feedback. AI planning also needs a reliable execution layer: a plausible storyboard is only useful when it can become a valid, playable film. Testing on a physical phone exposed issues that desktop testing alone could not show.
 
-- A useful older-adult workflow needs fewer decisions, not a smaller version
-  of a professional timeline editor. One request, deliberate media selection,
-  one permission gate, preview, and manual save/share proved clearer.
-- Agent output becomes production-safe only after deterministic validation.
-  The API accepts known media IDs, a closed music choice, and exactly 60
-  seconds; it rejects private URIs and malformed plans.
-- Partner integration is strongest when it controls a real decision. The
-  official ClickHouse MCP tool supplies the export consent evidence, and the
-  separate Agent Engine smoke proves a bounded seeded preference lookup.
-- Hosted evidence needs stricter wording than local tests. We keep code-level,
-  deployed-runtime, and final recorded proof separate in the
-  [`ST-33 evidence package`](EVIDENCE_PACKAGE.md).
+## What's next for MemoryDirector
+We want to connect the separately deployed Agent Engine planning path to the public interface, expand testing across Android devices and assistive technologies, and explore consent-based creative preferences. We will keep the same principle: the AI helps direct the memory, and the user decides what to share.
 
-## Proof of a working deployment
-
-- Hosted web app:
-  https://memorydirector.com/
-- Hosted API health endpoint:
-  https://memorydirector.com/api/health
-- Public-edge deployment and HTTPS verification:
-  https://github.com/afaryy/MemoryDirector/actions/runs/34118291595
-- Agent Engine and ClickHouse preference-tool smoke:
-  https://github.com/afaryy/MemoryDirector/actions/runs/34024861486
-- Architecture and data boundaries: [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md)
-- Three-minute recording plan: [`docs/demo/DEMO_RUNBOOK.md`](../demo/DEMO_RUNBOOK.md)
-- Rights gate: [`docs/demo/MEDIA_RIGHTS_REGISTER.md`](../demo/MEDIA_RIGHTS_REGISTER.md)
-
-The hosted product has passed desktop and mobile-emulated browser journeys with
-non-sensitive fixtures, including consented analysis, direct Gemini storyboard
-planning, export, a real 60-second preview, playback, Make again, and Save.
-Original-song and no-music paths passed there; ST-52 records the completed
-instrumental and native-device checks on an iPhone 11. The final submission
-recording must still prove the chosen journey using only assets approved in the
-rights register.
-
-## What we would do next
-
-The immediate release step is to approve the demo-media rights register, run
-the exact hosted recording journey, and capture the final English-subtitled
-video. The core safety boundary remains the same: Memory Director directs the
-memory, but the user decides what leaves the phone.
-
-## Repository and licence
-
-- Source: https://github.com/afaryy/MemoryDirector
-- Licence: MIT ([`LICENSE`](../../LICENSE))
-
-Video Intelligence is not part of the submitted build and must not be listed
-as a technology or claimed in the recording.
+## Try it and explore the code
+- Live app: https://memorydirector.com/
+- Open-source repository (MIT): https://github.com/afaryy/MemoryDirector
