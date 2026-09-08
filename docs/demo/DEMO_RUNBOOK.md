@@ -11,7 +11,7 @@ This runbook is for the final English-subtitled submission video. Use only asset
 | 1:15–1:35 | Show the approved original memory-song result and state the recorded model, safety, duration, and provenance limits. | Safety/provenance and fallback; never a copied singer or song. |
 | 1:35–1:55 | Show the runtime ClickHouse MCP consent/export check and friendly explanation. | Required ClickHouse track proof: official MCP server is used at runtime. |
 | 1:55–2:25 | Show the completed vertical MP4, playback, and **Save video**. | Working end-to-end output and real consent/export gate, not a conceptual mock-up. |
-| 2:25–2:45 | Use **Share video** only if the physical-device rehearsal passes; otherwise show the truthful save-first fallback. | Device-native sharing remains user-controlled; no social-account access or direct posting. |
+| 2:25–2:45 | Use **Share video**, following the verified iPhone rehearsal; keep the save-first fallback ready for unsupported recording environments. | Device-native sharing remains user-controlled; no social-account access or direct posting. |
 | 2:45–3:00 | Closing card: “Memory Director — every memory, directed by you.” | Product name, track acknowledgement, repository and hosted URL. |
 
 ## Recording checklist
@@ -22,7 +22,11 @@ This runbook is for the final English-subtitled submission video. Use only asset
   hosted journey. The current UI does not display a tool log, preference
   explanation, or Agent Engine production proposal, so do not present them as an
   in-app panel.
-- Capture the original memory song's generation and safety evidence recorded in the rights register. The instrumental browser rerun remains part of ST-52 and is a fallback, not the approved song evidence.
-- Complete ST-52 before claiming physical-device voice, touch, download location, or native Share completion/cancellation.
+- Capture the approved original memory song's generation and safety evidence from
+  the rights register. The ST-52 instrumental pass remains a verified fallback,
+  not the approved song evidence.
+- Cite the [ST-52 physical iPhone acceptance](../qa/ST-52-PHYSICAL-IPHONE-ACCEPTANCE.md)
+  for the completed device rehearsal. Do not broaden that evidence to Android or
+  a native screen reader.
 - Confirm the public repository, hosted application, and demo-video URL work in an incognito browser before submission.
 - Rehearse with seeded preferences and approved fixture media so the story remains repeatable.

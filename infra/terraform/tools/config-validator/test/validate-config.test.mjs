@@ -125,6 +125,7 @@ test("accepts the approved four-layer control configuration", () => {
     max_upload_file_mb: 250,
     max_request_text_chars: 2000,
     global_daily_film_hard_max: 100,
+    thumbnail_max_concurrency: 2,
   });
   assert.equal(sandbox.quotas.global_daily_film_limit, 30);
   assert.deepEqual(project.budgets, {

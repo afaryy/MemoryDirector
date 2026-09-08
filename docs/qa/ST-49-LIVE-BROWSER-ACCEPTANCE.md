@@ -10,7 +10,9 @@ Google Cloud project: `memory-director-505708`
 
 The ST-49 automated browser scope passed on desktop and at a 390 x 844 mobile viewport. A user can select mixed media, describe the memory, choose a soundtrack mode, generate a 60-second vertical film without leaving the page, preview it, and save it.
 
-ST-49 is complete for that automated scope. Native microphone, touch, device-save location, and mobile share-sheet behavior require a physical-device pass and are tracked separately in ST-52. The original-song and no-music render paths passed; ST-52 also owns the instrumental rerun after the quota window resets.
+ST-49 is complete for that automated scope. The subsequent [ST-52 physical
+iPhone pass](ST-52-PHYSICAL-IPHONE-ACCEPTANCE.md) verified native microphone,
+touch, device Save, native Share, and the instrumental render on an iPhone 11.
 
 ## Environment evidence
 
@@ -58,9 +60,10 @@ ST-50 added a regression test and replaced the reserved field. After PR #116 was
 
 The privacy-safe test images are intentionally synthetic marker cards with distinct colors and labels. The first marker appeared in the opening segment and the second marker appeared later in the film. That visible transition verifies that the renderer used the selected source bytes and preserved multi-source sequencing.
 
-## ST-52 physical-device follow-up
+## ST-52 physical-device completion
 
-Use a physical iPhone or Android phone for the following checks:
+The follow-up checks were completed on 8 September 2026 on an iPhone 11 running
+iOS 26.6.1 in Chrome (version not recorded):
 
 1. Allow microphone access only for the test, speak a short request, correct it, and clear it.
 2. Select real photos and videos through the native picker and press-drag a thumbnail to reorder it.
@@ -69,4 +72,6 @@ Use a physical iPhone or Android phone for the following checks:
 5. Open the native share sheet and verify WhatsApp or WeChat appears only when installed.
 6. Cancel the clear-all confirmation once, then accept it once.
 
-Do not mark ST-52 Done until these physical-device checks and the instrumental rerun are recorded. Closing ST-49 does not claim that the physical-device scope passed.
+All six checks passed. See the [ST-52 physical iPhone acceptance report](ST-52-PHYSICAL-IPHONE-ACCEPTANCE.md)
+for observed outcomes and privacy-safe evidence boundaries. Android and native
+screen-reader coverage are not implied by the iPhone result.

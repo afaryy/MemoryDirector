@@ -6,7 +6,7 @@
 - Implementation: `apps/web/src/app/page.tsx`,
   `apps/web/src/components/ProductionWizard.tsx`, and
   `apps/web/src/app/globals.css`
-- Production commit: `64ee654a999549322dbeea22f9ffc2b8b29acdaf`
+- Audited production commit: `6b738f40014e4c7861ff1705f7df4d26d294d051`
 - Browser viewports: desktop and 390 × 844 mobile emulation
 
 ## Visual and interaction result
@@ -35,12 +35,15 @@
 
 ## Verification and boundary
 
-- `npm test -- --run`: 47 tests passed across five files.
+- `npm test -- --run`: 53 tests passed across five files on the current release.
 - `npm run build`: production build, lint, and type checking passed.
-- Production Chromium: no console errors in the final desktop or mobile check.
+- ST-31 production Chromium check: no console errors in its final desktop or
+  mobile pass.
 - [ST-31 visual and accessibility regression](docs/qa/ST-31-visual-accessibility-regression.md)
   is Done.
 - [ST-49 live browser acceptance](docs/qa/ST-49-LIVE-BROWSER-ACCEPTANCE.md)
   covers production generation in desktop and mobile emulation.
-- ST-52 owns real-device voice, touch, Save and native Share evidence. This report
-  does not claim that physical-device work is complete.
+- [ST-52 physical iPhone acceptance](docs/qa/ST-52-PHYSICAL-IPHONE-ACCEPTANCE.md)
+  records an all-pass iPhone 11 journey for voice, touch, video preview, Save,
+  native Share, and instrumental audio. Android and native screen-reader behavior
+  were not tested.

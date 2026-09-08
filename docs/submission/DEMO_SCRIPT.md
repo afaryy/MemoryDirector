@@ -14,7 +14,7 @@ slide deck, remains the focus.
 | 1:15–1:35 | **Release gate:** show the original-memory-song option only if the approved-fixture rehearsal succeeds. | “The song is made from the memories I approved, not copied from a favourite singer.” | Capture the user-facing result and retain safety/provenance evidence; otherwise use instrumental or no sound and make no song claim. |
 | 1:35–1:55 | **Release gate:** pair the hosted journey with sanitized workflow evidence for the official ClickHouse MCP runtime. | “Before rendering, the guardian checks that these moments are allowed in this film.” | The UI does not show a tool log. Clearly label separate Agent Engine/MCP smoke evidence rather than presenting it as the Web call path. |
 | 1:55–2:25 | **Release gate:** show the completed vertical MP4 and tap **Save video**. | “When I am ready, I save the film myself.” | Capture a real visible export and device result; browser UI evidence alone is not a filesystem check. |
-| 2:25–2:45 | Tap **Share video** only if ST-52's device rehearsal passes; otherwise show the save-first fallback. | “I choose where to share it. Memory Director never signs in to my social account.” | Native share completion/cancellation or truthful fallback; no social OAuth or direct posting. |
+| 2:25–2:45 | Tap **Share video**, following the completed ST-52 iPhone rehearsal; use the save-first fallback if the recording environment does not expose native sharing. | “I choose where to share it. Memory Director never signs in to my social account.” | Native share sheet or truthful fallback; no social OAuth or direct posting. |
 | 2:45–3:00 | Closing card with repository and hosted URL. | “Every memory, directed by you.” | Repository, hosted URL, licence, and ClickHouse track proof. |
 
 ## Recording checklist
@@ -27,7 +27,9 @@ slide deck, remains the focus.
 - Do not expose Secret Manager values, bearer tokens, private GCS URIs, or
   personal media.
 - Do not describe a direct API smoke test as a complete hosted UI journey.
-- Do not describe desktop or mobile emulation as physical-device evidence.
+- Cite [ST-52 physical iPhone acceptance](../qa/ST-52-PHYSICAL-IPHONE-ACCEPTANCE.md)
+  for device evidence; do not describe emulation as physical evidence or imply
+  that the iPhone pass also covers Android.
 - Before recording the release-gated rows, verify that the Web page creates the
   preview, invokes the required ClickHouse MCP consent/export path, and exports
   the MP4 through the intended user flow.

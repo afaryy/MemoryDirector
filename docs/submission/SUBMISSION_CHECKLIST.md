@@ -1,7 +1,7 @@
 # ST-32 competition compliance checklist
 
 Last revalidated: **8 September 2026 (AEST)** against repository commit
-`cc6c10267f9294e28ce8fb4b0a6b030529a7ca8b` and the live Devpost pages.
+`eab585c9f8db6bbf14143c8e5c61c24c7cf2ecca` and the live Devpost pages.
 
 Status meanings:
 
@@ -44,7 +44,7 @@ the live rules immediately before the final Devpost submission.
 | Public source repository includes all source, assets and run instructions and demonstrates Google Cloud and partner runtime calls | [Rules, section 7.B](https://agentic-cinema.devpost.com/rules) | [Public repository](https://github.com/afaryy/MemoryDirector), root README, source, Terraform, workflows and operations docs | Verified | Engineering | GitHub reports the repository as public. Perform one final clean-clone instructions check after the last merge. |
 | Public repository has a visible OSI-approved licence permitting commercial use | [Rules, sections 7.B and 12](https://agentic-cinema.devpost.com/rules); [overview](https://agentic-cinema.devpost.com/) | Root [`LICENSE`](../../LICENSE) and GitHub licence detection | Verified | Engineering | GitHub detects the root file as MIT. Confirm it remains visible at the top of the repository page. |
 | ClickHouse partner track is selected | [Overview submission requirements](https://agentic-cinema.devpost.com/) | Final Devpost track field set to ClickHouse | Blocked | Devpost representative | Must be selected in the Devpost form; repository metadata cannot prove the form value. |
-| Public demo shows the project functioning as built | [Rules, section 7.B](https://agentic-cinema.devpost.com/rules); [overview](https://agentic-cinema.devpost.com/) | Final hosted-product recording following [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md) | Blocked | Demo recorder | Browser acceptance is complete; record the approved-fixture flow after ST-52 and rights approval. Do not substitute slides or an API-only test. |
+| Public demo shows the project functioning as built | [Rules, section 7.B](https://agentic-cinema.devpost.com/rules); [overview](https://agentic-cinema.devpost.com/) | Final hosted-product recording following [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md) | Blocked | Demo recorder | Browser, rights, and ST-52 iPhone acceptance are complete; record the approved-fixture flow. Do not substitute slides or an API-only test. |
 | Demo is no longer than three minutes, public on YouTube or Vimeo, and English or English-subtitled | [Rules, section 7.B](https://agentic-cinema.devpost.com/rules) | Public YouTube/Vimeo URL, duration at or below 3:00, captions checked | Blocked | Demo editor / Devpost representative | Video has not been recorded and published. Aim below 2:55 to leave margin. |
 | Written submission is English and product supports English | [Rules, section 7.B](https://agentic-cinema.devpost.com/rules) | English Devpost page, English demo/captions and English product path | Ready | Submission editor / QA | The repository and UI support English; verify the final deployed path and all form fields. |
 | Third-party SDKs, APIs and data are authorised under their terms | [Rules, section 7.B](https://agentic-cinema.devpost.com/rules) | Dependency inventory and evidence that team accounts/assets may be used in the submission | Attestation required | Engineering lead / Devpost representative | Confirm account terms and any non-code data sources before submission. |
@@ -57,10 +57,11 @@ the live rules immediately before the final Devpost submission.
   <https://github.com/afaryy/MemoryDirector>
 - Hosted product: <https://memorydirector.com/>
 - Hosted health route: <https://memorydirector.com/api/health>
-- Deployed Web commit's test run:
-  <https://github.com/afaryy/MemoryDirector/actions/runs/34132016535>
+- Current main Tests run:
+  <https://github.com/afaryy/MemoryDirector/actions/runs/34191468668>
+- Deployed Web release: `6b738f40014e4c7861ff1705f7df4d26d294d051`
 - Current Web deployment:
-  <https://github.com/afaryy/MemoryDirector/actions/runs/34132225436>
+  <https://github.com/afaryy/MemoryDirector/actions/runs/34188310631>
 - Hosted Agent Engine and ClickHouse preference-tool smoke:
   <https://github.com/afaryy/MemoryDirector/actions/runs/34024861486>
 - Public-edge deployment and HTTPS verification:
@@ -71,10 +72,13 @@ the live rules immediately before the final Devpost submission.
   [`docs/clickhouse-mcp-proof.md`](../clickhouse-mcp-proof.md)
 - Current implementation, deployment, device, and submission status:
   [`docs/CAPABILITY_EVIDENCE.md`](../CAPABILITY_EVIDENCE.md)
+- Completed physical iPhone acceptance:
+  [`docs/qa/ST-52-PHYSICAL-IPHONE-ACCEPTANCE.md`](../qa/ST-52-PHYSICAL-IPHONE-ACCEPTANCE.md)
 
 ## Final release sequence
 
-1. Complete and approve the media rights register.
+1. Keep the approved rights register with the private consent evidence and confirm
+   that the recording uses only its approved fixtures.
 2. Verify the Devpost roster, eligibility attestations, representative and
    ClickHouse track selection.
 3. Run the hosted Web flow with the exact approved demo fixtures and capture

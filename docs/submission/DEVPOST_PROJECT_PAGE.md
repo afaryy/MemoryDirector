@@ -20,9 +20,10 @@ journey is deliberately simple: the person speaks or types a request, chooses
 their own photos and videos through the device picker, presses **Make my
 film**, watches a 60-second portrait preview, then chooses **Save video** or
 **Share video**. Desktop and mobile-emulated production journeys have verified
-the original-song and no-music paths through visible preview and Save. The
-submission recording will show only capabilities that pass the final approved-
-fixture rehearsal; browser emulation is not presented as physical-device proof.
+the original-song and no-music paths through visible preview and Save. A physical
+iPhone 11 journey additionally passed voice, touch reorder, phone-video preview,
+Save, native Share, and instrumental audio. The submission recording will show
+only capabilities that pass the final approved-fixture rehearsal.
 
 The agent is deliberately bounded:
 
@@ -55,9 +56,10 @@ The public deployment contains the simplified UI, consent and privacy
 boundaries, direct Gemini storyboard and film preview/export path, and
 ClickHouse MCP export gate. A separate Agent Engine production-proposal endpoint
 and ClickHouse MCP preference tool are deployed and workflow-smoke verified but
-are not called by the current Web UI. The approved-media register,
-physical-device follow-up, and final recorded hosted proof remain separate
-release gates in the checklist and [capability evidence matrix](../CAPABILITY_EVIDENCE.md).
+are not called by the current Web UI. The media register is approved; final
+recorded hosted proof remains a separate release gate in the checklist and
+[capability evidence matrix](../CAPABILITY_EVIDENCE.md). The completed iPhone pass
+does not imply Android or native screen-reader coverage.
 
 ## Technology
 
@@ -117,10 +119,11 @@ release gates in the checklist and [capability evidence matrix](../CAPABILITY_EV
 
 The hosted product has passed desktop and mobile-emulated browser journeys with
 non-sensitive fixtures, including consented analysis, direct Gemini storyboard
-planning, export, a real 60-second preview, playback, Make again, and Save. Original-song
-and no-music paths passed; the instrumental rerun and native-device actions are
-tracked in ST-52. The final submission recording must still prove the chosen
-journey using only assets approved in the rights register.
+planning, export, a real 60-second preview, playback, Make again, and Save.
+Original-song and no-music paths passed there; ST-52 records the completed
+instrumental and native-device checks on an iPhone 11. The final submission
+recording must still prove the chosen journey using only assets approved in the
+rights register.
 
 ## What we would do next
 

@@ -3,13 +3,15 @@
 ## Scope and ownership
 
 - Production baseline: <https://memorydirector.com/>
-- Verified production commit: `64ee654a999549322dbeea22f9ffc2b8b29acdaf`
+- Verified browser-accessibility commit: `64ee654a999549322dbeea22f9ffc2b8b29acdaf`
+- Current production commit: `6b738f40014e4c7861ff1705f7df4d26d294d051`
 - Test dates: 7–8 September 2026 (AEST)
 - Browser: isolated Chromium
 - Synthetic media only; no media was submitted to the production generation API.
 - Completed [ST-49 live browser acceptance](ST-49-LIVE-BROWSER-ACCEPTANCE.md)
   supplies production generation, preview, playback, Make again, and Save
-  evidence. ST-52 now owns the remaining physical-device acceptance.
+  evidence. The later [ST-52 physical iPhone acceptance](ST-52-PHYSICAL-IPHONE-ACCEPTANCE.md)
+  records the completed device interaction checks.
 
 ## Browser and device matrix
 
@@ -18,10 +20,11 @@
 | Production Chromium, desktop emulation | 1280 × 720 | Pass | Layout, form semantics, typed input, media selection, reorder, removal, Clear all, limit handling, contrast, and console checked |
 | Production Chromium, mobile emulation | 390 × 844 | Pass | No horizontal overflow; responsive layout, controls, and deployed contrast checked |
 | Production Chromium, narrow mobile emulation | 320 × 568 | Pass before contrast release | No horizontal overflow; visible controls meet the 44px target minimum |
-| ST-49 production journey, desktop and mobile emulation | Desktop and 390 × 844 | Pass | Original-song and no-music generation, progress, 60-second preview, playback, Make again, and Save passed; phone-only follow-up moved to ST-52 |
+| ST-49 production journey, desktop and mobile emulation | Desktop and 390 × 844 | Pass | Original-song and no-music generation, progress, 60-second preview, playback, Make again, and Save passed; the later ST-52 iPhone follow-up also passed |
 | Local production build, desktop emulation | 1280 × 720 | Pass | ISSUE-001 contrast remeasured after the fix; no console errors |
 | Local production build, mobile emulation | 390 × 844 | Pass | Post-fix responsive and keyboard regression; no horizontal overflow or console errors |
-| Physical iOS or Android device | Native | Pending in ST-52 | Required for native picker, touch reorder/scroll, device Save, native Share completion/cancellation, and the instrumental rerun |
+| iPhone 11, iOS 26.6.1, Chrome (version not recorded) | Native | Pass in ST-52 | Native picker, speech, touch reorder, clear confirmation, device Save, native Share, and instrumental audio passed |
+| Android or native screen reader | Native | Not tested | Not implied by the completed iPhone interaction pass |
 
 ## Completed interaction checks
 
@@ -78,5 +81,6 @@ style connections.
 
 QA found one Medium accessibility issue and verified its production fix. Under
 the QA health rubric, the inspected browser page improves from 98.8 to 100.
-ST-31 is Done. Physical iOS or Android behaviour is deliberately tracked in
-ST-52 and does not weaken the completed browser accessibility evidence.
+ST-31 is Done. The iPhone 11 interaction checks also passed in ST-52. Android
+and native screen-reader behavior remain outside this report and do not weaken
+the completed browser accessibility evidence.
