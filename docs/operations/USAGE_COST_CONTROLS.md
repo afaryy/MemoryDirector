@@ -23,14 +23,16 @@ Original-song work has tighter limits: three attempts per visitor and twenty glo
 
 Firestore Native mode is the authoritative transactional quota store shared by every Cloud Run instance. Identifiers are hashed before document keys are written. ClickHouse receives bounded decision and outcome telemetry for cost analysis, but it is not used as an atomic admission counter.
 
-After the user accepts the explicit private-upload disclosure, the Web client may
-upload a selected video early to obtain a mobile-safe JPEG thumbnail. This path
-has its own Firestore-backed daily limits: 75 thumbnail attempts per visitor and
-150 per client IP in sandbox. Both the browser and each API instance run at most
-two thumbnail jobs concurrently. The quota is consumed after MIME and size checks
-but before ffmpeg, and a failed ffmpeg attempt is not refunded so malformed input
-cannot bypass the resource bound. A successful content-addressed upload is reused
-for later analysis and remains under the one-day media lifecycle.
+After the user confirms ownership or permission, the Web client first attempts a
+local video frame. Desktop browsers do not upload for selection previews. A
+mobile browser may upload a selected video early only when its local frame errors
+or misses the bounded decode wait, obtaining a mobile-safe JPEG thumbnail. This
+path has its own Firestore-backed daily limits: 75 thumbnail attempts per visitor
+and 150 per client IP in sandbox. Both the browser and each API instance run at
+most two thumbnail jobs concurrently. The quota is consumed after MIME and size
+checks but before ffmpeg, and a failed ffmpeg attempt is not refunded so malformed
+input cannot bypass the resource bound. A successful content-addressed upload is
+reused for later analysis and remains under the one-day media lifecycle.
 
 The browser reserves one short-lived film admission before full media analysis or
 Gemini invocation. The same opaque admission ID is required for the bounded
