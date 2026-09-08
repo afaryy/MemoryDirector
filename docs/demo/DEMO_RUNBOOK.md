@@ -8,7 +8,7 @@ This runbook is for the final English-subtitled submission video. Use only asset
 | 0:15–0:35 | The user deliberately selects the consented album and confirms permission. | The browser does not scan the wider phone library. |
 | 0:35–0:55 | The user taps **Make my film** and sees a compact preparing state. | One action replaces timeline editing and plan-review screens. |
 | 0:55–1:15 | The app shows the real 60-second portrait preview with its selected cover and playback controls. | Visible deterministic output from the selected media; no conceptual mock-up. |
-| 1:15–1:35 | Show the original memory-song result only if the approved-fixture rehearsal passes; otherwise use a verified no-music or instrumental path. | Safety/provenance and fallback; never a copied singer or song. |
+| 1:15–1:35 | Show the approved original memory-song result and state the recorded model, safety, duration, and provenance limits. | Safety/provenance and fallback; never a copied singer or song. |
 | 1:35–1:55 | Show the runtime ClickHouse MCP consent/export check and friendly explanation. | Required ClickHouse track proof: official MCP server is used at runtime. |
 | 1:55–2:25 | Show the completed vertical MP4, playback, and **Save video**. | Working end-to-end output and real consent/export gate, not a conceptual mock-up. |
 | 2:25–2:45 | Use **Share video** only if the physical-device rehearsal passes; otherwise show the truthful save-first fallback. | Device-native sharing remains user-controlled; no social-account access or direct posting. |
@@ -22,7 +22,7 @@ This runbook is for the final English-subtitled submission video. Use only asset
   hosted journey. The current UI does not display a tool log, preference
   explanation, or Agent Engine production proposal, so do not present them as an
   in-app panel.
-- If the original memory song is included, capture its generation/safety evidence; otherwise use a verified fallback without claiming an untested path. The instrumental browser rerun remains part of ST-52.
+- Capture the original memory song's generation and safety evidence recorded in the rights register. The instrumental browser rerun remains part of ST-52 and is a fallback, not the approved song evidence.
 - Complete ST-52 before claiming physical-device voice, touch, download location, or native Share completion/cancellation.
 - Confirm the public repository, hosted application, and demo-video URL work in an incognito browser before submission.
 - Rehearse with seeded preferences and approved fixture media so the story remains repeatable.

@@ -85,7 +85,7 @@ prize categories in the official rules and must not be described as bonuses.
 | Consent gates | Implemented in Web and API; hosted consent-writer deployment exists | [Web gate](https://github.com/afaryy/MemoryDirector/blob/main/apps/web/src/components/ProductionWizard.tsx), [API guardian](https://github.com/afaryy/MemoryDirector/blob/main/services/api/app/consent_guardian.py), [consent-writer deployment](https://github.com/afaryy/MemoryDirector/actions/runs/34006128081) | “Media processing and export fail closed without the required consent decisions.” |
 | Private Cloud Storage handling | Implemented in code and Terraform; final recording must use approved fixtures | [Storage adapter](https://github.com/afaryy/MemoryDirector/blob/main/services/api/app/media_storage.py), [storage infrastructure](https://github.com/afaryy/MemoryDirector/blob/main/infra/terraform/modules/foundations/sandbox_platform/main.tf), [retention operations](../operations/USAGE_COST_CONTROLS.md) | “Consented originals use private Cloud Storage; raw media is not stored in ClickHouse.” |
 | Agent Engine | Hosted smoke verified and API activation gated on success | [Run 34024861486](https://github.com/afaryy/MemoryDirector/actions/runs/34024861486), [operations guide](../operations/AGENT_ENGINE.md) | Use the runtime claim above. |
-| Lyria original memory song | Implemented with prompt-safety and fallback; hosted browser journey verified; final approved-fixture recording still required | [Lyria client](https://github.com/afaryy/MemoryDirector/blob/main/services/api/app/lyria_client.py), [song boundary](https://github.com/afaryy/MemoryDirector/blob/main/services/api/app/memory_song.py), [browser evidence](../qa/ST-49-LIVE-BROWSER-ACCEPTANCE.md) | Claim the song only if the final approved-fixture rehearsal and recording both succeed; otherwise show a verified fallback. |
+| Lyria original memory song | Implemented with prompt-safety and fallback; hosted browser journey and final approved-fixture 60-second export verified | [Lyria client](https://github.com/afaryy/MemoryDirector/blob/main/services/api/app/lyria_client.py), [song boundary](https://github.com/afaryy/MemoryDirector/blob/main/services/api/app/memory_song.py), [browser evidence](../qa/ST-49-LIVE-BROWSER-ACCEPTANCE.md), [rights record](../demo/MEDIA_RIGHTS_REGISTER.md) | The final song may be shown with the truthful model, safety, duration and provenance limits recorded in the rights register. The three-minute submission recording remains pending ST-17. |
 | Video Intelligence | **Not implemented or runtime-verified** | No runtime dependency, call path, workflow or evidence artefact exists on audited `main` | Do not list, mention, imply, or select Video Intelligence in the submission. |
 | Usage, rate-limit, cost and retention controls | Technical quotas, Cloud Armor and retention are deployed; billing controls have their own evidence status | [Control runbook](../operations/USAGE_COST_CONTROLS.md), [public-edge run](https://github.com/afaryy/MemoryDirector/actions/runs/34118291595) | Describe only the controls explicitly marked verified in the runbook. Do not claim an instantaneous hard cloud-spend guarantee. |
 
@@ -102,10 +102,10 @@ The product uses only these data classes:
   passes, Lyria outputs derived from approved prompt context; and
 - team-owned, synthetic, public-domain, or separately licensed demo assets.
 
-The final demo is blocked until every visible or audible asset is approved in
-[`MEDIA_RIGHTS_REGISTER.md`](../demo/MEDIA_RIGHTS_REGISTER.md). That includes
-photos, clips, narration, ambient audio, generated music, cover art, logos, and
-anything visible in screen-recording notifications or browser tabs.
+The approved 60-second film's visible and audible assets are recorded in
+[`MEDIA_RIGHTS_REGISTER.md`](../demo/MEDIA_RIGHTS_REGISTER.md). The later
+three-minute screen recording must still be checked for narration, cover art,
+logos, notifications, browser tabs, or any other newly introduced material.
 
 For a generated song, record the model/version, approved prompt context,
 safety result, duration, generation date, and available provenance. Do not call
