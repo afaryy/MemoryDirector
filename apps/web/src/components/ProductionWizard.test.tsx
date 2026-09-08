@@ -326,6 +326,32 @@ describe("ProductionWizard", () => {
     expect(preview).not.toHaveAttribute("poster");
   });
 
+  it("autoplays one muted frame and offers a tap fallback for iPhone video previews", () => {
+    render(<ProductionWizard />);
+    fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
+      target: { files: [new File(["video"], "IMG_3419.MOV", { type: "video/quicktime" })] },
+    });
+
+    const preview = screen.getByLabelText("Preview IMG_3419.MOV") as HTMLVideoElement;
+    const play = vi.fn().mockResolvedValue(undefined);
+    const pause = vi.fn();
+    Object.defineProperty(preview, "play", { configurable: true, value: play });
+    Object.defineProperty(preview, "pause", { configurable: true, value: pause });
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      callback(0);
+      return 1;
+    });
+
+    expect(preview).toHaveAttribute("autoplay");
+    fireEvent.click(screen.getByRole("button", { name: "Show video preview IMG_3419.MOV" }));
+    expect(play).toHaveBeenCalledOnce();
+
+    fireEvent.playing(preview);
+    expect(pause).toHaveBeenCalledOnce();
+    expect(preview).not.toHaveAttribute("poster");
+    expect(screen.queryByRole("button", { name: "Show video preview IMG_3419.MOV" })).not.toBeInTheDocument();
+  });
+
   it("reorders selected media with the keyboard drag control without revoking consent", () => {
     render(<ProductionWizard />);
     fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
