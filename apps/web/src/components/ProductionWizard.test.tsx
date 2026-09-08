@@ -117,7 +117,8 @@ describe("ProductionWizard", () => {
     const permission = screen.getByLabelText("I have permission to use these media.");
     const picker = screen.getByLabelText("Choose photos and videos");
     expect(permission.compareDocumentPosition(picker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByText(/privately uploaded now.*scheduled for deletion after one day/i)).toBeVisible();
+    expect(screen.getByText("I own or have permission to use these photos and videos.")).toBeVisible();
+    expect(screen.queryByText(/privately uploaded now|scheduled for deletion after one day/i)).not.toBeInTheDocument();
   });
 
   it("clears a spoken or typed request with one labelled action", () => {
