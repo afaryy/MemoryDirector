@@ -56,15 +56,35 @@ type SortableMediaCardProps = {
   isKeyboardGrabbed: boolean;
   item: SelectedMedia;
   onKeyboardReorder: (event: ReactKeyboardEvent<HTMLButtonElement>, itemId: number) => void;
+  onLocalPreviewUnavailable: () => void;
   onRemove: () => void;
   position: number;
   registerRemoveButton: (element: HTMLButtonElement | null) => void;
   total: number;
 };
 
-function VideoThumbnail({ item }: { item: SelectedMedia }) {
+const localVideoFallbackDelayMs = 1_500;
+
+function VideoThumbnail({
+  item,
+  onLocalPreviewUnavailable,
+}: {
+  item: SelectedMedia;
+  onLocalPreviewUnavailable: () => void;
+}) {
   const [frameReady, setFrameReady] = useState(false);
+  const fallbackRef = useRef(onLocalPreviewUnavailable);
   const revealFrame = () => setFrameReady(true);
+
+  useEffect(() => {
+    fallbackRef.current = onLocalPreviewUnavailable;
+  }, [onLocalPreviewUnavailable]);
+
+  useEffect(() => {
+    if (frameReady || item.serverPreviewUrl || item.thumbnailStatus !== "local") return;
+    const timeoutId = window.setTimeout(() => fallbackRef.current(), localVideoFallbackDelayMs);
+    return () => window.clearTimeout(timeoutId);
+  }, [frameReady, item.previewUrl, item.serverPreviewUrl, item.thumbnailStatus]);
 
   if (item.serverPreviewUrl) {
     // Generated thumbnails are private object URLs and cannot use the Next image optimizer.
@@ -78,11 +98,11 @@ function VideoThumbnail({ item }: { item: SelectedMedia }) {
         aria-label={`Preview ${item.file.name}`}
         muted
         onCanPlay={revealFrame}
+        onError={() => fallbackRef.current()}
         onLoadedData={revealFrame}
         onSeeked={revealFrame}
         playsInline
-        poster={frameReady ? undefined : "/video-placeholder.svg"}
-        preload="metadata"
+        preload="auto"
         src={`${item.previewUrl}#t=0.001`}
       />
       {item.thumbnailStatus === "preparing" ? (
@@ -99,6 +119,7 @@ function SortableMediaCard({
   isKeyboardGrabbed,
   item,
   onKeyboardReorder,
+  onLocalPreviewUnavailable,
   onRemove,
   position,
   registerRemoveButton,
@@ -123,7 +144,7 @@ function SortableMediaCard({
           // eslint-disable-next-line @next/next/no-img-element
           <img alt={`Preview ${item.file.name}`} src={item.previewUrl} />
         ) : (
-          <VideoThumbnail item={item} />
+          <VideoThumbnail item={item} onLocalPreviewUnavailable={onLocalPreviewUnavailable} />
         )}
         <span className="wizard__media-kind">
           {item.kind === "photo" ? <ImageIcon aria-hidden="true" /> : <Video aria-hidden="true" />}
@@ -163,6 +184,16 @@ function SortableMediaCard({
 }
 
 const phoneVideoExtension = /\.(?:3g2|3gp|avi|m4v|mkv|mov|mp4|mpeg|mpg|webm)$/i;
+
+type NavigatorWithUserAgentData = Navigator & { userAgentData?: { mobile?: boolean } };
+
+function isMobileMediaBrowser() {
+  const mediaNavigator = navigator as NavigatorWithUserAgentData;
+  if (mediaNavigator.userAgentData?.mobile) return true;
+  const userAgent = mediaNavigator.userAgent;
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(userAgent)
+    || (/Macintosh/i.test(userAgent) && mediaNavigator.maxTouchPoints > 1);
+}
 
 function selectedMediaKind(file: File): SelectedMedia["kind"] {
   return file.type.startsWith("video/") || (!file.type && phoneVideoExtension.test(file.name))
@@ -474,12 +505,23 @@ export function ProductionWizard() {
     drainThumbnailQueue();
   }
 
+  function handleLocalVideoPreviewUnavailable(itemId: number) {
+    const item = mediaItemsRef.current.find((candidate) => candidate.id === itemId);
+    if (!item || item.kind !== "video" || item.thumbnailStatus === "preparing" || item.thumbnailStatus === "ready") return;
+    if (!isMobileMediaBrowser()) return;
+    if (consentRef.current) {
+      enqueueVideoThumbnail(item);
+      return;
+    }
+    replaceMediaItem(item.id, { thumbnailStatus: "error" });
+  }
+
   function updateMediaPermission(allowed: boolean) {
     consentRef.current = allowed;
     setHasMediaPermission(allowed);
     if (allowed) {
       mediaItemsRef.current.forEach((item) => {
-        if (item.kind === "video" && item.thumbnailStatus !== "ready") enqueueVideoThumbnail(item);
+        if (item.kind === "video" && item.thumbnailStatus === "error") enqueueVideoThumbnail(item);
       });
       return;
     }
@@ -551,11 +593,6 @@ export function ProductionWizard() {
         : `Added ${addedItems.length} ${addedItems.length === 1 ? "moment" : "moments"}; ${nextItems.length} selected.`,
     );
     changeProductionState(previewUrlRef.current ? "preview" : "ready");
-    if (consentRef.current) {
-      addedItems.forEach((item) => {
-        if (item.kind === "video") enqueueVideoThumbnail(item);
-      });
-    }
   }
 
   function clearSelectedMedia() {
@@ -917,6 +954,7 @@ export function ProductionWizard() {
                               item={item}
                               key={item.id}
                               onKeyboardReorder={handleKeyboardReorder}
+                              onLocalPreviewUnavailable={() => handleLocalVideoPreviewUnavailable(item.id)}
                               onRemove={() => removeMediaFile(index)}
                               position={index + 1}
                               registerRemoveButton={(element) => {
